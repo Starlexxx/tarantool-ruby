@@ -207,6 +207,14 @@ RSpec.describe Tarantool::Client do
         .to raise_error(Tarantool::TimeoutError, 'no response within 0.3s')
       expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.6
     end
+
+    it 'does not send the retry once the reload used up the timeout' do
+      schema_state[:delay] = 0.15
+
+      expect { client.select(:users, 1, timeout: 0.2) }.to raise_error(Tarantool::TimeoutError)
+      client.select(512, 1, index: 0)
+      expect(server.headers.count { |header| header[0x00] == 0x01 && header.key?(0x05) }).to eq(1)
+    end
   end
 
   context 'with watchers' do

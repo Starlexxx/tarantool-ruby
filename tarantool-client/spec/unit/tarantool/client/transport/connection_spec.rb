@@ -122,6 +122,15 @@ RSpec.describe Tarantool::Client::Transport::Connection do
 
         expect(server.headers.last[0x05]).to eq(80)
       end
+
+      it 'raises TimeoutError without sending when no time is left' do
+        connection
+        sent = server.headers.size
+
+        expect { connection.perform(eval_request('x'), timeout: 0) }.to raise_error(Tarantool::TimeoutError)
+        connection.perform(eval_request('return 1'), timeout: 1)
+        expect(server.headers.size).to eq(sent + 1)
+      end
     end
 
     context 'when the server returns an error' do

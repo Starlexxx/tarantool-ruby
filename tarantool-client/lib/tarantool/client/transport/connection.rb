@@ -24,8 +24,11 @@ module Tarantool
           raise
         end
 
+        # A request sent with no time left could still run on the server while the caller gets TimeoutError.
         def perform(request, timeout:, stream_id: nil, schema_version: nil, on_push: nil)
           deadline = Deadline.after(timeout)
+          raise TimeoutError, "no response within #{timeout}s" if Deadline.remaining(deadline)&.zero?
+
           sync, future = @pending.register
           write(Protocol::Codec.encode(request, sync:, stream_id:, schema_version:), deadline)
           response = await(future, deadline, timeout, &on_push)
