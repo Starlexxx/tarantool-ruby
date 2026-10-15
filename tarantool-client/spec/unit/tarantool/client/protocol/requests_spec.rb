@@ -15,6 +15,20 @@ RSpec.describe Tarantool::Client::Protocol::Requests do
     expect(encoded(request)).to eq([0x01, { 0x10 => 512, 0x11 => 1, 0x12 => 10, 0x13 => 2, 0x14 => 5, 0x20 => ['a'] }])
   end
 
+  it 'builds SELECT with the tuple to continue after' do
+    request = described_class::Select.new(
+      space_id: 512, index_id: 1, key: [18], limit: 2, offset: 0, iterator: :ge, after: [7, 18]
+    )
+
+    expect(encoded(request).last).to include(0x2f => [7, 18])
+  end
+
+  it 'leaves the after tuple out of SELECT by default' do
+    request = described_class::Select.new(space_id: 512, index_id: 0, key: [], limit: 1, offset: 0, iterator: :all)
+
+    expect(encoded(request).last).not_to have_key(0x2f)
+  end
+
   it 'rejects unknown SELECT iterators' do
     expect do
       described_class::Select.new(space_id: 512, index_id: 0, key: [], limit: 1, offset: 0, iterator: :sideways)

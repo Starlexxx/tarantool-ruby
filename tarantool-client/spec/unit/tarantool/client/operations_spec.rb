@@ -45,6 +45,12 @@ RSpec.describe Tarantool::Client::Operations do
     )
   end
 
+  it 'selects after a tuple' do
+    target.select(:users, [], iterator: :all, limit: 2, after: [1, 'a@b.c'])
+
+    expect(last_request.after).to eq([1, 'a@b.c'])
+  end
+
   it 'passes the per-request timeout' do
     target.select(:users, 1, timeout: 0.5)
 

@@ -12,9 +12,9 @@ module Tarantool
       end
 
       def select(space, key = [], index: 0, limit: Protocol::Constants::MAX_LIMIT, offset: 0, iterator: :eq,
-                 timeout: nil)
+                 after: nil, timeout: nil)
         perform_on_space(space, index, timeout:) do |space_id, index_id|
-          Protocol::Requests::Select.new(space_id:, index_id:, key: key_tuple(key), limit:, offset:, iterator:)
+          Protocol::Requests::Select.new(space_id:, index_id:, key: key_tuple(key), limit:, offset:, iterator:, after:)
         end.data
       end
 

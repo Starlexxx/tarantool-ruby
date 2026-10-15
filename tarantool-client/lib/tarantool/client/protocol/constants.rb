@@ -21,6 +21,7 @@ module Tarantool
         USER_NAME = 0x23
         EXPR = 0x27
         OPS = 0x28
+        AFTER_TUPLE = 0x2f
         DATA = 0x30
         ERROR_24 = 0x31
         METADATA = 0x32
