@@ -33,6 +33,17 @@ RSpec.describe Tarantool::Client::Transport::FrameWriter do
     expect(partial_writes).to eq([8_000_000])
   end
 
+  it 'reports a partial write when an async interrupt arrives right after a write' do
+    interrupt = Class.new(StandardError)
+    socket.define_singleton_method(:write_nonblock) do |*args, **kwargs|
+      singleton_class.remove_method(:write_nonblock)
+      super(*args, **kwargs).tap { Thread.current.raise(interrupt) }
+    end
+
+    expect { write('x' * 8_000_000, nil) }.to raise_error(interrupt)
+    expect(partial_writes).to eq([8_000_000])
+  end
+
   it 'raises TimeoutError without reporting a partial write when nothing was sent' do
     fill_socket_buffer
 

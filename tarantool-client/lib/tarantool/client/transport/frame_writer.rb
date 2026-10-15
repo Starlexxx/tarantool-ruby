@@ -12,10 +12,14 @@ module Tarantool
           @lock = Mutex.new
         end
 
+        # Async interrupts (Thread#raise, Timeout) are held until the blocking wait, so they
+        # never land between a write and the update of the unsent remainder.
         def write(frame, deadline)
           @lock.synchronize do
             rest = frame
-            rest = write_some(rest, deadline) until rest.empty?
+            Thread.handle_interrupt(Object => :on_blocking) do
+              rest = write_some(rest, deadline) until rest.empty?
+            end
           ensure
             yield if rest && !rest.empty? && rest.bytesize < frame.bytesize
           end
