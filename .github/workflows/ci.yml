@@ -34,3 +34,20 @@ jobs:
         env:
           INTEGRATION: '1'
           TARANTOOL_URI: tcp://app:secret@localhost:${{ matrix.tarantool.port }}
+
+  failover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      - run: >-
+          docker compose -p tarantool-failover -f tarantool-client/docker-compose.yml --profile failover
+          up -d --wait failover-a failover-b
+      - run: bundle exec rspec --tag failover
+        working-directory: tarantool-client
+        env:
+          TARANTOOL_FAILOVER_URIS: tcp://app:secret@localhost:3311,tcp://app:secret@localhost:3312
+          TARANTOOL_FAILOVER_CONTAINERS: tarantool-failover-failover-a-1,tarantool-failover-failover-b-1

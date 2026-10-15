@@ -22,3 +22,15 @@ services:
     <<: *tarantool
     image: tarantool/tarantool:3
     ports: ['3302:3301']
+
+  failover-a:
+    <<: *tarantool
+    image: tarantool/tarantool:2.11
+    profiles: [failover]
+    ports: ['3311:3301']
+
+  failover-b:
+    <<: *tarantool
+    image: tarantool/tarantool:3
+    profiles: [failover]
+    ports: ['3312:3301']

@@ -12,4 +12,5 @@ RSpec.configure do |config|
   config.disable_monkey_patching!
   config.order = :random
   config.filter_run_excluding :integration unless ENV['INTEGRATION']
+  config.filter_run_excluding :failover unless ENV['TARANTOOL_FAILOVER_URIS']
 end
