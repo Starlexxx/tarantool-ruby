@@ -31,6 +31,8 @@ module Tarantool
         ERROR = 0x52
         VERSION = 0x54
         FEATURES = 0x55
+        TIMEOUT = 0x56
+        TXN_ISOLATION = 0x59
 
         OK = 0x00
         SELECT = 0x01
@@ -44,6 +46,9 @@ module Tarantool
         CALL = 0x0a
         EXECUTE = 0x0b
         PREPARE = 0x0d
+        BEGIN_TRANSACTION = 0x0e
+        COMMIT = 0x0f
+        ROLLBACK = 0x10
         PING = 0x40
         ID = 0x49
         CHUNK = 0x80
@@ -67,6 +72,8 @@ module Tarantool
           bits_all_set: 7, bits_any_set: 8, bits_all_not_set: 9, overlaps: 10, neighbor: 11,
           np: 12, pp: 13
         }.freeze
+
+        ISOLATION_LEVELS = { default: 0, read_committed: 1, read_confirmed: 2, best_effort: 3, linearizable: 4 }.freeze
 
         PROTOCOL_VERSION = 3
         FEATURE_STREAMS = 0
