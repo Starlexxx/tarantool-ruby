@@ -37,12 +37,15 @@ module Tarantool
           @lock.synchronize { @failure }
         end
 
+        # Returns whether this call recorded the failure; later calls keep the first one.
         def fail_all(error)
-          failure, futures = @lock.synchronize do
+          first, failure, futures = @lock.synchronize do
+            first = @failure.nil?
             @failure ||= error
-            [@failure, @futures.values.tap { @futures.clear }]
+            [first, @failure, @futures.values.tap { @futures.clear }]
           end
           futures.each { |future| future.reject(failure) }
+          first
         end
       end
     end

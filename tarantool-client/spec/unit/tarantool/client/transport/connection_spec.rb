@@ -296,6 +296,33 @@ RSpec.describe Tarantool::Client::Transport::Connection do
     end
   end
 
+  describe 'losing the connection' do
+    let(:lost) { Thread::Queue.new }
+    let(:connection) do
+      described_class.new(config).tap { |c| c.disconnect_handler = -> { lost << c.closed? } }.connect
+    end
+
+    after { connection.close }
+
+    it 'calls the disconnect handler once, after the connection is marked closed' do
+      connection
+      server.disconnect
+
+      expect(lost.pop(timeout: 1)).to be(true)
+      expect(lost.pop(timeout: 0.1)).to be_nil
+    end
+
+    it 'does not call the disconnect handler on close' do
+      connection.close
+
+      expect(lost.pop(timeout: 0.1)).to be_nil
+    end
+
+    it 'is not closed while connected' do
+      expect(connection.closed?).to be(false)
+    end
+  end
+
   describe '#notify' do
     let(:watch) { Tarantool::Client::Protocol::Requests::Watch.new(key: 'box.status') }
 

@@ -9,7 +9,7 @@ module Tarantool
       # perform requests concurrently; a reader thread routes responses by sync.
       class Connection
         attr_reader :greeting, :server_features
-        attr_writer :event_handler
+        attr_writer :event_handler, :disconnect_handler
 
         def initialize(config)
           @config = config
@@ -49,6 +49,10 @@ module Tarantool
           @socket&.close
           @reader&.join unless Thread.current == @reader
           nil
+        end
+
+        def closed?
+          !@pending.failure.nil?
         end
 
         private
@@ -119,9 +123,11 @@ module Tarantool
           raise ConnectionError, "write to #{@config.address} failed: #{e.message}"
         end
 
+        # The handler hears only of a loss: close records ClientClosedError first, so it stays silent.
         def break_connection(message)
-          @pending.fail_all(ConnectionError.new(message))
+          lost = @pending.fail_all(ConnectionError.new(message))
           @socket&.close
+          @disconnect_handler&.call if lost
         end
       end
     end

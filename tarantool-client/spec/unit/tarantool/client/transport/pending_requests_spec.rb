@@ -47,6 +47,13 @@ RSpec.describe Tarantool::Client::Transport::PendingRequests do
     expect(thread.value).to eq(Tarantool::ConnectionError)
   end
 
+  it 'reports whether fail_all recorded the failure' do
+    first = pending.fail_all(Tarantool::ConnectionError.new('lost'))
+    second = pending.fail_all(Tarantool::ClientClosedError.new('closed'))
+
+    expect([first, second]).to eq([true, false])
+  end
+
   it 'keeps the first failure reason' do
     pending.fail_all(Tarantool::ClientClosedError.new('closed'))
     pending.fail_all(Tarantool::ConnectionError.new('lost'))
