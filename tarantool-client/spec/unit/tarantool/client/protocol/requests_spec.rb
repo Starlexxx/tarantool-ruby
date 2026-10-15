@@ -63,4 +63,9 @@ RSpec.describe Tarantool::Client::Protocol::Requests do
     expect(encoded(described_class::Id.new(version: 3, features: [0, 1])))
       .to eq([0x49, { 0x54 => 3, 0x55 => [0, 1] }])
   end
+
+  it 'builds WATCH and UNWATCH' do
+    expect(encoded(described_class::Watch.new(key: 'box.status'))).to eq([0x4a, { 0x57 => 'box.status' }])
+    expect(encoded(described_class::Unwatch.new(key: 'box.status'))).to eq([0x4b, { 0x57 => 'box.status' }])
+  end
 end

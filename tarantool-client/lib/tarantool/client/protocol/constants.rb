@@ -26,6 +26,8 @@ module Tarantool
         ERROR = 0x52
         VERSION = 0x54
         FEATURES = 0x55
+        EVENT_KEY = 0x57
+        EVENT_DATA = 0x58
 
         OK = 0x00
         SELECT = 0x01
@@ -39,6 +41,9 @@ module Tarantool
         CALL = 0x0a
         PING = 0x40
         ID = 0x49
+        WATCH = 0x4a
+        UNWATCH = 0x4b
+        EVENT = 0x4c
         CHUNK = 0x80
         TYPE_ERROR = 0x8000
 
