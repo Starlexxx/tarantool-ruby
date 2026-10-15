@@ -76,6 +76,38 @@ RSpec.describe Tarantool::Client do
 
       expect(server.headers.last).not_to have_key(0x05)
     end
+
+    describe '#transaction' do
+      def stream_requests
+        server.headers.select { |header| header.key?(0x0a) }.map { |header| [header[0x00], header[0x0a]] }
+      end
+
+      it 'runs each transaction on a new stream' do
+        2.times { client.transaction(&:ping) }
+
+        expect(stream_requests).to eq([[0x0e, 1], [0x40, 1], [0x0f, 1], [0x0e, 2], [0x40, 2], [0x0f, 2]])
+      end
+
+      it 'rejects a nested transaction on the same client and rolls back the outer one' do
+        expect { client.transaction { client.transaction { nil } } }
+          .to raise_error(Tarantool::TransactionError, 'nested transactions are not supported')
+        expect(stream_requests).to eq([[0x0e, 1], [0x10, 1]])
+      end
+
+      it 'lets a thread started inside a transaction open its own' do
+        expect(client.transaction { Thread.new { client.transaction { :inner } }.value }).to eq(:inner)
+      end
+
+      it 'allows a new transaction after a failed one' do
+        expect { client.transaction { raise 'boom' } }.to raise_error(RuntimeError, 'boom')
+        expect(client.transaction { :again }).to eq(:again)
+      end
+
+      it 'rejects an unknown isolation level before sending anything' do
+        expect { client.transaction(isolation: :serializable) { nil } }.to raise_error(ArgumentError)
+        expect(stream_requests).to eq([])
+      end
+    end
   end
 
   context 'when another client changes the schema' do

@@ -54,6 +54,7 @@ module Tarantool
       @connection = Transport::Connection.new(@config).connect
       @schema_cache = SchemaCache.new(@connection)
       @schema_cache.reload(timeout: @config.request_timeout)
+      @stream_ids = Transport::StreamIds.new
     rescue StandardError
       @connection&.close
       raise
@@ -61,6 +62,16 @@ module Tarantool
 
     def server_version
       @connection.greeting.version
+    end
+
+    def transaction(isolation: :default, timeout: nil, &block)
+      TransactionScope.enter(self) do
+        stream = Stream.new(
+          connection: @connection, schema_cache: @schema_cache, id: @stream_ids.next,
+          request_timeout: @config.request_timeout
+        )
+        stream.transaction(isolation:, timeout:, &block)
+      end
     end
 
     def close
