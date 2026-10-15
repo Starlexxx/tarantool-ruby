@@ -37,6 +37,7 @@ require_relative 'client/schema'
 require_relative 'client/schema_cache'
 require_relative 'client/sql_result'
 require_relative 'client/prepared_statement'
+require_relative 'client/transaction_schema'
 require_relative 'client/operations'
 
 module Tarantool

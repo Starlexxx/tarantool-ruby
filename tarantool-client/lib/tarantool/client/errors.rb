@@ -22,6 +22,9 @@ module Tarantool
   # Space or index name cannot be resolved.
   class SchemaError < Error; end
 
+  # A transaction cannot proceed because the schema changed mid-flight.
+  class TransactionError < Error; end
+
   # Error returned by the server for a request.
   class ServerError < Error
     attr_reader :code, :error_stack, :schema_version
