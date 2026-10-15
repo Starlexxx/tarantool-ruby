@@ -9,17 +9,21 @@ require 'tmpdir'
 # test drains with #next_request and answers with #reply. With
 # check_schema_version it rejects requests carrying a stale schema version
 # the way Tarantool does, before they reach the handler. A delay slows down
-# the greeting and the ID and AUTH replies.
+# the greeting and the ID and AUTH replies. Connections are served one at a
+# time; after one drops, the next is accepted. With refusing it closes new
+# connections at once.
 class FakeTarantool
   include IprotoHelpers
 
-  attr_reader :path, :headers
-  attr_accessor :schema_version
+  attr_reader :path, :headers, :connections
+  attr_accessor :schema_version, :refusing
 
   def initialize(auth_error: nil, id_error: nil, greeting: true, check_schema_version: false, delay: 0, &handler)
     @options = { auth_error:, id_error:, greeting:, check_schema_version:, delay: }
     @headers = []
     @schema_version = 1
+    @connections = 0
+    @refusing = false
     @handler = handler
     @requests = Thread::Queue.new
     @write_lock = Mutex.new
@@ -28,6 +32,10 @@ class FakeTarantool
 
   def uri = "unix:#{path}"
   def auth_requests = headers.count { |header| header[0x00] == 0x07 }
+
+  def auth_error=(message)
+    @options[:auth_error] = message
+  end
 
   def next_request(timeout: 1)
     @requests.pop(timeout:) || raise('no request received')
@@ -55,9 +63,7 @@ class FakeTarantool
     @write_lock.synchronize { @socket.write(bytes) }
   end
 
-  def disconnect
-    @socket&.close
-  end
+  def disconnect = @socket&.close
 
   def stop
     disconnect
@@ -76,14 +82,23 @@ class FakeTarantool
   end
 
   def serve
-    @socket = socket = @server.accept
+    loop { serve_connection(@server.accept) }
+  rescue IOError, SystemCallError
+    nil
+  end
+
+  def serve_connection(socket)
+    return socket.close if refusing
+
+    @connections += 1
+    @socket = socket
     return sleep unless @options[:greeting]
 
     sleep @options[:delay]
     socket.write(iproto_greeting)
     loop { route(Tarantool::Client::Protocol::Codec.read_response(socket)) }
   rescue IOError, SystemCallError, Tarantool::ProtocolError
-    nil
+    socket.close
   end
 
   def route(request)
