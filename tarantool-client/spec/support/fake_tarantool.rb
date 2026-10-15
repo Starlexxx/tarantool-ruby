@@ -45,10 +45,10 @@ class FakeTarantool
     write(request, 0x80, { 0x30 => data })
   end
 
-  def event(key, data = nil)
+  def event(key, data = nil, sync: 0)
     body = { 0x57 => key }
     body[0x58] = data unless data.nil?
-    @write_lock.synchronize { @socket.write(iproto_frame({ 0x00 => 0x4c, 0x01 => 0 }, body)) }
+    @write_lock.synchronize { @socket.write(iproto_frame({ 0x00 => 0x4c, 0x01 => sync }, body)) }
   end
 
   def send_raw(bytes)

@@ -153,6 +153,19 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       end
     end
 
+    context 'when an event carries the sync of a pending request' do
+      let(:handler) do
+        lambda do |request, fake|
+          fake.event('k', 1, sync: request.sync)
+          fake.reply(request, ['done'])
+        end
+      end
+
+      it 'resolves the request with its reply, not the event' do
+        expect(connection.perform(eval_request('x'), timeout: 1).data).to eq(['done'])
+      end
+    end
+
     context 'when on_push is slow' do
       let(:handler) do
         lambda do |request, fake|
