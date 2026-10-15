@@ -5,10 +5,10 @@ module Tarantool
     # Format and indexes of a space from the loaded schema. `indexes` maps names to IndexInfo in id order.
     SpaceInfo = Data.define(:id, :name, :fields, :indexes) do
       def self.from_tuples(space, index_tuples)
-        fields = (space[6] || []).map { |raw| SpaceInfo::Field.from_raw(raw) }
-        sorted = index_tuples.sort_by { |tuple| tuple[1] }
-        indexes = sorted.to_h { |tuple| [tuple[2], IndexInfo.from_tuple(tuple, fields)] }
-        new(id: space[0], name: space[2], fields:, indexes:)
+        id, _owner, name, _engine, _field_count, _flags, format = space
+        fields = (format || []).map { |raw| SpaceInfo::Field.from_raw(raw) }
+        indexes = index_tuples.map { |tuple| IndexInfo.from_tuple(tuple, fields) }.sort_by(&:id)
+        new(id:, name:, fields:, indexes: indexes.to_h { |index| [index.name, index] })
       end
 
       def primary_index

@@ -5,9 +5,11 @@ module Tarantool
     # One index of a space as listed in _vindex.
     IndexInfo = Data.define(:id, :name, :type, :unique, :parts) do
       def self.from_tuple(tuple, fields)
-        opts = tuple[4] || {}
-        parts = (tuple[5] || []).map { |raw| IndexInfo::Part.from_raw(raw, fields) }
-        new(id: tuple[1], name: tuple[2], type: tuple[3], unique: opts.fetch('unique', true), parts:)
+        _space_id, id, name, type, opts, parts = tuple
+        new(
+          id:, name:, type:, unique: (opts || {}).fetch('unique', true),
+          parts: (parts || []).map { |raw| IndexInfo::Part.from_raw(raw, fields) }
+        )
       end
     end
 

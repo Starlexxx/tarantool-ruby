@@ -43,9 +43,8 @@ module Tarantool
 
       def build_space_infos(spaces, indexes)
         indexes_by_space = indexes.group_by(&:first)
-        spaces.to_h do |space|
-          [space[0], SpaceInfo.from_tuples(space, indexes_by_space.fetch(space[0], []))]
-        end
+        infos = spaces.map { |space| SpaceInfo.from_tuples(space, indexes_by_space.fetch(space.first, [])) }
+        infos.to_h { |info| [info.id, info] }
       end
 
       def space_id(space)
