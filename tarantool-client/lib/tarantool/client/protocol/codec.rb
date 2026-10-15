@@ -10,7 +10,9 @@ module Tarantool
         FACTORY = MessagePack::Factory.new.tap do |factory|
           factory.register_type(
             Constants::MP_ERROR, BoxError,
-            unpacker: ->(payload) { BoxError.from_stack(MessagePack.unpack(payload).fetch(Constants::ERROR_STACK)) }
+            unpacker: lambda { |payload|
+              BoxError.from_stack(FACTORY.load(payload, allow_unknown_ext: true).fetch(Constants::ERROR_STACK))
+            }
           )
         end.freeze
 

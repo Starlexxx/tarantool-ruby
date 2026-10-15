@@ -100,6 +100,28 @@ RSpec.describe Tarantool::Client::Protocol::Codec do
       expect(error.cause).to have_attributes(message: 'root', code: 7, cause: nil)
     end
 
+    it 'decodes other extension values nested in box.error fields' do
+      uuid = MessagePack::ExtensionValue.new(2, "\x01".b * 16)
+      stack = { 0x00 => [{ 0x03 => 'boom', 0x06 => { 'id' => uuid } }] }
+      body = { 0x30 => [MessagePack::ExtensionValue.new(3, MessagePack.pack(stack))] }
+      payload = MessagePack.pack({ 0x00 => 0, 0x01 => 9 }) + MessagePack.pack(body)
+
+      error = described_class.decode(payload).data.first
+
+      expect(error.fields).to eq('id' => uuid)
+    end
+
+    it 'decodes a box.error nested in box.error fields' do
+      inner = MessagePack::ExtensionValue.new(3, MessagePack.pack({ 0x00 => [{ 0x03 => 'inner' }] }))
+      stack = { 0x00 => [{ 0x03 => 'outer', 0x06 => { 'origin' => inner } }] }
+      body = { 0x30 => [MessagePack::ExtensionValue.new(3, MessagePack.pack(stack))] }
+      payload = MessagePack.pack({ 0x00 => 0, 0x01 => 9 }) + MessagePack.pack(body)
+
+      error = described_class.decode(payload).data.first
+
+      expect(error.fields['origin']).to be_a(Tarantool::Client::BoxError).and have_attributes(message: 'inner')
+    end
+
     it 'raises ProtocolError on a malformed box.error extension value' do
       body = { 0x30 => [MessagePack::ExtensionValue.new(3, "\xc1".b)] }
       payload = MessagePack.pack({ 0x00 => 0, 0x01 => 9 }) + MessagePack.pack(body)
