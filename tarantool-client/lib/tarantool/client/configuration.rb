@@ -16,21 +16,38 @@ module Tarantool
 
       def self.parse_uri(uri)
         return {} if uri.nil?
-        return { path: uri.delete_prefix('unix:') } if uri.start_with?('unix:')
 
+        match = %r{\Aunix/?:(?://)?(.+)\z}.match(uri)
+        return { path: "/#{match[1].delete_prefix('/')}" } if match
+
+        parse_tcp_uri(uri)
+      end
+
+      def self.parse_tcp_uri(uri)
         parsed = URI.parse(uri.include?('://') ? uri : "tcp://#{uri}")
+        user = parsed.user == '' ? nil : parsed.user
         {
-          host: parsed.host,
+          host: parsed.hostname,
           port: parsed.port,
-          user: parsed.user && URI.decode_uri_component(parsed.user),
+          user: user && URI.decode_uri_component(user),
           password: parsed.password && URI.decode_uri_component(parsed.password)
         }.compact
+      rescue URI::InvalidURIError
+        raise ArgumentError, 'invalid Tarantool URI'
       end
-      private_class_method :defaults, :parse_uri
+      private_class_method :defaults, :parse_uri, :parse_tcp_uri
 
       def address
-        path || "#{host}:#{port}"
+        return path if path
+
+        host.include?(':') ? "[#{host}]:#{port}" : "#{host}:#{port}"
       end
+
+      def inspect
+        fields = to_h.merge(password: password && '[FILTERED]').map { |k, v| "#{k}=#{v.inspect}" }.join(', ')
+        "#<data #{self.class.name} #{fields}>"
+      end
+      alias_method :to_s, :inspect
     end
   end
 end

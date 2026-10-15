@@ -22,12 +22,36 @@ RSpec.describe Tarantool::Client::Configuration do
       expect(described_class.build('unix:/tmp/tt.sock').path).to eq('/tmp/tt.sock')
     end
 
+    it 'parses a unix socket URI with three slashes' do
+      expect(described_class.build('unix:///tmp/tt.sock').path).to eq('/tmp/tt.sock')
+    end
+
+    it 'parses a tarantool-style unix socket URI' do
+      expect(described_class.build('unix/:/tmp/tt.sock').path).to eq('/tmp/tt.sock')
+    end
+
+    it 'parses an IPv6 host without a scheme' do
+      expect(described_class.build('[::1]:3301')).to have_attributes(host: '::1', port: 3301)
+    end
+
+    it 'parses an IPv6 host with a tcp scheme' do
+      expect(described_class.build('tcp://[::1]:3302')).to have_attributes(host: '::1', port: 3302)
+    end
+
+    it 'treats an empty URI user as nil' do
+      expect(described_class.build('tcp://:pw@h:1').user).to be_nil
+    end
+
     it 'lets options override the URI' do
       expect(described_class.build('tcp://app@db.local', user: 'admin').user).to eq('admin')
     end
 
     it 'rejects unknown options' do
       expect { described_class.build(retries: 3) }.to raise_error(ArgumentError)
+    end
+
+    it 'rejects an invalid URI' do
+      expect { described_class.build('tcp://u:p#x@h:1') }.to raise_error(ArgumentError, 'invalid Tarantool URI')
     end
   end
 
@@ -38,6 +62,27 @@ RSpec.describe Tarantool::Client::Configuration do
 
     it 'is the path for unix sockets' do
       expect(described_class.build('unix:/tmp/tt.sock').address).to eq('/tmp/tt.sock')
+    end
+
+    it 'brackets an IPv6 host' do
+      expect(described_class.build('[::1]:3301').address).to eq('[::1]:3301')
+    end
+  end
+
+  describe '#inspect' do
+    it 'masks a password' do
+      expect(described_class.build('tcp://app:secret@db.local').inspect).to include('password="[FILTERED]"')
+    end
+
+    it 'keeps a nil password as nil' do
+      expect(described_class.build.inspect).to include('password=nil')
+    end
+  end
+
+  describe '#to_s' do
+    it 'matches inspect' do
+      config = described_class.build('tcp://app:secret@db.local')
+      expect(config.to_s).to eq(config.inspect)
     end
   end
 end
