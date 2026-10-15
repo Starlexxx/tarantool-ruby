@@ -84,6 +84,24 @@ RSpec.describe Tarantool::Client::Protocol::Codec do
         .to raise_error(Tarantool::ProtocolError, 'malformed frame: trailing bytes')
     end
 
+    it 'decodes a box.error extension value with its cause chain' do
+      stack = { 0x00 => [{ 0x00 => 'ClientError', 0x03 => 'boom', 0x05 => 42 }, { 0x03 => 'root', 0x05 => 7 }] }
+      body = { 0x30 => [MessagePack::ExtensionValue.new(3, MessagePack.pack(stack))] }
+      payload = MessagePack.pack({ 0x00 => 0, 0x01 => 9 }) + MessagePack.pack(body)
+
+      error = described_class.decode(payload).data.first
+
+      expect(error).to be_a(Tarantool::Client::BoxError).and have_attributes(message: 'boom', code: 42)
+      expect(error.cause).to have_attributes(message: 'root', code: 7, cause: nil)
+    end
+
+    it 'raises ProtocolError on a malformed box.error extension value' do
+      body = { 0x30 => [MessagePack::ExtensionValue.new(3, "\xc1".b)] }
+      payload = MessagePack.pack({ 0x00 => 0, 0x01 => 9 }) + MessagePack.pack(body)
+
+      expect { described_class.decode(payload) }.to raise_error(Tarantool::ProtocolError)
+    end
+
     it 'decodes an unknown ext type in the body to a MessagePack::ExtensionValue' do
       body = { 0x30 => [MessagePack::ExtensionValue.new(42, 'x')] }
       payload = MessagePack.pack({ 0x00 => 0, 0x01 => 9 }) + MessagePack.pack(body)

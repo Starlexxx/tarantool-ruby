@@ -7,7 +7,12 @@ module Tarantool
       module Codec
         SIZE_MARKER = 0xce
         PREFIX_SIZE = 5
-        FACTORY = MessagePack::Factory.new
+        FACTORY = MessagePack::Factory.new.tap do |factory|
+          factory.register_type(
+            Constants::MP_ERROR, BoxError,
+            unpacker: ->(payload) { BoxError.from_stack(MessagePack.unpack(payload).fetch(Constants::ERROR_STACK)) }
+          )
+        end.freeze
 
         module_function
 

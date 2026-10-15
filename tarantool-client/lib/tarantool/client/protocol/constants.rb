@@ -44,6 +44,7 @@ module Tarantool
 
         ER_WRONG_SCHEMA_VERSION = 109
 
+        MP_ERROR = 0x03
         ERROR_STACK = 0x00
         ERROR_FIELDS = {
           0x00 => :type, 0x01 => :file, 0x02 => :line, 0x03 => :message,
@@ -57,8 +58,11 @@ module Tarantool
         }.freeze
 
         PROTOCOL_VERSION = 3
-        # streams, transactions, error_extension, watchers
-        CLIENT_FEATURES = [0, 1, 2, 3].freeze
+        FEATURE_STREAMS = 0
+        FEATURE_TRANSACTIONS = 1
+        FEATURE_ERROR_EXTENSION = 2
+        FEATURE_WATCHERS = 3
+        CLIENT_FEATURES = [FEATURE_STREAMS, FEATURE_TRANSACTIONS, FEATURE_ERROR_EXTENSION, FEATURE_WATCHERS].freeze
 
         GREETING_SIZE = 128
         SCRAMBLE_SIZE = 20

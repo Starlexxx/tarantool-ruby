@@ -33,6 +33,17 @@ RSpec.describe Tarantool::Client, :integration do
     expect(client.eval('return ...', [2, 3])).to eq([2, 3])
   end
 
+  it 'returns box.error values with their cause chain' do
+    error = client.eval(<<~LUA).first
+      local err = box.error.new({code = 42, reason = 'boom'})
+      err:set_prev(box.error.new({code = 7, reason = 'root'}))
+      return err
+    LUA
+
+    expect(error).to have_attributes(class: Tarantool::Client::BoxError, message: 'boom', code: 42)
+    expect(error.cause).to have_attributes(message: 'root', code: 7)
+  end
+
   it 'raises ServerError with the Tarantool error code on duplicate key' do
     client.insert(:users, [1, 'a@b.c', 0])
 
