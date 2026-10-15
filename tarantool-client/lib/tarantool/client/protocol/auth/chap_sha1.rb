@@ -16,6 +16,7 @@ module Tarantool
             hash1 = Digest::SHA1.digest(password)
             hash2 = Digest::SHA1.digest(hash1)
             hash3 = Digest::SHA1.digest(salt.byteslice(0, Constants::SCRAMBLE_SIZE) + hash2)
+
             hash1.bytes.zip(hash3.bytes).map { |left, right| left ^ right }.pack('C*')
           end
         end

@@ -17,6 +17,7 @@ module Tarantool
 
       def close(timeout: nil)
         @perform.call(Protocol::Requests::Prepare.new(statement: id), timeout:)
+
         nil
       end
     end

@@ -166,11 +166,13 @@ RSpec.describe Tarantool::Client do
       schema_state[:vspace_requests] += 1
       sleep schema_state[:delay].to_f
       fake.reply(request, [[schema_state[:users_id], 1, 'users']])
+
       fake.schema_version += 1 if schema_state[:churn]
     end
 
     def reply_vindex(request, fake)
       sleep schema_state[:delay].to_f
+
       fake.reply(request, [[schema_state[:users_id], 0, 'primary']])
     end
 
@@ -320,6 +322,7 @@ RSpec.describe Tarantool::Client do
     def reconnect
       client
       server.disconnect
+
       wait_for { server.connections == 2 && client.connected? }
     end
 

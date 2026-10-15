@@ -16,6 +16,7 @@ module Tarantool
       # its schema wins: the fetched one is kept only while the stale one is still current.
       def reload(stale, timeout:)
         deadline = Transport::Deadline.after(timeout)
+
         @lock.synchronize(deadline) do
           return @schema unless @schema.equal?(stale)
 

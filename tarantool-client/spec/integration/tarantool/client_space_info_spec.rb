@@ -32,6 +32,7 @@ RSpec.describe Tarantool::Client, :integration do
     until pages.last.size < size
       pages << client.select(:page_items, key, index:, iterator:, limit: size, after: pages.last.last)
     end
+
     pages
   end
 

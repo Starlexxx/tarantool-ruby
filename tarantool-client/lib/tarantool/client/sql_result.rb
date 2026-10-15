@@ -6,6 +6,7 @@ module Tarantool
     SqlResult = Data.define(:rows, :columns, :row_count, :autoincrement_ids) do
       def self.from_response(response)
         info = response.body.fetch(Protocol::Constants::SQL_INFO, {})
+
         new(
           rows: response.data || [],
           columns: column_names(response.body),

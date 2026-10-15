@@ -29,6 +29,7 @@ module Tarantool
 
       def select(conditions = nil, **options)
         options[:after] = options[:after].values if options[:after].is_a?(Hash)
+
         Result.from_crud(value('select', Conditions.build(conditions), **options))
       end
 

@@ -23,6 +23,7 @@ module Tarantool
           bounds = []
           bounds << ['>=', field, value.begin] unless value.begin.nil?
           bounds << [value.exclude_end? ? '<' : '<=', field, value.end] unless value.end.nil?
+
           bounds
         end
 

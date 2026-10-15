@@ -14,6 +14,7 @@ module Tarantool
 
           def pack(interval)
             pairs = codes(interval).each_with_index.reject { |code, _id| code.zero? }
+
             pairs.reduce([pairs.size].pack('C')) do |payload, (code, id)|
               payload + [id].pack('C') + MessagePack.pack(code)
             end
@@ -27,11 +28,13 @@ module Tarantool
 
             attributes = pairs.each_slice(2).to_h { |id, value| [FIELDS.fetch(id), value] }
             attributes[:adjust] = decode_adjust(attributes.fetch(:adjust, 0))
+
             Client::Interval.new(**attributes)
           end
 
           def codes(interval)
             values = interval.to_h.merge(adjust: encode_adjust(interval.adjust))
+
             FIELD_NAMES.map { |name| values.fetch(name) }
           end
 

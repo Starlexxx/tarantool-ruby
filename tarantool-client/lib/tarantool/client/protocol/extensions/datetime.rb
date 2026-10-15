@@ -26,6 +26,7 @@ module Tarantool
               raise ArgumentError, "malformed datetime: #{payload.bytesize} bytes"
             end
             seconds, nsec, offset = payload.unpack(layout)
+
             Time.at(seconds, nsec.to_i, :nsec, in: offset.to_i.zero? ? 'UTC' : offset * 60)
           end
 

@@ -16,6 +16,7 @@ module Tarantool
             raise ArgumentError, "cannot encode #{value} as decimal" unless value.finite?
 
             scale, nibbles = scale_and_nibbles(value)
+
             MessagePack.pack(scale) + [nibbles].pack('H*')
           end
 
@@ -28,6 +29,7 @@ module Tarantool
             end
 
             sign = NEGATIVE_SIGNS.include?(nibbles[-1]) ? '-' : ''
+
             BigDecimal("#{sign}#{nibbles[0...-1]}e#{-scale}")
           end
 
@@ -40,6 +42,7 @@ module Tarantool
             scale = value.zero? ? 0 : digits.length - exponent
             scale, digits = expand_negative_scale(scale, digits)
             nibbles = digits + (sign.negative? ? 'd' : 'c')
+
             [scale, nibbles.length.odd? ? "0#{nibbles}" : nibbles]
           end
           private_class_method :scale_and_nibbles

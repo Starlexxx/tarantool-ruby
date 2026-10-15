@@ -12,6 +12,7 @@ module Tarantool
         spaces, indexes = [Protocol::Constants::VSPACE_ID, Protocol::Constants::VINDEX_ID].map do |space_id|
           connection.perform(select_all(space_id), timeout: Transport::Deadline.remaining(deadline))
         end
+
         new(version: spaces.schema_version, spaces: spaces.data, indexes: indexes.data, connection:)
       end
 
@@ -32,6 +33,7 @@ module Tarantool
 
       def resolve(space, index)
         space_id = space_id(space)
+
         [space_id, index_id(space_id, index)]
       end
 
@@ -44,6 +46,7 @@ module Tarantool
       def build_space_infos(spaces, indexes)
         indexes_by_space = indexes.group_by(&:first)
         infos = spaces.map { |space| SpaceInfo.from_tuples(space, indexes_by_space.fetch(space.first, [])) }
+
         infos.to_h { |info| [info.id, info] }
       end
 

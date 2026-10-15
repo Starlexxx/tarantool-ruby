@@ -55,12 +55,14 @@ RSpec.describe Tarantool::Client::Transport::Link do
     def drop_connection
       dropped = link.connection
       server.disconnect
+
       wait_for { dropped.closed? }
     end
 
     def take_down
       link
       server.refusing = true
+
       drop_connection
     end
 

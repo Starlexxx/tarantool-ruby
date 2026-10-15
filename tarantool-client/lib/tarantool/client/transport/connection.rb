@@ -18,6 +18,7 @@ module Tarantool
 
         def connect
           establish
+
           self
         rescue StandardError
           close
@@ -48,6 +49,7 @@ module Tarantool
           @pending.fail_all(ClientClosedError.new("connection to #{@config.address} closed"))
           @socket&.close
           @reader&.join unless Thread.current == @reader
+
           nil
         end
 
@@ -63,6 +65,7 @@ module Tarantool
           @writer = FrameWriter.new(@socket)
           @greeting = read_greeting(deadline)
           start_reader
+
           @server_features = Handshake.perform(self, @config, deadline)
         rescue IOError, SystemCallError, SocketError, TimeoutError, ServerError => e
           raise ConnectionError, "cannot connect to #{@config.address}: #{e.message}"
@@ -78,6 +81,7 @@ module Tarantool
 
         def read_greeting(deadline)
           @socket.timeout = Deadline.remaining(deadline)
+
           Protocol::Greeting.parse(Protocol::Codec.read_exactly(@socket, Protocol::Constants::GREETING_SIZE))
         ensure
           @socket.timeout = nil
@@ -85,6 +89,7 @@ module Tarantool
 
         def start_reader
           @reader = Thread.new { read_loop }
+
           @reader.name = "tarantool-reader #{@config.address}"
         end
 
@@ -109,6 +114,7 @@ module Tarantool
         # A write that runs out of time, waiting for the lock or for the socket, is reported like a missing reply.
         def exchange(frame, future, deadline, timeout, &)
           write(frame, deadline)
+
           future.value(Deadline.remaining(deadline), &)
         rescue TimeoutError
           raise TimeoutError, "no response within #{timeout}s"
@@ -129,6 +135,7 @@ module Tarantool
         def break_connection(message)
           lost = @pending.fail_all(ConnectionError.new(message))
           @socket&.close
+
           @disconnect_handler&.call if lost
         end
       end

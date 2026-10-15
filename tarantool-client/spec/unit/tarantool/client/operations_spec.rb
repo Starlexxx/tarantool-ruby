@@ -22,6 +22,7 @@ RSpec.describe Tarantool::Client::Operations do
       def perform(request, timeout: nil, on_push: nil)
         @performed << [request, timeout]
         @on_push = on_push
+
         Tarantool::Client::Protocol::Response.new({ 0x00 => 0, 0x01 => 1 }, @body)
       end
 
@@ -31,6 +32,7 @@ RSpec.describe Tarantool::Client::Operations do
 
       def lookup_space(space, timeout)
         @performed << [:lookup_space, space, timeout]
+
         :info
       end
     end

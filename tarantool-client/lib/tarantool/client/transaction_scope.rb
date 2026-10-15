@@ -15,6 +15,7 @@ module Tarantool
         raise TransactionError, NESTED if open.key?(client)
 
         open[client] = true
+
         begin
           yield
         ensure

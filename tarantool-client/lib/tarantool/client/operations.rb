@@ -8,6 +8,7 @@ module Tarantool
     module Operations
       def ping(timeout: nil)
         perform(Protocol::Requests::Ping.new, timeout:)
+
         true
       end
 
@@ -44,6 +45,7 @@ module Tarantool
         perform_on_space(space, 0, timeout:) do |space_id|
           Protocol::Requests::Upsert.new(space_id:, tuple:, operations:)
         end
+
         nil
       end
 
@@ -65,12 +67,14 @@ module Tarantool
 
       def execute(sql, bindings = [], timeout: nil)
         statement = sql.is_a?(PreparedStatement) ? sql.id : sql
+
         SqlResult.from_response(perform(Protocol::Requests::Execute.new(statement:, bindings:), timeout:))
       end
 
       # A prepared statement belongs to the session, so a reconnect discards it.
       def prepare(sql, timeout: nil)
         response = perform(Protocol::Requests::Prepare.new(statement: sql), timeout:)
+
         PreparedStatement.new(response.body.fetch(Protocol::Constants::STMT_ID), method(:perform))
       end
 

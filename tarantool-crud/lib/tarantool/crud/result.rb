@@ -10,6 +10,7 @@ module Tarantool
 
       def self.from_crud(response, **)
         response ||= {}
+
         new(metadata: response.fetch('metadata', []).map { |field| field.transform_keys(&:to_sym) },
             tuples: response.fetch('rows', []), **)
       end

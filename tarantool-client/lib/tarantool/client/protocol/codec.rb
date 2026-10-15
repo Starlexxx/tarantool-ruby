@@ -18,6 +18,7 @@ module Tarantool
           header[Constants::STREAM_ID] = stream_id if stream_id
           header[Constants::SCHEMA_VERSION] = schema_version if schema_version
           payload = FACTORY.dump(header) + FACTORY.dump(request.body)
+
           [SIZE_MARKER, payload.bytesize].pack('CN') + payload
         end
 
@@ -43,6 +44,7 @@ module Tarantool
         def unpack_frame(unpacker)
           header = unpacker.read
           body = unpacker.buffer.empty? ? {} : unpacker.read
+
           [header, body]
         rescue StandardError => e
           raise ProtocolError, "malformed frame: #{e.message}"

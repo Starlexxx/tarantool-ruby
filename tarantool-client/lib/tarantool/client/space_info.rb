@@ -8,6 +8,7 @@ module Tarantool
         id, _owner, name, _engine, _field_count, _flags, format = space
         fields = (format || []).map { |raw| SpaceInfo::Field.from_raw(raw) }
         indexes = index_tuples.map { |tuple| IndexInfo.from_tuple(tuple, fields) }.sort_by(&:id)
+
         new(id:, name:, fields:, indexes: indexes.to_h { |index| [index.name, index] })
       end
 

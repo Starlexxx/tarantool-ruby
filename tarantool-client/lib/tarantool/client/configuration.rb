@@ -38,6 +38,7 @@ module Tarantool
       def self.parse_tcp_uri(uri)
         parsed = URI.parse(uri.include?('://') ? uri : "tcp://#{uri}")
         user = parsed.user == '' ? nil : parsed.user
+
         {
           host: parsed.hostname,
           port: parsed.port,
@@ -57,6 +58,7 @@ module Tarantool
 
       def inspect
         fields = to_h.merge(password: password && '[FILTERED]').map { |k, v| "#{k}=#{v.inspect}" }.join(', ')
+
         "#<data #{self.class.name} #{fields}>"
       end
       alias_method :to_s, :inspect

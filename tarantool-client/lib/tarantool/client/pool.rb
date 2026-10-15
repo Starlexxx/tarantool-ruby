@@ -38,6 +38,7 @@ module Tarantool
         rescue StandardError => e
           e
         end
+
         raise errors.first if errors.any?
       end
 
@@ -51,6 +52,7 @@ module Tarantool
         results = start_in_parallel
         unexpected = results.find { |result| result.is_a?(Exception) && !result.is_a?(Error) }
         raise unexpected if unexpected
+
         raise NoAvailableInstanceError, "no instance reachable: #{results.map(&:message).join('; ')}" if results.all?
       end
 
@@ -58,6 +60,7 @@ module Tarantool
       # returning so none outlives a failed Pool.new.
       def start_in_parallel
         threads = @members.map { |member| start_thread(member) }
+
         threads.map do |thread|
           thread.value
         rescue StandardError => e
@@ -81,6 +84,7 @@ module Tarantool
 
       def candidates(mode)
         writable, read_only = split_by_role
+
         case mode
         when :rw then writable
         when :ro then read_only
@@ -99,6 +103,7 @@ module Tarantool
           read_only = member.read_only
           [member, read_only] unless read_only.nil?
         end
+
         known.partition { |_member, read_only| !read_only }.map { |pairs| pairs.map(&:first) }
       end
     end

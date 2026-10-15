@@ -29,6 +29,7 @@ module Tarantool
       def raise_changed(deadline)
         schema = @cache.schema
         reload(schema, deadline) if schema.version == version
+
         raise TransactionError, CHANGED
       end
 

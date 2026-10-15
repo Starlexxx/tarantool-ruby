@@ -17,6 +17,7 @@ module Tarantool
         return to_enum(:each) unless block_given?
 
         options = @options.merge(first: @batch_size)
+
         loop do
           batch = @space.select(@conditions, **options)
           batch.each(&block)

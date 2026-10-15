@@ -10,6 +10,7 @@ RSpec.describe Tarantool::Client::Transport::TimedLock do
     release = Thread::Queue.new
     holder = Thread.new { lock.synchronize(nil) { held.push(true) && release.pop } }
     held.pop
+
     yield
   ensure
     release << true
