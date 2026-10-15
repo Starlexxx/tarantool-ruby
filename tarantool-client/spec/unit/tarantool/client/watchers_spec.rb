@@ -179,4 +179,33 @@ RSpec.describe Tarantool::Client::Watchers do
 
     expect(events.pop(timeout: 0.1)).to be_nil
   end
+
+  describe '#resubscribe' do
+    let(:fresh) { instance_double(Tarantool::Client::Transport::Connection) }
+    let(:resent) { [] }
+
+    before { allow(fresh).to receive(:notify) { |request, **| resent << request } }
+
+    it 'sends WATCH for every watched key over the given connection' do
+      collect('a')
+      collect('b')
+      watchers.resubscribe(fresh)
+
+      expect(resent).to eq([watch_request('a'), watch_request('b')])
+    end
+
+    it 'skips keys whose last watcher is gone' do
+      collect('a').unwatch
+      watchers.resubscribe(fresh)
+
+      expect(resent).to be_empty
+    end
+
+    it 'ignores a connection that is already gone' do
+      collect('a')
+      allow(fresh).to receive(:notify).and_raise(Tarantool::ConnectionError, 'lost')
+
+      expect { watchers.resubscribe(fresh) }.not_to raise_error
+    end
+  end
 end

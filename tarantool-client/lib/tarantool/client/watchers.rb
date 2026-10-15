@@ -47,6 +47,16 @@ module Tarantool
         @jobs.push(-> { deliver(key, value) })
       end
 
+      # A new session has no subscriptions. WATCH also makes the server send each key's current value,
+      # so watchers learn what changed while the client was away.
+      def resubscribe(connection)
+        @lock.synchronize do
+          @watchers.each_key { |key| connection.notify(Protocol::Requests::Watch.new(key:), timeout: @timeout) }
+        end
+      rescue Error
+        nil
+      end
+
       def close
         @jobs.clear
         @jobs.close
