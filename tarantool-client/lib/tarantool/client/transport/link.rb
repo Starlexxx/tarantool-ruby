@@ -37,8 +37,8 @@ module Tarantool
           current(deadline).notify(request, timeout: Deadline.remaining(deadline))
         end
 
-        # For a stream, which must stay on the connection it began on.
-        def connection = current(nil)
+        # For requests that must stay on one connection: a stream, or a request resolved by name.
+        def connection(deadline = nil) = current(deadline)
 
         def greeting = @state.connection.greeting
         def connected? = @state.connected?

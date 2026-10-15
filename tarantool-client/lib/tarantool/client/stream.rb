@@ -33,7 +33,7 @@ module Tarantool
 
       def start(isolation, timeout)
         response = perform(Protocol::Requests::Begin.new(isolation:, timeout:))
-        @schema = TransactionSchema.new(@schema_cache, response.schema_version)
+        @schema = TransactionSchema.new(@schema_cache, @connection, response.schema_version)
         @state = :active
       end
 
@@ -58,7 +58,10 @@ module Tarantool
         perform_by_name(space, index, timeout || @request_timeout, &)
       end
 
+      # Checks for a lost connection first: resolving would otherwise meet the next connection's schema
+      # and report a schema change instead.
       def perform_by_name(space, index, timeout)
+        check_connection
         deadline = Transport::Deadline.after(timeout)
         request = yield(*@schema.resolve(space, index, deadline))
         perform(request, timeout: remaining(deadline), schema_version: @schema.version)
@@ -83,9 +86,12 @@ module Tarantool
 
       # A stream is bound to its connection's session, so a reconnect can't carry the transaction over.
       def send_request(request, **)
-        raise TransactionError, LOST if @state != :idle && @connection.closed?
-
+        check_connection
         @connection.perform(request, stream_id: @id, **)
+      end
+
+      def check_connection
+        raise TransactionError, LOST if @state != :idle && @connection.closed?
       end
 
       # Runs while an error or a non-local exit is already propagating, which a failed rollback must

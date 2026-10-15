@@ -9,7 +9,9 @@ RSpec.describe Tarantool::Client::TransactionSchema do
   let(:connection) do
     Tarantool::Client::Transport::Connection.new(Tarantool::Client::Configuration.build(server.uri)).connect
   end
-  let(:cache) { Tarantool::Client::SchemaCache.new(connection).tap { |schema_cache| schema_cache.reload(timeout: 1) } }
+  let(:cache) do
+    Tarantool::Client::SchemaCache.new.tap { |cache| cache.replace(Tarantool::Client::Schema.fetch(connection, timeout: 1)) }
+  end
   let(:deadline) { Tarantool::Client::Transport::Deadline.after(1) }
 
   after do
@@ -20,7 +22,7 @@ RSpec.describe Tarantool::Client::TransactionSchema do
   def schema_selects = server.headers.count { |header| header[0x00] == 0x01 }
 
   it 'resolves names with the cached schema of the BEGIN version' do
-    expect(described_class.new(cache, 1).resolve(:users, :primary, deadline)).to eq([512, 0])
+    expect(described_class.new(cache, connection, 1).resolve(:users, :primary, deadline)).to eq([512, 0])
     expect(schema_selects).to eq(2)
   end
 
@@ -28,7 +30,7 @@ RSpec.describe Tarantool::Client::TransactionSchema do
     cache
     server.schema_version = 2
 
-    expect(described_class.new(cache, 2).resolve(:users, 0, deadline)).to eq([512, 0])
+    expect(described_class.new(cache, connection, 2).resolve(:users, 0, deadline)).to eq([512, 0])
     expect(cache.schema.version).to eq(2)
   end
 
@@ -36,20 +38,27 @@ RSpec.describe Tarantool::Client::TransactionSchema do
     cache
     server.schema_version = 3
 
-    expect { described_class.new(cache, 2).resolve(:users, 0, deadline) }
+    expect { described_class.new(cache, connection, 2).resolve(:users, 0, deadline) }
       .to raise_error(Tarantool::TransactionError, /schema changed/)
   end
 
   it 'raises SchemaError for a name unknown at the BEGIN version without reloading' do
-    expect { described_class.new(cache, 1).resolve(:orders, 0, deadline) }.to raise_error(Tarantool::SchemaError)
+    expect { described_class.new(cache, connection, 1).resolve(:orders, 0, deadline) }.to raise_error(Tarantool::SchemaError)
     expect(schema_selects).to eq(2)
+  end
+
+  it 'raises TransactionError for a cache holding the schema of another connection' do
+    cache.replace(Tarantool::Client::Schema.new(version: 1, spaces: [[512, 1, 'users']], indexes: []))
+
+    expect { described_class.new(cache, connection, 1).resolve(:users, 0, deadline) }
+      .to raise_error(Tarantool::TransactionError, /connection lost/)
   end
 
   it 'refreshes the cache before raising TransactionError for a rejected request' do
     cache
     server.schema_version = 2
 
-    expect { described_class.new(cache, 1).raise_changed(deadline) }.to raise_error(Tarantool::TransactionError)
+    expect { described_class.new(cache, connection, 1).raise_changed(deadline) }.to raise_error(Tarantool::TransactionError)
     expect(cache.schema.version).to eq(2)
   end
 end

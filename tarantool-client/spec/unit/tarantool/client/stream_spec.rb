@@ -16,7 +16,9 @@ RSpec.describe Tarantool::Client::Stream do
   let(:connection) do
     Tarantool::Client::Transport::Connection.new(Tarantool::Client::Configuration.build(server.uri)).connect
   end
-  let(:schema_cache) { Tarantool::Client::SchemaCache.new(connection).tap { |cache| cache.reload(timeout: 1) } }
+  let(:schema_cache) do
+    Tarantool::Client::SchemaCache.new.tap { |cache| cache.replace(Tarantool::Client::Schema.fetch(connection, timeout: 1)) }
+  end
 
   after do
     connection.close

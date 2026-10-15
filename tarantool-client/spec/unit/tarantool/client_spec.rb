@@ -298,7 +298,7 @@ RSpec.describe Tarantool::Client do
         end
       end
     end
-    let(:client) { described_class.new(server.uri, reconnect_delay: 0.01) }
+    let(:client) { described_class.new(server.uri, reconnect_delay: 0.01, reconnect_max_delay: 0.05) }
 
     after do
       client.close
@@ -323,6 +323,30 @@ RSpec.describe Tarantool::Client do
       reconnect
 
       expect(client.select(:users, 1)).to eq([[513, [1]]])
+    end
+
+    it 'resolves a name requested while reconnecting against the new instance at the same schema version' do
+      client
+      schema_state[:users_id] = 513
+      server.refusing = true
+      server.disconnect
+      wait_for { !client.connected? }
+      request = Thread.new { client.select(:users, 1) }
+      wait_for { request.stop? }
+      server.refusing = false
+
+      expect(request.value).to eq([[513, [1]]])
+    end
+
+    it 'raises TransactionError for a call by name in a transaction whose connection was lost' do
+      expect do
+        client.transaction do |tx|
+          schema_state[:users_id] = 513
+          server.schema_version = 2
+          reconnect
+          tx.select(:users, 1)
+        end
+      end.to raise_error(Tarantool::TransactionError, /connection lost/)
     end
 
     it 'reports whether it is connected' do

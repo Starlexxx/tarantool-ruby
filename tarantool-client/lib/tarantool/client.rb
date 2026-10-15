@@ -63,7 +63,7 @@ module Tarantool
       @link = Transport::Link.new(@config, on_connect: method(:load_schema), on_ready: method(:resubscribe))
       @watchers = Watchers.new(@link, timeout: @config.request_timeout)
       @link.event_handler = @watchers.method(:dispatch)
-      @schema_cache = SchemaCache.new(@link)
+      @schema_cache = SchemaCache.new
       @stream_ids = Transport::StreamIds.new
       @link.connect
     rescue StandardError
@@ -92,7 +92,8 @@ module Tarantool
     # The block gets the current value first (nil if the key was never broadcast), then every
     # change. It runs on a dispatcher thread shared by all watchers of this client, so a slow
     # block delays the others; exceptions it raises are reported with warn. Calling #unwatch
-    # from another thread may still let one in-flight callback run.
+    # from another thread may still let one in-flight callback run. After a reconnect the block
+    # is called again with the current value.
     def watch(key, &block)
       raise ArgumentError, 'watch requires a block' unless block
 
@@ -133,21 +134,31 @@ module Tarantool
     end
 
     # Every schema fetch and attempt draws on one deadline, so the whole call stays within timeout.
+    # Waiting for a connection first means the cache already holds its schema or a newer one.
     def perform_by_name(space, index, timeout, &)
-      perform_with_schema_check(space, index, Transport::Deadline.after(timeout), &)
+      deadline = Transport::Deadline.after(timeout)
+      @link.connection(deadline)
+      perform_with_schema_check(space, index, deadline, &)
     rescue TimeoutError
       raise TimeoutError, "no response within #{timeout}s"
     end
 
     def perform_with_schema_check(space, index, deadline)
       schema, ids = @schema_cache.resolve(space, index, deadline)
-      perform(yield(*ids), timeout: Transport::Deadline.remaining(deadline), schema_version: schema.version)
+      perform_resolved(schema, yield(*ids), deadline)
     rescue ServerError => e
       raise unless e.code == Protocol::Constants::ER_WRONG_SCHEMA_VERSION
 
       fresh = @schema_cache.reload(schema, timeout: Transport::Deadline.remaining(deadline))
       schema, ids = @schema_cache.resolve(space, index, deadline, fresh)
-      perform(yield(*ids), timeout: Transport::Deadline.remaining(deadline), schema_version: schema.version)
+      perform_resolved(schema, yield(*ids), deadline)
+    end
+
+    # Only the connection the schema came from: once it is lost, another instance may reuse the
+    # schema version with other ids, so the request fails with it rather than wait for a reconnect.
+    def perform_resolved(schema, request, deadline)
+      timeout = Transport::Deadline.remaining(deadline)
+      schema.connection.perform(request, timeout:, schema_version: schema.version)
     end
   end
 end

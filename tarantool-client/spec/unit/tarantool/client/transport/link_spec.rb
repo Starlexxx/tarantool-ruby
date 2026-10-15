@@ -183,6 +183,15 @@ RSpec.describe Tarantool::Client::Transport::Link do
       expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.3
     end
 
+    it 'bounds the wait for a connection by the given deadline' do
+      take_down
+      started = Tarantool::Client::Transport::Deadline.now
+
+      expect { link.connection(Tarantool::Client::Transport::Deadline.after(0.05)) }
+        .to raise_error(Tarantool::ConnectionError, /not connected/)
+      expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.3
+    end
+
     it 'stops reconnecting on close' do
       take_down
       link.close
