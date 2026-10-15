@@ -11,9 +11,10 @@ module Tarantool
 
         module_function
 
-        def encode(request, sync:, stream_id: nil)
+        def encode(request, sync:, stream_id: nil, schema_version: nil)
           header = { Constants::REQUEST_TYPE => request.type, Constants::SYNC => sync }
           header[Constants::STREAM_ID] = stream_id if stream_id
+          header[Constants::SCHEMA_VERSION] = schema_version if schema_version
           payload = FACTORY.dump(header) + FACTORY.dump(request.body)
           [SIZE_MARKER, payload.bytesize].pack('CN') + payload
         end

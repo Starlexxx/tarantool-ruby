@@ -41,7 +41,6 @@ module Tarantool
       @connection = Transport::Connection.new(@config).connect
       @schema_lock = Mutex.new
       reload_schema
-      @server_schema_version = @schema.version
     rescue StandardError
       @connection&.close
       raise
@@ -57,28 +56,36 @@ module Tarantool
 
     private
 
-    def perform(request, timeout: nil)
-      response = @connection.perform(request, timeout: timeout || @config.request_timeout)
-      version = response.schema_version
-      @server_schema_version = version if version && (@server_schema_version.nil? || version > @server_schema_version)
-      response
+    def perform(request, timeout: nil, schema_version: nil)
+      @connection.perform(request, timeout: timeout || @config.request_timeout, schema_version:)
     end
 
-    def resolve(space, index)
-      return [space, index] if space.is_a?(Integer) && index.is_a?(Integer)
+    # Name-resolved requests carry the schema version they were resolved against, so the
+    # server rejects them (ER_WRONG_SCHEMA_VERSION) instead of running them on a stale id.
+    def perform_on_space(space, index, timeout: nil)
+      return perform(yield(space, index), timeout:) if space.is_a?(Integer) && index.is_a?(Integer)
 
-      schema = @schema
-      schema = reload_schema(schema) if schema.version != @server_schema_version
-      schema.resolve(space, index)
+      schema, ids = resolve(@schema, space, index, timeout)
+      perform(yield(*ids), timeout:, schema_version: schema.version)
+    rescue ServerError => e
+      raise unless e.code == Protocol::Constants::ER_WRONG_SCHEMA_VERSION
+
+      schema, ids = resolve(reload_schema(schema, timeout:), space, index, timeout)
+      perform(yield(*ids), timeout:, schema_version: schema.version)
+    end
+
+    def resolve(schema, space, index, timeout)
+      [schema, schema.resolve(space, index)]
     rescue SchemaError
-      reload_schema(schema).resolve(space, index)
+      schema = reload_schema(schema, timeout:)
+      [schema, schema.resolve(space, index)]
     end
 
-    def reload_schema(stale = nil)
+    def reload_schema(stale = nil, timeout: nil)
       @schema_lock.synchronize do
         return @schema unless @schema.equal?(stale)
 
-        @schema = Schema.fetch(@connection, timeout: @config.request_timeout)
+        @schema = Schema.fetch(@connection, timeout: timeout || @config.request_timeout)
       end
     end
   end

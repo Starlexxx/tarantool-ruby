@@ -6,18 +6,21 @@ require 'tmpdir'
 
 # In-process IPROTO server on a unix socket. Answers ID and AUTH itself.
 # Other requests go to the handler block if given, otherwise to a queue the
-# test drains with #next_request and answers with #reply.
+# test drains with #next_request and answers with #reply. With
+# check_schema_version it rejects requests carrying a stale schema version
+# the way Tarantool does, before they reach the handler.
 class FakeTarantool
   include IprotoHelpers
 
-  attr_reader :path, :auth_requests
+  attr_reader :path, :headers
   attr_accessor :schema_version
 
-  def initialize(auth_error: nil, id_error: nil, greeting: true, &handler)
+  def initialize(auth_error: nil, id_error: nil, greeting: true, check_schema_version: false, &handler)
     @auth_error = auth_error
     @id_error = id_error
     @greeting = greeting
-    @auth_requests = 0
+    @check_schema_version = check_schema_version
+    @headers = []
     @schema_version = 1
     @handler = handler
     @requests = Thread::Queue.new
@@ -26,6 +29,7 @@ class FakeTarantool
   end
 
   def uri = "unix:#{path}"
+  def auth_requests = headers.count { |header| header[0x00] == 0x07 }
 
   def next_request(timeout: 1)
     @requests.pop(timeout:) || raise('no request received')
@@ -78,6 +82,9 @@ class FakeTarantool
   end
 
   def route(request)
+    @headers << request.header
+    return reject_stale_schema(request) if stale_schema?(request)
+
     case request.type
     when 0x49 then identify(request)
     when 0x07 then authenticate(request)
@@ -92,10 +99,19 @@ class FakeTarantool
   end
 
   def authenticate(request)
-    @auth_requests += 1
     return write(request, 0x00, {}) unless @auth_error
 
     reply_error(request, code: 47, message: @auth_error)
+  end
+
+  def stale_schema?(request)
+    sent = request.header[0x05]
+    @check_schema_version && sent && sent != schema_version
+  end
+
+  def reject_stale_schema(request)
+    reply_error(request, code: 109, message: "Wrong schema version, current: #{schema_version}, " \
+                                             "old: #{request.header[0x05]}")
   end
 
   def write(request, type, body)

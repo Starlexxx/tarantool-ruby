@@ -15,6 +15,12 @@ RSpec.describe Tarantool::Client::Protocol::Codec do
 
       expect(described_class.decode(frame.byteslice(5..)).header).to eq(0x00 => 0x40, 0x01 => 1, 0x0a => 7)
     end
+
+    it 'adds the schema version to the header' do
+      frame = described_class.encode(ping, sync: 1, schema_version: 80)
+
+      expect(described_class.decode(frame.byteslice(5..)).header).to eq(0x00 => 0x40, 0x01 => 1, 0x05 => 80)
+    end
   end
 
   describe '.read_response' do

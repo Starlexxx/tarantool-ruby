@@ -28,10 +28,6 @@ RSpec.describe Tarantool::Client do
       expect(client.select(:users, 7, index: :primary)).to eq([[512, [7]]])
     end
 
-    it 'raises SchemaError for unknown names after a reload' do
-      expect { client.select(:orders, 1) }.to raise_error(Tarantool::SchemaError)
-    end
-
     context 'when a name becomes known after a reload' do
       let!(:schema_state) { { orders: false } }
       let(:handler) do
@@ -57,56 +53,83 @@ RSpec.describe Tarantool::Client do
       end
     end
 
-    context 'when the schema version advances' do
-      let!(:vspace_requests) { [] }
-      let(:handler) do
-        lambda do |request, fake|
-          space_id = request.body[0x10]
-          case space_id
-          when 281
-            vspace_requests << request
-            fake.reply(request, [[512, 1, 'users']])
-          when 289 then fake.reply(request, [[512, 0, 'primary']])
-          else fake.reply(request, [[space_id, request.body[0x20]]])
-          end
+    it 'reloads the schema once before raising SchemaError for an unknown name' do
+      client
+      before = server.headers.count { |header| header[0x00] == 0x01 }
+
+      expect { client.select(:orders, 1) }.to raise_error(Tarantool::SchemaError)
+      expect(server.headers.count { |header| header[0x00] == 0x01 }).to eq(before + 2)
+    end
+
+    it 'sends the schema version with requests resolved by name' do
+      client.select(:users, 1)
+
+      expect(server.headers.last[0x05]).to eq(1)
+    end
+
+    it 'sends no schema version for numeric space and index ids' do
+      client.select(512, 1, index: 0)
+
+      expect(server.headers.last).not_to have_key(0x05)
+    end
+  end
+
+  context 'when another client changes the schema' do
+    let!(:schema_state) { { users_id: 512, vspace_requests: 0, churn: false } }
+    let(:server) { FakeTarantool.new(check_schema_version: true, &handler) }
+    let(:client) { described_class.new(server.uri, user: 'app', password: 'secret') }
+    let(:handler) do
+      lambda do |request, fake|
+        case request.body[0x10]
+        when 281 then reply_vspace(request, fake)
+        when 289 then fake.reply(request, [[schema_state[:users_id], 0, 'primary']])
+        else fake.reply(request, [[request.body[0x10], request.body[0x20]]])
         end
       end
+    end
 
-      it 'reloads once after a response carries a newer schema_version' do
-        client
-        before = vspace_requests.size
-        server.schema_version = 2
-        client.select(:users, 1)
+    def reply_vspace(request, fake)
+      schema_state[:vspace_requests] += 1
+      sleep 0.5 if schema_state[:slow]
+      fake.reply(request, [[schema_state[:users_id], 1, 'users']])
+      fake.schema_version += 1 if schema_state[:churn]
+    end
 
-        expect(vspace_requests.size).to eq(before)
+    before do
+      client
+      schema_state[:users_id] = 513
+      server.schema_version = 2
+    end
 
-        client.select(:users, 1, index: :primary)
+    after do
+      client.close
+      server.stop
+    end
 
-        expect(vspace_requests.size).to eq(before + 1)
-      end
+    it 'reloads once and retries with the new ids' do
+      expect(client.select(:users, 1, index: :primary)).to eq([[513, [1]]])
+      expect(schema_state[:vspace_requests]).to eq(2)
+    end
 
-      it 'performs a single reload when many threads resolve concurrently' do
-        client
-        server.schema_version = 2
-        client.select(:users, 1)
-        before = vspace_requests.size
+    it 'raises ServerError when the retry also hits a stale schema' do
+      schema_state[:churn] = true
 
-        threads = Array.new(10) { Thread.new { client.select(:users, 1, index: :primary) } }
-        threads.each(&:join)
+      expect { client.select(:users, 1) }
+        .to raise_error(Tarantool::ServerError) { |error| expect(error.code).to eq(109) }
+      expect(schema_state[:vspace_requests]).to eq(2)
+    end
 
-        expect(vspace_requests.size).to eq(before + 1)
-      end
+    it 'performs a single reload when many threads hit a stale schema concurrently' do
+      threads = Array.new(10) { Thread.new { client.select(:users, 1, index: :primary) } }
 
-      it 'skips schema resolution and reload for numeric space and index ids' do
-        client
-        server.schema_version = 2
-        client.select(:users, 1)
-        before = vspace_requests.size
+      expect(threads.map(&:value)).to all(eq([[513, [1]]]))
+      expect(schema_state[:vspace_requests]).to eq(2)
+    end
 
-        client.select(512, 7, index: 0)
+    it 'reloads the schema within the request timeout' do
+      schema_state[:slow] = true
 
-        expect(vspace_requests.size).to eq(before)
-      end
+      expect { client.select(:users, 1, timeout: 0.1) }.to raise_error(Tarantool::TimeoutError)
     end
   end
 

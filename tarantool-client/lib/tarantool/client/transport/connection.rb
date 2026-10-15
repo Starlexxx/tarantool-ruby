@@ -23,10 +23,10 @@ module Tarantool
           raise
         end
 
-        def perform(request, timeout:, stream_id: nil)
+        def perform(request, timeout:, stream_id: nil, schema_version: nil)
           deadline = Deadline.after(timeout)
           sync, future = @pending.register
-          write(Protocol::Codec.encode(request, sync:, stream_id:), deadline)
+          write(Protocol::Codec.encode(request, sync:, stream_id:, schema_version:), deadline)
           response = future.value(Deadline.remaining(deadline))
           raise ServerError.from_response(response) if response.error?
 

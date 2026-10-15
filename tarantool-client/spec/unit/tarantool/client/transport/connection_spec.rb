@@ -87,6 +87,12 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       it 'returns the response' do
         expect(connection.perform(eval_request('return 1'), timeout: 1).data).to eq(['return 1'])
       end
+
+      it 'sends the schema version in the request header' do
+        connection.perform(eval_request('return 1'), timeout: 1, schema_version: 80)
+
+        expect(server.headers.last[0x05]).to eq(80)
+      end
     end
 
     context 'when the server returns an error' do
@@ -95,6 +101,11 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       it 'raises ServerError with the error code' do
         expect { connection.perform(eval_request('x'), timeout: 1) }
           .to raise_error(Tarantool::ServerError, 'Duplicate key') { |error| expect(error.code).to eq(3) }
+      end
+
+      it 'carries the schema version from the error response' do
+        expect { connection.perform(eval_request('x'), timeout: 1) }
+          .to raise_error(Tarantool::ServerError) { |error| expect(error.schema_version).to eq(1) }
       end
     end
 

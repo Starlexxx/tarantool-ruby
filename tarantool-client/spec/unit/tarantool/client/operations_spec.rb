@@ -23,8 +23,8 @@ RSpec.describe Tarantool::Client::Operations do
         Tarantool::Client::Protocol::Response.new({ 0x00 => 0, 0x01 => 1 }, { 0x30 => @data })
       end
 
-      def resolve(space, index)
-        [space == :users ? 512 : space, index == :email ? 1 : index]
+      def perform_on_space(space, index, timeout:)
+        perform(yield(space == :users ? 512 : space, index == :email ? 1 : index), timeout:)
       end
     end
   end

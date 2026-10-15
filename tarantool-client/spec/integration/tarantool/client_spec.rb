@@ -52,6 +52,35 @@ RSpec.describe Tarantool::Client, :integration do
     client.eval('if box.space.scratch then box.space.scratch:drop() end')
   end
 
+  context 'when another client recreates a space under a new id' do
+    let(:recreate_scratch) do
+      <<~LUA
+        box.space.scratch:drop()
+        box.schema.space.create('decoy', {id = 600}):create_index('pk')
+        box.space.decoy:insert({1, 'decoy'})
+        box.schema.space.create('scratch', {id = 601}):create_index('pk')
+        box.space.scratch:insert({1, 'scratch'})
+      LUA
+    end
+
+    before do
+      client.eval("box.schema.space.create('scratch', {id = 600}):create_index('pk')")
+      client.select(:scratch)
+    end
+
+    after do
+      client.eval('for _, s in ipairs({"scratch", "decoy"}) do if box.space[s] then box.space[s]:drop() end end')
+    end
+
+    it 'reads the recreated space instead of whatever took its old id' do
+      other = described_class.new(uri)
+      other.eval(recreate_scratch)
+      other.close
+
+      expect(client.select(:scratch)).to eq([[1, 'scratch']])
+    end
+  end
+
   it 'times out a slow request and keeps the connection usable' do
     expect { client.eval("require('fiber').sleep(0.5)", timeout: 0.05) }.to raise_error(Tarantool::TimeoutError)
     expect(client.ping).to be(true)

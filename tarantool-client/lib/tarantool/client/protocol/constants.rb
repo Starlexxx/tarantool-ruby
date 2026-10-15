@@ -42,6 +42,8 @@ module Tarantool
         CHUNK = 0x80
         TYPE_ERROR = 0x8000
 
+        ER_WRONG_SCHEMA_VERSION = 109
+
         ERROR_STACK = 0x00
         ERROR_FIELDS = {
           0x00 => :type, 0x01 => :file, 0x02 => :line, 0x03 => :message,

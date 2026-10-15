@@ -24,16 +24,20 @@ module Tarantool
 
   # Error returned by the server for a request.
   class ServerError < Error
-    attr_reader :code, :error_stack
+    attr_reader :code, :error_stack, :schema_version
 
     def self.from_response(response)
-      new(response.error_message, code: response.error_code, error_stack: response.error_stack)
+      new(
+        response.error_message,
+        code: response.error_code, error_stack: response.error_stack, schema_version: response.schema_version
+      )
     end
 
-    def initialize(message, code:, error_stack: [])
+    def initialize(message, code:, error_stack: [], schema_version: nil)
       super(message)
       @code = code
       @error_stack = error_stack
+      @schema_version = schema_version
     end
   end
 end

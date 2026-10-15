@@ -2,8 +2,9 @@
 
 module Tarantool
   class Client
-    # Data operations, call and eval. Includers implement
-    # `perform(request, timeout:)` and `resolve(space, index)`.
+    # Data operations, call and eval. Includers implement `perform(request, timeout:)`
+    # and `perform_on_space(space, index, timeout:) { |space_id, index_id| request }`,
+    # which returns the response to the request built by the block.
     module Operations
       def ping(timeout: nil)
         perform(Protocol::Requests::Ping.new, timeout:)
@@ -12,36 +13,40 @@ module Tarantool
 
       def select(space, key = [], index: 0, limit: Protocol::Constants::MAX_LIMIT, offset: 0, iterator: :eq,
                  timeout: nil)
-        space_id, index_id = resolve(space, index)
-        request = Protocol::Requests::Select.new(space_id:, index_id:, key: key_tuple(key), limit:, offset:, iterator:)
-        perform(request, timeout:).data
+        perform_on_space(space, index, timeout:) do |space_id, index_id|
+          Protocol::Requests::Select.new(space_id:, index_id:, key: key_tuple(key), limit:, offset:, iterator:)
+        end.data
       end
 
       def insert(space, tuple, timeout: nil)
-        space_id, = resolve(space, 0)
-        perform(Protocol::Requests::Insert.new(space_id:, tuple:), timeout:).data.first
+        perform_on_space(space, 0, timeout:) do |space_id|
+          Protocol::Requests::Insert.new(space_id:, tuple:)
+        end.data.first
       end
 
       def replace(space, tuple, timeout: nil)
-        space_id, = resolve(space, 0)
-        perform(Protocol::Requests::Replace.new(space_id:, tuple:), timeout:).data.first
+        perform_on_space(space, 0, timeout:) do |space_id|
+          Protocol::Requests::Replace.new(space_id:, tuple:)
+        end.data.first
       end
 
       def update(space, key, operations, index: 0, timeout: nil)
-        space_id, index_id = resolve(space, index)
-        request = Protocol::Requests::Update.new(space_id:, index_id:, key: key_tuple(key), operations:)
-        perform(request, timeout:).data.first
+        perform_on_space(space, index, timeout:) do |space_id, index_id|
+          Protocol::Requests::Update.new(space_id:, index_id:, key: key_tuple(key), operations:)
+        end.data.first
       end
 
       def upsert(space, tuple, operations, timeout: nil)
-        space_id, = resolve(space, 0)
-        perform(Protocol::Requests::Upsert.new(space_id:, tuple:, operations:), timeout:)
+        perform_on_space(space, 0, timeout:) do |space_id|
+          Protocol::Requests::Upsert.new(space_id:, tuple:, operations:)
+        end
         nil
       end
 
       def delete(space, key, index: 0, timeout: nil)
-        space_id, index_id = resolve(space, index)
-        perform(Protocol::Requests::Delete.new(space_id:, index_id:, key: key_tuple(key)), timeout:).data.first
+        perform_on_space(space, index, timeout:) do |space_id, index_id|
+          Protocol::Requests::Delete.new(space_id:, index_id:, key: key_tuple(key))
+        end.data.first
       end
 
       def call(function_name, arguments = [], timeout: nil)
