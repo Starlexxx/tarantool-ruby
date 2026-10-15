@@ -109,6 +109,25 @@ RSpec.describe Tarantool::Client::Stream do
     expect(stream_requests).to include([0x0b, 1])
   end
 
+  it 'raises TransactionError for a call after the connection was lost' do
+    expect do
+      transaction do |tx|
+        server.disconnect
+        wait_for { connection.closed? }
+        tx.select(512, 1)
+      end
+    end.to raise_error(Tarantool::TransactionError, /connection lost/)
+  end
+
+  it 'raises TransactionError on commit after the connection was lost' do
+    expect do
+      transaction do
+        server.disconnect
+        wait_for { connection.closed? }
+      end
+    end.to raise_error(Tarantool::TransactionError, /connection lost/)
+  end
+
   context 'when the commit fails' do
     let(:handler) do
       lambda do |request, fake|

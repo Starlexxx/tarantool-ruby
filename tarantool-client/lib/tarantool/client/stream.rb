@@ -7,6 +7,8 @@ module Tarantool
     class Stream
       include Operations
 
+      LOST = 'connection lost during the transaction; the server rolled it back'
+
       def initialize(connection:, schema_cache:, id:, request_timeout:)
         @connection = connection
         @schema_cache = schema_cache
@@ -47,7 +49,7 @@ module Tarantool
       def perform(request, timeout: nil, schema_version: nil, on_push: nil)
         raise TransactionError, 'transaction is finished' if @state == :finished
 
-        @connection.perform(request, timeout: timeout || @request_timeout, stream_id: @id, schema_version:, on_push:)
+        send_request(request, timeout: timeout || @request_timeout, schema_version:, on_push:)
       end
 
       def perform_on_space(space, index, timeout: nil, &)
@@ -76,7 +78,14 @@ module Tarantool
       # its outcome is unknown (the server may have committed), and a rollback would add nothing.
       def finish(request)
         @state = :finished
-        @connection.perform(request, timeout: @request_timeout, stream_id: @id)
+        send_request(request, timeout: @request_timeout)
+      end
+
+      # A stream is bound to its connection's session, so a reconnect can't carry the transaction over.
+      def send_request(request, **)
+        raise TransactionError, LOST if @state != :idle && @connection.closed?
+
+        @connection.perform(request, stream_id: @id, **)
       end
 
       # Runs while an error or a non-local exit is already propagating, which a failed rollback must

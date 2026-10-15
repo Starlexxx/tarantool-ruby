@@ -333,6 +333,12 @@ RSpec.describe Tarantool::Client do
       wait_for { !client.connected? }
       expect(client.connected?).to be(false)
     end
+
+    it 'runs a new transaction after a reconnect' do
+      reconnect
+
+      expect(client.transaction(&:ping)).to be(true)
+    end
   end
 
   context 'when the initial schema load fails' do
