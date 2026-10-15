@@ -32,6 +32,9 @@ module Tarantool
   # Transaction misuse or a transaction that can no longer proceed.
   class TransactionError < Error; end
 
+  # No pool instance can serve a request in the requested mode.
+  class NoAvailableInstanceError < Error; end
+
   # Error returned by the server for a request.
   class ServerError < Error
     attr_reader :code, :error_stack, :schema_version
