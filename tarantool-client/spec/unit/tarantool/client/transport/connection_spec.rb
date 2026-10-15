@@ -135,8 +135,9 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       end
 
       it 'marks the connection dead after an incomplete write' do
-        Timeout.timeout(2) { connection.perform(eval_request('x' * 8_000_000), timeout: 0.2) }
-      rescue Tarantool::TimeoutError
+        large = eval_request('x' * 8_000_000)
+
+        expect { Timeout.timeout(2) { connection.perform(large, timeout: 0.2) } }.to raise_error(Tarantool::TimeoutError)
         expect { connection.perform(eval_request('x'), timeout: 1) }.to raise_error(Tarantool::ConnectionError)
       end
     end
