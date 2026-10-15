@@ -5,13 +5,19 @@ require 'uri'
 module Tarantool
   class Client
     # Immutable connection settings built from a URI and keyword options; options win.
-    Configuration = Data.define(:host, :port, :path, :user, :password, :connect_timeout, :request_timeout) do
+    Configuration = Data.define(
+      :host, :port, :path, :user, :password, :connect_timeout, :request_timeout,
+      :reconnect, :reconnect_attempts, :reconnect_delay, :reconnect_max_delay
+    ) do
       def self.build(uri = nil, **options)
         new(**defaults, **parse_uri(uri), **options)
       end
 
       def self.defaults
-        { host: 'localhost', port: 3301, path: nil, user: nil, password: nil, connect_timeout: 3, request_timeout: 10 }
+        {
+          host: 'localhost', port: 3301, path: nil, user: nil, password: nil, connect_timeout: 3, request_timeout: 10,
+          reconnect: true, reconnect_attempts: Float::INFINITY, reconnect_delay: 0.1, reconnect_max_delay: 5
+        }
       end
 
       def self.parse_uri(uri)

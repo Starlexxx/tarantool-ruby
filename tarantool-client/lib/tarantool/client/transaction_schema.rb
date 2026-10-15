@@ -10,8 +10,9 @@ module Tarantool
 
       attr_reader :version
 
-      def initialize(cache, version)
+      def initialize(cache, connection, version)
         @cache = cache
+        @connection = connection
         @version = version
       end
 
@@ -30,9 +31,12 @@ module Tarantool
       private
 
       # A cache older than BEGIN was stale before the transaction started and may catch up;
-      # anything newer means the schema changed after BEGIN.
+      # anything newer means the schema changed after BEGIN. A schema of another connection means
+      # this one was lost, and the versions of two instances can't be compared.
       def pinned(deadline)
         schema = @cache.schema
+        raise TransactionError, Stream::LOST unless schema.connection.equal?(@connection)
+
         schema = reload(schema, deadline) if schema.version < version
         raise TransactionError, CHANGED unless schema.version == version
 

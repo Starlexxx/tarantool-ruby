@@ -14,7 +14,14 @@ module Tarantool
   class TimeoutError < Error; end
 
   # Server rejected the credentials.
-  class AuthenticationError < Error; end
+  class AuthenticationError < Error
+    attr_reader :code
+
+    def initialize(message = nil, code: nil)
+      super(message)
+      @code = code
+    end
+  end
 
   # Malformed or unexpected data from the server.
   class ProtocolError < Error; end
@@ -24,6 +31,9 @@ module Tarantool
 
   # Transaction misuse or a transaction that can no longer proceed.
   class TransactionError < Error; end
+
+  # No pool instance can serve a request in the requested mode.
+  class NoAvailableInstanceError < Error; end
 
   # Error returned by the server for a request.
   class ServerError < Error

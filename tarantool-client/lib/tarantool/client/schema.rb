@@ -2,14 +2,17 @@
 
 module Tarantool
   class Client
-    # Space and index name -> id lookup loaded from the _vspace and _vindex system views.
+    # Space and index name -> id lookup loaded from the _vspace and _vindex system views over one
+    # connection. Its ids are valid only for the instance behind that connection.
     class Schema
-      attr_reader :version
+      attr_reader :version, :connection
 
       def self.fetch(connection, timeout:)
-        spaces = connection.perform(select_all(Protocol::Constants::VSPACE_ID), timeout:)
-        indexes = connection.perform(select_all(Protocol::Constants::VINDEX_ID), timeout:)
-        new(version: spaces.schema_version, spaces: spaces.data, indexes: indexes.data)
+        deadline = Transport::Deadline.after(timeout)
+        spaces, indexes = [Protocol::Constants::VSPACE_ID, Protocol::Constants::VINDEX_ID].map do |space_id|
+          connection.perform(select_all(space_id), timeout: Transport::Deadline.remaining(deadline))
+        end
+        new(version: spaces.schema_version, spaces: spaces.data, indexes: indexes.data, connection:)
       end
 
       def self.select_all(space_id)
@@ -19,8 +22,9 @@ module Tarantool
       end
       private_class_method :select_all
 
-      def initialize(version:, spaces:, indexes:)
+      def initialize(version:, spaces:, indexes:, connection: nil)
         @version = version
+        @connection = connection
         @space_ids = spaces.to_h { |space| [space[2], space[0]] }
         @index_ids = indexes.to_h { |index| [[index[0], index[2]], index[1]] }
       end

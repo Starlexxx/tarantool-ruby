@@ -23,7 +23,7 @@ module Tarantool
           )
           connection.perform(request, timeout: Deadline.remaining(deadline))
         rescue ServerError => e
-          raise AuthenticationError, e.message
+          raise AuthenticationError.new(e.message, code: e.code)
         end
 
         private_class_method :authenticate

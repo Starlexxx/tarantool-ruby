@@ -64,6 +64,7 @@ module Tarantool
         SqlResult.from_response(perform(Protocol::Requests::Execute.new(statement:, bindings:), timeout:))
       end
 
+      # A prepared statement belongs to the session, so a reconnect discards it.
       def prepare(sql, timeout: nil)
         response = perform(Protocol::Requests::Prepare.new(statement: sql), timeout:)
         PreparedStatement.new(response.body.fetch(Protocol::Constants::STMT_ID), method(:perform))

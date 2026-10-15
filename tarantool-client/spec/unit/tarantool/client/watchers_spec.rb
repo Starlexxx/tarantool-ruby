@@ -28,6 +28,12 @@ RSpec.describe Tarantool::Client::Watchers do
     expect(sent_so_far).to eq([watch_request('k')])
   end
 
+  it 'runs a deferred job without any watcher' do
+    watchers.defer { events << :ran }
+
+    expect(events.pop(timeout: 1)).to eq(:ran)
+  end
+
   it 'runs callbacks off the thread that dispatched the event' do
     watchers.add('k', ->(_key, _value) { events << Thread.current })
     watchers.dispatch('k', 1)
@@ -178,5 +184,43 @@ RSpec.describe Tarantool::Client::Watchers do
     closing.join
 
     expect(events.pop(timeout: 0.1)).to be_nil
+  end
+
+  describe '#resubscribe' do
+    let(:fresh) { instance_double(Tarantool::Client::Transport::Connection) }
+    let(:resent) { [] }
+
+    before { allow(fresh).to receive(:notify) { |request, **| resent << request } }
+
+    it 'sends WATCH for every watched key over the given connection' do
+      collect('a')
+      collect('b')
+      watchers.resubscribe(fresh)
+
+      expect(resent).to eq([watch_request('a'), watch_request('b')])
+    end
+
+    it 'skips keys whose last watcher is gone' do
+      collect('a').unwatch
+      watchers.resubscribe(fresh)
+
+      expect(resent).to be_empty
+    end
+
+    it 'sends WATCH for the other keys when one fails' do
+      collect('a')
+      collect('b')
+      allow(fresh).to receive(:notify).with(watch_request('a'), any_args).and_raise(Tarantool::TimeoutError, 'slow')
+      watchers.resubscribe(fresh)
+
+      expect(resent).to eq([watch_request('b')])
+    end
+
+    it 'ignores a connection that is already gone' do
+      collect('a')
+      allow(fresh).to receive(:notify).and_raise(Tarantool::ConnectionError, 'lost')
+
+      expect { watchers.resubscribe(fresh) }.not_to raise_error
+    end
   end
 end

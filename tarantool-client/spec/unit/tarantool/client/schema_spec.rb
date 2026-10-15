@@ -39,5 +39,20 @@ RSpec.describe Tarantool::Client::Schema do
       expect(fetched.version).to eq(81)
       expect(fetched.resolve(:users, :primary)).to eq([512, 0])
     end
+
+    it 'bounds both system space selects by one timeout' do
+      connection = instance_double(Tarantool::Client::Transport::Connection)
+      response = Tarantool::Client::Protocol::Response.new({ 0x00 => 0, 0x05 => 81 }, { 0x30 => [] })
+      timeouts = []
+      allow(connection).to receive(:perform) do |_request, timeout:|
+        timeouts << timeout
+        sleep 0.1
+        response
+      end
+
+      described_class.fetch(connection, timeout: 1)
+
+      expect(timeouts.last).to be <= 0.9
+    end
   end
 end

@@ -10,6 +10,18 @@ RSpec.describe Tarantool::Client::Configuration do
       )
     end
 
+    it 'enables reconnect with backoff by default' do
+      expect(described_class.build).to have_attributes(
+        reconnect: true, reconnect_attempts: Float::INFINITY, reconnect_delay: 0.1, reconnect_max_delay: 5
+      )
+    end
+
+    it 'takes reconnect options' do
+      expect(described_class.build(reconnect: false, reconnect_attempts: 3)).to have_attributes(
+        reconnect: false, reconnect_attempts: 3
+      )
+    end
+
     it 'parses a tcp URI with escaped credentials' do
       expect(described_class.build('tcp://app:s%40cret@db.local:3302')).to have_attributes(
         host: 'db.local', port: 3302, user: 'app', password: 's@cret'

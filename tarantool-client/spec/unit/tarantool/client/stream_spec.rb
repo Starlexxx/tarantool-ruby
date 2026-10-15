@@ -16,7 +16,9 @@ RSpec.describe Tarantool::Client::Stream do
   let(:connection) do
     Tarantool::Client::Transport::Connection.new(Tarantool::Client::Configuration.build(server.uri)).connect
   end
-  let(:schema_cache) { Tarantool::Client::SchemaCache.new(connection).tap { |cache| cache.reload(timeout: 1) } }
+  let(:schema_cache) do
+    Tarantool::Client::SchemaCache.new.tap { |cache| cache.replace(Tarantool::Client::Schema.fetch(connection, timeout: 1)) }
+  end
 
   after do
     connection.close
@@ -107,6 +109,25 @@ RSpec.describe Tarantool::Client::Stream do
     statement = Tarantool::Client::PreparedStatement.new(7, ->(*) {})
     transaction { |tx| tx.execute(statement, [1]) }
     expect(stream_requests).to include([0x0b, 1])
+  end
+
+  it 'raises TransactionError for a call after the connection was lost' do
+    expect do
+      transaction do |tx|
+        server.disconnect
+        wait_for { connection.closed? }
+        tx.select(512, 1)
+      end
+    end.to raise_error(Tarantool::TransactionError, /connection lost/)
+  end
+
+  it 'raises TransactionError on commit after the connection was lost' do
+    expect do
+      transaction do
+        server.disconnect
+        wait_for { connection.closed? }
+      end
+    end.to raise_error(Tarantool::TransactionError, /connection lost/)
   end
 
   context 'when the commit fails' do

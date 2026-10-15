@@ -9,7 +9,7 @@ module Tarantool
       # perform requests concurrently; a reader thread routes responses by sync.
       class Connection
         attr_reader :greeting, :server_features
-        attr_writer :event_handler
+        attr_writer :event_handler, :disconnect_handler
 
         def initialize(config)
           @config = config
@@ -24,11 +24,14 @@ module Tarantool
           raise
         end
 
+        # A request sent with no time left could still run on the server while the caller gets TimeoutError.
         def perform(request, timeout:, stream_id: nil, schema_version: nil, on_push: nil)
           deadline = Deadline.after(timeout)
+          raise TimeoutError, "no response within #{timeout}s" if Deadline.remaining(deadline)&.zero?
+
           sync, future = @pending.register
-          write(Protocol::Codec.encode(request, sync:, stream_id:, schema_version:), deadline)
-          response = await(future, deadline, timeout, &on_push)
+          frame = Protocol::Codec.encode(request, sync:, stream_id:, schema_version:)
+          response = exchange(frame, future, deadline, timeout, &on_push)
           raise ServerError.from_response(response) if response.error?
 
           response
@@ -46,6 +49,10 @@ module Tarantool
           @socket&.close
           @reader&.join unless Thread.current == @reader
           nil
+        end
+
+        def closed?
+          !@pending.failure.nil?
         end
 
         private
@@ -99,7 +106,9 @@ module Tarantool
           @pending.resolve(response.sync, response)
         end
 
-        def await(future, deadline, timeout, &)
+        # A write that runs out of time, waiting for the lock or for the socket, is reported like a missing reply.
+        def exchange(frame, future, deadline, timeout, &)
+          write(frame, deadline)
           future.value(Deadline.remaining(deadline), &)
         rescue TimeoutError
           raise TimeoutError, "no response within #{timeout}s"
@@ -116,9 +125,11 @@ module Tarantool
           raise ConnectionError, "write to #{@config.address} failed: #{e.message}"
         end
 
+        # The handler hears only of a loss: close records ClientClosedError first, so it stays silent.
         def break_connection(message)
-          @pending.fail_all(ConnectionError.new(message))
+          lost = @pending.fail_all(ConnectionError.new(message))
           @socket&.close
+          @disconnect_handler&.call if lost
         end
       end
     end

@@ -52,6 +52,17 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       rejecting.stop
     end
 
+    it 'keeps the server error code and the server error as cause' do
+      rejecting = FakeTarantool.new(auth_error: 'User not found or supplied credentials are invalid')
+      config = Tarantool::Client::Configuration.build(rejecting.uri, user: 'app', password: 'wrong')
+
+      expect { described_class.new(config).connect }.to raise_error(Tarantool::AuthenticationError) { |error|
+        expect([error.code, error.cause]).to match([47, an_instance_of(Tarantool::ServerError)])
+      }
+    ensure
+      rejecting.stop
+    end
+
     it 'raises ConnectionError when the server sends no greeting' do
       silent = FakeTarantool.new(greeting: false)
       config = Tarantool::Client::Configuration.build(silent.uri, connect_timeout: 0.1)
@@ -106,10 +117,33 @@ RSpec.describe Tarantool::Client::Transport::Connection do
         expect(connection.perform(eval_request('return 1'), timeout: 1).data).to eq(['return 1'])
       end
 
+      it 'reports a write lock held past the timeout as no response' do
+        lock = connection.instance_variable_get(:@writer).instance_variable_get(:@lock)
+        held = Thread::Queue.new
+        release = Thread::Queue.new
+        holder = Thread.new { lock.synchronize(nil) { (held << true) && release.pop } }
+        held.pop
+
+        expect { connection.perform(eval_request('x'), timeout: 0.05) }
+          .to raise_error(Tarantool::TimeoutError, 'no response within 0.05s')
+      ensure
+        release << true
+        holder.join
+      end
+
       it 'sends the schema version in the request header' do
         connection.perform(eval_request('return 1'), timeout: 1, schema_version: 80)
 
         expect(server.headers.last[0x05]).to eq(80)
+      end
+
+      it 'raises TimeoutError without sending when no time is left' do
+        connection
+        sent = server.headers.size
+
+        expect { connection.perform(eval_request('x'), timeout: 0) }.to raise_error(Tarantool::TimeoutError)
+        connection.perform(eval_request('return 1'), timeout: 1)
+        expect(server.headers.size).to eq(sent + 1)
       end
     end
 
@@ -273,6 +307,33 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       connection.close
 
       expect { connection.perform(eval_request('x'), timeout: 1) }.to raise_error(Tarantool::ClientClosedError)
+    end
+  end
+
+  describe 'losing the connection' do
+    let(:lost) { Thread::Queue.new }
+    let(:connection) do
+      described_class.new(config).tap { |c| c.disconnect_handler = -> { lost << c.closed? } }.connect
+    end
+
+    after { connection.close }
+
+    it 'calls the disconnect handler once, after the connection is marked closed' do
+      connection
+      server.disconnect
+
+      expect(lost.pop(timeout: 1)).to be(true)
+      expect(lost.pop(timeout: 0.1)).to be_nil
+    end
+
+    it 'does not call the disconnect handler on close' do
+      connection.close
+
+      expect(lost.pop(timeout: 0.1)).to be_nil
+    end
+
+    it 'is not closed while connected' do
+      expect(connection.closed?).to be(false)
     end
   end
 

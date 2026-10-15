@@ -207,6 +207,14 @@ RSpec.describe Tarantool::Client do
         .to raise_error(Tarantool::TimeoutError, 'no response within 0.3s')
       expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.6
     end
+
+    it 'does not send the retry once the reload used up the timeout' do
+      schema_state[:delay] = 0.15
+
+      expect { client.select(:users, 1, timeout: 0.2) }.to raise_error(Tarantool::TimeoutError)
+      client.select(512, 1, index: 0)
+      expect(server.headers.count { |header| header[0x00] == 0x01 && header.key?(0x05) }).to eq(1)
+    end
   end
 
   context 'with watchers' do
@@ -218,7 +226,7 @@ RSpec.describe Tarantool::Client do
         fake.reply(request, [])
       end
     end
-    let(:client) { described_class.new(server.uri) }
+    let(:client) { described_class.new(server.uri, reconnect_delay: 0.01) }
     let(:events) { Thread::Queue.new }
 
     after do
@@ -266,6 +274,94 @@ RSpec.describe Tarantool::Client do
       client.close
 
       expect { client.watch('config') { nil } }.to raise_error(Tarantool::ClientClosedError)
+    end
+
+    it 'subscribes again after a reconnect' do
+      client.watch('config') { |key, value| events << [key, value] }
+      watch_requests.pop(timeout: 1)
+      server.disconnect
+
+      expect(watch_requests.pop(timeout: 1)).to have_attributes(type: 0x4a, body: { 0x57 => 'config' })
+      server.event('config', 2)
+      expect(events.pop(timeout: 1)).to eq(['config', 2])
+    end
+  end
+
+  context 'when the server drops the connection' do
+    let!(:schema_state) { { users_id: 512 } }
+    let(:server) do
+      FakeTarantool.new do |request, fake|
+        case request.body[0x10]
+        when 281 then fake.reply(request, [[schema_state[:users_id], 1, 'users']])
+        when 289 then fake.reply(request, [[schema_state[:users_id], 0, 'primary']])
+        else fake.reply(request, [[request.body[0x10], request.body[0x20]]])
+        end
+      end
+    end
+    let(:client) { described_class.new(server.uri, reconnect_delay: 0.01, reconnect_max_delay: 0.05) }
+
+    after do
+      client.close
+      server.stop
+    end
+
+    def reconnect
+      client
+      server.disconnect
+      wait_for { server.connections == 2 && client.connected? }
+    end
+
+    it 'serves requests again after reconnecting' do
+      reconnect
+
+      expect(client.select(:users, 7)).to eq([[512, [7]]])
+    end
+
+    it 'resolves names against the schema of the new instance' do
+      client
+      schema_state[:users_id] = 513
+      reconnect
+
+      expect(client.select(:users, 1)).to eq([[513, [1]]])
+    end
+
+    it 'resolves a name requested while reconnecting against the new instance at the same schema version' do
+      client
+      schema_state[:users_id] = 513
+      server.refusing = true
+      server.disconnect
+      wait_for { !client.connected? }
+      request = Thread.new { client.select(:users, 1) }
+      wait_for { request.stop? }
+      server.refusing = false
+
+      expect(request.value).to eq([[513, [1]]])
+    end
+
+    it 'raises TransactionError for a call by name in a transaction whose connection was lost' do
+      expect do
+        client.transaction do |tx|
+          schema_state[:users_id] = 513
+          server.schema_version = 2
+          reconnect
+          tx.select(:users, 1)
+        end
+      end.to raise_error(Tarantool::TransactionError, /connection lost/)
+    end
+
+    it 'reports whether it is connected' do
+      expect(client.connected?).to be(true)
+      server.refusing = true
+      server.disconnect
+
+      wait_for { !client.connected? }
+      expect(client.connected?).to be(false)
+    end
+
+    it 'runs a new transaction after a reconnect' do
+      reconnect
+
+      expect(client.transaction(&:ping)).to be(true)
     end
   end
 

@@ -2,21 +2,33 @@
 
 module Tarantool
   class Client
-    # Latest known schema of one connection. Concurrent reloads of the same stale schema collapse into one fetch.
+    # Latest known schema, installed by #replace for each new connection. Concurrent reloads of the same
+    # stale schema collapse into one fetch.
     class SchemaCache
       attr_reader :schema
 
-      def initialize(connection)
-        @connection = connection
-        @lock = Mutex.new
+      def initialize
+        @lock = Transport::TimedLock.new
+        @assign = Mutex.new
       end
 
-      def reload(stale = nil, timeout:)
-        @lock.synchronize do
+      # Fetches over the stale schema's own connection. A reconnect may replace the schema meanwhile, and
+      # its schema wins: the fetched one is kept only while the stale one is still current.
+      def reload(stale, timeout:)
+        deadline = Transport::Deadline.after(timeout)
+        @lock.synchronize(deadline) do
           return @schema unless @schema.equal?(stale)
 
-          @schema = Schema.fetch(@connection, timeout:)
+          fresh = Schema.fetch(stale.connection, timeout: Transport::Deadline.remaining(deadline))
+          @assign.synchronize { @schema = fresh if @schema.equal?(stale) }
+          @schema
         end
+      end
+
+      # Skips the TimedLock: a reload holding it may hang on a lost connection until its timeout, and a new
+      # connection's schema must not wait for that.
+      def replace(schema)
+        @assign.synchronize { @schema = schema }
       end
 
       # An unknown name may have been created after the last load, so it costs one reload.
