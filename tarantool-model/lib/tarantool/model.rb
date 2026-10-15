@@ -12,6 +12,8 @@ require_relative 'model/types/interval'
 require_relative 'model/types/binary'
 require_relative 'model/settings'
 require_relative 'model/state'
+require_relative 'model/storage/box/layout'
+require_relative 'model/storage/box'
 
 module Tarantool
   # ActiveModel-based model over a Tarantool space. Attribute names are the space format field names.
