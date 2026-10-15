@@ -228,6 +228,13 @@ RSpec.describe Tarantool::Client do
 
       expect(Thread.list.none? { |thread| thread.name == 'tarantool-watchers' && thread.alive? }).to be(true)
     end
+
+    it 'raises ClientClosedError when watching a key again after close' do
+      client.watch('config') { nil }
+      client.close
+
+      expect { client.watch('config') { nil } }.to raise_error(Tarantool::ClientClosedError)
+    end
   end
 
   context 'when the initial schema load fails' do

@@ -48,7 +48,12 @@ module Tarantool
       end
 
       def close
+        @jobs.clear
         @jobs.close
+        @lock.synchronize do
+          @watchers.clear
+          @values.clear
+        end
         @dispatcher&.join unless Thread.current == @dispatcher
       end
 

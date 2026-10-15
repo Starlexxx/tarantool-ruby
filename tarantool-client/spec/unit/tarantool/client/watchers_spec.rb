@@ -12,6 +12,13 @@ RSpec.describe Tarantool::Client::Watchers do
   def collect(key) = watchers.add(key, ->(*event) { events << event })
   def sent_so_far = Array.new(sent.size) { sent.pop }
 
+  def collect_and_hold(key, hold_at, hold)
+    watchers.add(key, lambda { |k, value|
+      events << [k, value]
+      hold.pop(timeout: 1) if value == hold_at
+    })
+  end
+
   before { allow(connection).to receive(:notify) { |request, **| sent << request } }
   after { watchers.close }
 
@@ -157,5 +164,18 @@ RSpec.describe Tarantool::Client::Watchers do
     watchers.close
 
     expect(Thread.list.none? { |thread| thread.name == 'tarantool-watchers' && thread.alive? }).to be(true)
+  end
+
+  it 'drops queued jobs on close instead of draining them' do
+    hold = Thread::Queue.new
+    collect_and_hold('k', 1, hold)
+    watchers.dispatch('k', 1)
+    events.pop(timeout: 1)
+    watchers.dispatch('k', 2)
+    closing = Thread.new { watchers.close }
+    hold << :go
+    closing.join
+
+    expect(events.pop(timeout: 0.1)).to be_nil
   end
 end
