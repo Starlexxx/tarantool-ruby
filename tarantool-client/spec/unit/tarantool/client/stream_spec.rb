@@ -81,6 +81,15 @@ RSpec.describe Tarantool::Client::Stream do
     expect { finished.space_info(:users) }.to raise_error(Tarantool::TransactionError, 'transaction is finished')
   end
 
+  it 'raises TimeoutError with the timeout message when space info times out inside the transaction' do
+    allow(Tarantool::Client::TransactionSchema).to receive(:new).and_wrap_original do |method, *args|
+      method.call(*args).tap { |schema| allow(schema).to receive(:space_info).and_raise(Tarantool::TimeoutError, 'lock wait timed out') }
+    end
+
+    expect { transaction { |tx| tx.space_info(:users, timeout: 0.5) } }
+      .to raise_error(Tarantool::TimeoutError, 'no response within 0.5s')
+  end
+
   it 'catches up with a schema that changed before BEGIN' do
     schema_cache
     server.schema_version = 2

@@ -76,7 +76,10 @@ module Tarantool
       def lookup_space(space, timeout)
         check_active
         check_connection
-        @schema.space_info(space, Transport::Deadline.after(timeout || @request_timeout))
+        timeout ||= @request_timeout
+        @schema.space_info(space, Transport::Deadline.after(timeout))
+      rescue TimeoutError
+        raise TimeoutError, "no response within #{timeout}s"
       end
 
       def remaining(deadline)
