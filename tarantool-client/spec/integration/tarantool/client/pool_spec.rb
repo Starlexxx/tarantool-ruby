@@ -34,8 +34,9 @@ RSpec.describe Tarantool::Client::Pool, :failover do
     pool
     set_read_only(true, false)
 
-    wait_for(timeout: 5) { uuid_for(:rw) == uuid(1) }
-    expect(uuid_for(:ro)).to eq(uuid(0))
+    switched = [uuid(1), uuid(0)]
+    wait_for(timeout: 5) { [uuid_for(:rw), uuid_for(:ro)] == switched }
+    expect([uuid_for(:rw), uuid_for(:ro)]).to eq(switched)
   end
 
   it 'runs transactions on the writable instance' do
