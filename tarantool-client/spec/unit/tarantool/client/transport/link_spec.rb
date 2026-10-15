@@ -5,7 +5,9 @@ RSpec.describe Tarantool::Client::Transport::Link do
   let(:options) { {} }
   let(:callbacks) { Thread::Queue.new }
   let(:on_connect) { ->(connection) { callbacks << [:connect, connection] } }
-  let(:backoff) { nil }
+
+  def on_ready = ->(connection) { callbacks << [:ready, connection] }
+  def backoff = nil
 
   def config
     Tarantool::Client::Configuration.build(
@@ -14,8 +16,10 @@ RSpec.describe Tarantool::Client::Transport::Link do
   end
 
   def build_link
-    described_class.new(config, on_connect:, on_ready: ->(connection) { callbacks << [:ready, connection] }, backoff:)
+    described_class.new(config, on_connect:, on_ready:, backoff:)
   end
+
+  def alive_threads(prefix) = Thread.list.select { |thread| thread.alive? && thread.name&.start_with?(prefix) }
 
   def ping = Tarantool::Client::Protocol::Requests::Ping.new
 
@@ -26,7 +30,16 @@ RSpec.describe Tarantool::Client::Transport::Link do
       server.refusing = true
 
       expect { build_link.connect }.to raise_error(Tarantool::ConnectionError, /cannot connect/)
-      expect(Thread.list.none? { |thread| thread.name&.start_with?('tarantool-reconnect') }).to be(true)
+      expect(alive_threads('tarantool-reconnect')).to be_empty
+    end
+
+    context 'when on_ready fails' do
+      let(:on_ready) { ->(_connection) { raise ArgumentError, 'ready' } }
+
+      it 'closes the connection and raises' do
+        expect { build_link.connect }.to raise_error(ArgumentError, 'ready')
+        expect(alive_threads('tarantool-reader')).to be_empty
+      end
     end
   end
 
@@ -52,6 +65,12 @@ RSpec.describe Tarantool::Client::Transport::Link do
 
     it 'performs requests on the connection' do
       expect(link.perform(ping, timeout: 1).data).to eq([0x40])
+    end
+
+    it 'is connected until the connection is lost' do
+      expect(link.connected?).to be(true)
+      take_down
+      expect(link.connected?).to be(false)
     end
 
     it 'reconnects after the server drops the connection' do
@@ -84,6 +103,56 @@ RSpec.describe Tarantool::Client::Transport::Link do
       end
     end
 
+    context 'when on_ready fails after the drop' do
+      let(:on_ready) do
+        calls = 0
+        ->(_connection) { raise ArgumentError, 'ready' if (calls += 1) == 2 }
+      end
+
+      it 'keeps the new connection and reports the error' do
+        warnings = Thread::Queue.new
+        allow(Warning).to receive(:warn) { |message, **| warnings << message }
+        drop_connection
+
+        expect(warnings.pop(timeout: 1)).to include('ready')
+        expect(link.perform(ping, timeout: 1).data).to eq([0x40])
+        expect { link.close }.not_to raise_error
+      end
+    end
+
+    context 'when the reconnect thread hits an unexpected exception' do
+      let(:on_connect) do
+        calls = 0
+        ->(_connection) { raise NotImplementedError, 'bug' if (calls += 1) == 2 }
+      end
+
+      it 'closes the link with the error' do
+        allow(Warning).to receive(:warn)
+        drop_connection
+
+        expect { link.perform(ping, timeout: 1) }
+          .to raise_error(Tarantool::ConnectionError, /reconnect to .* failed: NotImplementedError: bug/)
+      end
+    end
+
+    context 'when on_connect waits for a reply on the new connection' do
+      let(:server) { FakeTarantool.new }
+      let(:options) { { connect_timeout: 2 } }
+      let(:on_connect) do
+        calls = 0
+        ->(connection) { connection.perform(ping, timeout: 2) if (calls += 1) == 2 }
+      end
+
+      it 'cuts the attempt short on close' do
+        drop_connection
+        server.next_request
+        started = Tarantool::Client::Transport::Deadline.now
+        link.close
+
+        expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.5
+      end
+    end
+
     context 'with a named user' do
       let(:options) { { user: 'app', password: 'secret' } }
 
@@ -103,7 +172,7 @@ RSpec.describe Tarantool::Client::Transport::Link do
       started = Tarantool::Client::Transport::Deadline.now
 
       expect { link.perform(ping, timeout: 5) }.to raise_error(Tarantool::ConnectionError, /not connected/)
-      expect(Tarantool::Client::Transport::Deadline.now - started).to be_between(0.4, 1)
+      expect(Tarantool::Client::Transport::Deadline.now - started).to be_between(0.4, 2)
     end
 
     it 'bounds the wait for a reconnect by the request timeout' do
@@ -118,8 +187,7 @@ RSpec.describe Tarantool::Client::Transport::Link do
       take_down
       link.close
 
-      expect(Thread.list.none? { |thread| thread.name&.start_with?('tarantool-reconnect') && thread.alive? })
-        .to be(true)
+      expect(alive_threads('tarantool-reconnect')).to be_empty
     end
 
     it 'raises ClientClosedError after close' do

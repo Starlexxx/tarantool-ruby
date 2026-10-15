@@ -21,7 +21,10 @@ module Tarantool
 
         def connect
           install(open_connection)
+          connected = true
           self
+        ensure
+          close unless connected
         end
 
         def perform(request, timeout:, **)
@@ -40,10 +43,15 @@ module Tarantool
         def greeting = @state.connection.greeting
         def connected? = @state.connected?
 
+        # Closing the attempt first fails a handshake or on_connect blocked on it, so the join is short.
         def close
-          reconnector = @state.close
-          reconnector&.join unless Thread.current == reconnector
-          @state.connection&.close
+          reconnector, attempt = @state.close
+          attempt&.close
+          begin
+            reconnector&.join unless Thread.current == reconnector
+          ensure
+            @state.connection&.close
+          end
           nil
         end
 
@@ -57,12 +65,13 @@ module Tarantool
           connection = Connection.new(@config)
           connection.event_handler = @event_handler
           connection.disconnect_handler = -> { lost(connection) }
+          @state.attempting(connection)
           connection.connect
           @on_connect.call(connection)
+          opened = true
           connection
-        rescue StandardError
-          connection&.close
-          raise
+        ensure
+          connection&.close unless opened
         end
 
         # A connection that broke before it became current was ignored by #lost, hence the last check. It runs
@@ -70,44 +79,56 @@ module Tarantool
         def install(connection)
           return connection.close unless @state.install(connection)
 
-          begin
-            @on_ready.call(connection)
-          ensure
-            lost(connection) if connection.closed?
-          end
+          @on_ready.call(connection)
+        ensure
+          lost(connection) if connection.closed?
         end
 
         def lost(connection)
           return unless @config.reconnect
 
-          @state.reconnect(connection) do
-            Thread.new { reconnect }.tap { |thread| thread.name = "tarantool-reconnect #{@config.address}" }
+          @state.start_reconnect(connection) do |previous|
+            Thread.new { reconnect(previous) }.tap { |thread| thread.name = "tarantool-reconnect #{@config.address}" }
           end
         end
 
-        def reconnect
+        # Joining the previous thread first lets close join only the newest one. Nothing may escape: a dead
+        # thread would leave the link reconnecting forever, and its exception would resurface in every join.
+        def reconnect(previous)
+          previous&.join
+          reconnect_with_backoff
+        rescue Exception => e # rubocop:disable Lint/RescueException
+          warn(e.full_message)
+          @state.give_up(ConnectionError.new("reconnect to #{@config.address} failed: #{e.class}: #{e.message}"))
+        end
+
+        def reconnect_with_backoff
           attempt = 0
           while @state.pause(@backoff.delay(attempt))
-            connection = attempt_connect
-            return install(connection) if connection
+            result = attempt_connect
+            return reinstall(result) if result.is_a?(Connection)
 
             attempt += 1
-            return give_up(attempt) if attempt >= @config.reconnect_attempts
+            return give_up(attempt, result) if attempt >= @config.reconnect_attempts
           end
         end
 
         def attempt_connect
           open_connection
         rescue StandardError => e
-          @last_error = e
-          nil
+          e
         end
 
-        def give_up(attempts)
+        # The connection stays current: a failed on_ready is the caller's bug, not a reason to drop it.
+        def reinstall(connection)
+          install(connection)
+        rescue StandardError => e
+          warn("on_ready failed for #{@config.address}: #{e.full_message}")
+        end
+
+        def give_up(attempts, error)
           @state.give_up(
-            ConnectionError.new(
-              "cannot reconnect to #{@config.address} after #{attempts} attempts: #{@last_error.message}"
-            )
+            ConnectionError.new("cannot reconnect to #{@config.address} after #{attempts} attempts: #{error.message}")
           )
         end
       end
