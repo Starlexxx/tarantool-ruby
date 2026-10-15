@@ -9,6 +9,7 @@ module Tarantool
       # perform requests concurrently; a reader thread routes responses by sync.
       class Connection
         attr_reader :greeting, :server_features
+        attr_writer :event_handler
 
         def initialize(config)
           @config = config
@@ -23,16 +24,21 @@ module Tarantool
           raise
         end
 
-        def perform(request, timeout:, stream_id: nil, schema_version: nil)
+        def perform(request, timeout:, stream_id: nil, schema_version: nil, on_push: nil)
           deadline = Deadline.after(timeout)
           sync, future = @pending.register
           write(Protocol::Codec.encode(request, sync:, stream_id:, schema_version:), deadline)
-          response = await(future, deadline, timeout)
+          response = await(future, deadline, timeout, &on_push)
           raise ServerError.from_response(response) if response.error?
 
           response
         ensure
           @pending.delete(sync) if sync
+        end
+
+        # For requests the server never answers (WATCH, UNWATCH): there is no sync to wait on.
+        def notify(request, timeout:)
+          write(Protocol::Codec.encode(request, sync: 0), Deadline.after(timeout))
         end
 
         def close
@@ -75,12 +81,8 @@ module Tarantool
           @reader.name = "tarantool-reader #{@config.address}"
         end
 
-        # Push frames share the request's sync; callbacks for them are not supported yet.
         def read_loop
-          loop do
-            response = Protocol::Codec.read_response(@socket)
-            @pending.resolve(response.sync, response) unless response.push?
-          end
+          loop { route(Protocol::Codec.read_response(@socket)) }
         rescue IOError, SystemCallError, ProtocolError => e
           reason = e.message
         rescue StandardError => e
@@ -89,8 +91,16 @@ module Tarantool
           break_connection("connection to #{@config.address} lost: #{reason || 'reader stopped'}")
         end
 
-        def await(future, deadline, timeout)
-          future.value(Deadline.remaining(deadline))
+        # Events carry the sync of whichever WATCH triggered them, so they are routed by type.
+        def route(response)
+          return @pending.push(response.sync, response.data.first) if response.push?
+          return @event_handler&.call(response.event_key, response.event_data) if response.event?
+
+          @pending.resolve(response.sync, response)
+        end
+
+        def await(future, deadline, timeout, &)
+          future.value(Deadline.remaining(deadline), &)
         rescue TimeoutError
           raise TimeoutError, "no response within #{timeout}s"
         end
