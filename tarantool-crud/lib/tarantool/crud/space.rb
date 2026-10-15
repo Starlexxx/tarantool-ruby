@@ -42,6 +42,18 @@ module Tarantool
 
       def truncate(**) = value('truncate', **)
 
+      def insert_many(rows, **) = many(many_variant('insert', rows), rows, **)
+
+      def replace_many(rows, **) = many(many_variant('replace', rows), rows, **)
+
+      def upsert_many(pairs, **) = many(many_variant('upsert', pairs.map(&:first)), pairs, **)
+
+      def insert_many!(rows, **) = successful(insert_many(rows, **))
+
+      def replace_many!(rows, **) = successful(replace_many(rows, **))
+
+      def upsert_many!(pairs, **) = successful(upsert_many(pairs, **))
+
       private
 
       def value(function, *arguments, **options) = @call.value(function, [name, *arguments], options)
@@ -49,6 +61,21 @@ module Tarantool
       def row(...) = Result.from_crud(value(...)).first
 
       def variant(function, tuple) = tuple.is_a?(Hash) ? "#{function}_object" : function
+
+      def many(function, rows, **options) = @call.many(function, [name, rows], options)
+
+      def many_variant(function, rows)
+        kinds = rows.map { |row| row.is_a?(Hash) }.uniq
+        raise ArgumentError, 'rows must be all Arrays or all Hashes' if kinds.size > 1
+
+        kinds.first ? "#{function}_object_many" : "#{function}_many"
+      end
+
+      def successful(result)
+        raise ManyError, result unless result.success?
+
+        result
+      end
     end
   end
 end
