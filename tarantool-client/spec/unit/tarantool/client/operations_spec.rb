@@ -22,11 +22,18 @@ RSpec.describe Tarantool::Client::Operations do
       def perform(request, timeout: nil, on_push: nil)
         @performed << [request, timeout]
         @on_push = on_push
+
         Tarantool::Client::Protocol::Response.new({ 0x00 => 0, 0x01 => 1 }, @body)
       end
 
       def perform_on_space(space, index, timeout:)
         perform(yield(space == :users ? 512 : space, index == :email ? 1 : index), timeout:)
+      end
+
+      def lookup_space(space, timeout)
+        @performed << [:lookup_space, space, timeout]
+
+        :info
       end
     end
   end
@@ -45,10 +52,21 @@ RSpec.describe Tarantool::Client::Operations do
     )
   end
 
+  it 'selects after a tuple' do
+    target.select(:users, [], iterator: :all, limit: 2, after: [1, 'a@b.c'])
+
+    expect(last_request.after).to eq([1, 'a@b.c'])
+  end
+
   it 'passes the per-request timeout' do
     target.select(:users, 1, timeout: 0.5)
 
     expect(target.performed.last.last).to eq(0.5)
+  end
+
+  it 'looks up space info with the per-request timeout' do
+    expect(target.space_info(:users, timeout: 0.5)).to eq(:info)
+    expect(target.performed.last).to eq([:lookup_space, :users, 0.5])
   end
 
   it 'returns the affected tuple for insert, replace, update and delete' do

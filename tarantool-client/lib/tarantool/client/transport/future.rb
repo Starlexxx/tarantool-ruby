@@ -28,6 +28,7 @@ module Tarantool
         # Yields each pushed message, in the waiting thread, until the final value arrives.
         def value(timeout)
           deadline = Deadline.after(timeout)
+
           loop do
             result = @queue.pop(timeout: Deadline.remaining(deadline))
             raise TimeoutError, "no response within #{timeout}s" if result.nil?

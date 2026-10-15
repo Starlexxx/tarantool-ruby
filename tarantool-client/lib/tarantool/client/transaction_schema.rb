@@ -20,11 +20,16 @@ module Tarantool
         pinned(deadline).resolve(space, index)
       end
 
+      def space_info(space, deadline)
+        pinned(deadline).space_info(space)
+      end
+
       # A request rejected for its schema version did not run, so the transaction still rolls back
       # cleanly. The reload spares the retried transaction the same rejection.
       def raise_changed(deadline)
         schema = @cache.schema
         reload(schema, deadline) if schema.version == version
+
         raise TransactionError, CHANGED
       end
 

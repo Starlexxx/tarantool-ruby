@@ -49,6 +49,8 @@ require_relative 'client/transport/handshake'
 require_relative 'client/transport/connection'
 require_relative 'client/transport/link_state'
 require_relative 'client/transport/link'
+require_relative 'client/index_info'
+require_relative 'client/space_info'
 require_relative 'client/schema'
 require_relative 'client/schema_cache'
 require_relative 'client/sql_result'
@@ -118,6 +120,7 @@ module Tarantool
 
     def close
       @link.close
+
       @watchers.close
     end
 
@@ -147,6 +150,7 @@ module Tarantool
       return unless @disconnect_handler
 
       @disconnect_handler.call
+
       @watchers.defer(&@disconnect_handler)
     end
 
@@ -163,13 +167,25 @@ module Tarantool
     def perform_by_name(space, index, timeout, &)
       deadline = Transport::Deadline.after(timeout)
       @link.connection(deadline)
+
       perform_with_schema_check(space, index, deadline, &)
+    rescue TimeoutError
+      raise TimeoutError, "no response within #{timeout}s"
+    end
+
+    def lookup_space(space, timeout)
+      timeout ||= @config.request_timeout
+      deadline = Transport::Deadline.after(timeout)
+      @link.connection(deadline)
+
+      @schema_cache.space_info(space, deadline)
     rescue TimeoutError
       raise TimeoutError, "no response within #{timeout}s"
     end
 
     def perform_with_schema_check(space, index, deadline)
       schema, ids = @schema_cache.resolve(space, index, deadline)
+
       perform_resolved(schema, yield(*ids), deadline)
     rescue ServerError => e
       raise unless e.code == Protocol::Constants::ER_WRONG_SCHEMA_VERSION
@@ -183,6 +199,7 @@ module Tarantool
     # schema version with other ids, so the request fails with it rather than wait for a reconnect.
     def perform_resolved(schema, request, deadline)
       timeout = Transport::Deadline.remaining(deadline)
+
       schema.connection.perform(request, timeout:, schema_version: schema.version)
     end
   end

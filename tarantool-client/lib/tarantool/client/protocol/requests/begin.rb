@@ -19,6 +19,7 @@ module Tarantool
           # The server accepts only a MessagePack double for the timeout and rejects an integer.
           def body
             level = Constants::ISOLATION_LEVELS.fetch(isolation)
+
             { Constants::TXN_ISOLATION => level, Constants::TIMEOUT => timeout&.to_f }.compact
           end
         end

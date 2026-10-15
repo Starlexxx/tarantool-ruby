@@ -13,6 +13,7 @@ class FakeCaller
 
   def call(function, arguments, timeout: nil)
     @requests << Request.new(function:, arguments:, timeout:)
+
     @responses.size > 1 ? @responses.shift : @responses.first
   end
 

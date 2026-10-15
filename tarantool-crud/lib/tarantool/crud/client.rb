@@ -16,6 +16,7 @@ module Tarantool
       # crud.stats takes no options and encodes an empty table as an Array.
       def stats(space = nil)
         stats = @caller.call('crud.stats', [space&.to_s].compact, timeout: nil).first
+
         stats.is_a?(Hash) ? stats : {}
       end
     end

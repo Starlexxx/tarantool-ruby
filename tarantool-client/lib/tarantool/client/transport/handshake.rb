@@ -13,6 +13,7 @@ module Tarantool
           )
           response = connection.perform(id, timeout: Deadline.remaining(deadline))
           authenticate(connection, config, deadline) if config.user && config.user != 'guest'
+
           response.body.fetch(Protocol::Constants::FEATURES, [])
         end
 
@@ -21,6 +22,7 @@ module Tarantool
           request = Protocol::Requests::Auth.new(
             user: config.user, mechanism: Protocol::Auth::ChapSha1::MECHANISM, scramble:
           )
+
           connection.perform(request, timeout: Deadline.remaining(deadline))
         rescue ServerError => e
           raise AuthenticationError.new(e.message, code: e.code)

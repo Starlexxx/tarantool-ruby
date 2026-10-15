@@ -32,6 +32,10 @@ RSpec.describe Tarantool::Client do
       expect(client.select(:users, 7, index: :primary)).to eq([[512, [7]]])
     end
 
+    it 'returns space info with indexes from the loaded schema' do
+      expect(client.space_info(:users).indexes.keys).to eq(['primary'])
+    end
+
     context 'when a name becomes known after a reload' do
       let!(:schema_state) { { orders: false } }
       let(:handler) do
@@ -54,6 +58,14 @@ RSpec.describe Tarantool::Client do
         schema_state[:orders] = true
 
         expect(client.select(:orders, 1)).to eq([[600, [1]]])
+      end
+
+      it 'returns space info once the schema is reloaded and includes the space' do
+        expect { client.space_info(:orders) }.to raise_error(Tarantool::SchemaError, /space 'orders'/)
+
+        schema_state[:orders] = true
+
+        expect(client.space_info(:orders)).to have_attributes(id: 600, name: 'orders')
       end
     end
 
@@ -154,11 +166,13 @@ RSpec.describe Tarantool::Client do
       schema_state[:vspace_requests] += 1
       sleep schema_state[:delay].to_f
       fake.reply(request, [[schema_state[:users_id], 1, 'users']])
+
       fake.schema_version += 1 if schema_state[:churn]
     end
 
     def reply_vindex(request, fake)
       sleep schema_state[:delay].to_f
+
       fake.reply(request, [[schema_state[:users_id], 0, 'primary']])
     end
 
@@ -308,6 +322,7 @@ RSpec.describe Tarantool::Client do
     def reconnect
       client
       server.disconnect
+
       wait_for { server.connections == 2 && client.connected? }
     end
 

@@ -27,6 +27,23 @@ RSpec.describe Tarantool::Client::Schema do
     end
   end
 
+  describe '#space_info' do
+    it 'returns the space with its indexes by name' do
+      info = schema.space_info(:users)
+
+      expect([info.id, info.name, info.indexes.keys]).to eq([512, 'users', %w[primary email]])
+    end
+
+    it 'returns the space by id' do
+      expect(schema.space_info(512).name).to eq('users')
+    end
+
+    it 'raises SchemaError for an unknown space name or id' do
+      expect { schema.space_info(:orders) }.to raise_error(Tarantool::SchemaError, /space 'orders'/)
+      expect { schema.space_info(999) }.to raise_error(Tarantool::SchemaError, /space '999'/)
+    end
+  end
+
   describe '.fetch' do
     it 'loads spaces and indexes through the connection' do
       connection = instance_double(Tarantool::Client::Transport::Connection)

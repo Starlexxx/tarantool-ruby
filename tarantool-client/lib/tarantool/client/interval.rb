@@ -17,6 +17,7 @@ module Tarantool
         return if offenders.empty?
 
         details = offenders.map { |name, value| "#{name}=#{value.inspect}" }.join(', ')
+
         raise ArgumentError, "interval units must be integers: #{details}"
       end
     end

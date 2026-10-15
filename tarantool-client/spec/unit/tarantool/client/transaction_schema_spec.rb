@@ -26,6 +26,18 @@ RSpec.describe Tarantool::Client::TransactionSchema do
     expect(schema_selects).to eq(2)
   end
 
+  it 'returns space info from the schema of the BEGIN version' do
+    expect(described_class.new(cache, connection, 1).space_info(:users, deadline).indexes.keys).to eq(['primary'])
+  end
+
+  it 'raises TransactionError for space info once the schema moved past the BEGIN version' do
+    cache
+    server.schema_version = 3
+
+    expect { described_class.new(cache, connection, 2).space_info(:users, deadline) }
+      .to raise_error(Tarantool::TransactionError, /schema changed/)
+  end
+
   it 'reloads a cache older than the BEGIN version' do
     cache
     server.schema_version = 2

@@ -10,3 +10,5 @@ First release.
 - `box.session.push` messages and watchers.
 - Background reconnect with exponential backoff and full jitter.
 - `Pool` with `:rw`, `:ro`, `:prefer_ro`, `:prefer_rw` and `:any` modes driven by `box.status`.
+- `space_info`: space format and index parts from the schema cache.
+- `select(after:)` keyset pagination.

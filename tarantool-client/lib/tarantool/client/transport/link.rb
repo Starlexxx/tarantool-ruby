@@ -24,6 +24,7 @@ module Tarantool
         def connect
           install(open_connection)
           connected = true
+
           self
         ensure
           close unless connected
@@ -31,11 +32,13 @@ module Tarantool
 
         def perform(request, timeout:, **)
           deadline = Deadline.after(timeout)
+
           current(deadline).perform(request, timeout: Deadline.remaining(deadline), **)
         end
 
         def notify(request, timeout:)
           deadline = Deadline.after(timeout)
+
           current(deadline).notify(request, timeout: Deadline.remaining(deadline))
         end
 
@@ -54,6 +57,7 @@ module Tarantool
           ensure
             @state.connection&.close
           end
+
           nil
         end
 
@@ -71,6 +75,7 @@ module Tarantool
           connection.connect
           @on_connect.call(connection)
           opened = true
+
           connection
         ensure
           connection&.close unless opened
@@ -99,6 +104,7 @@ module Tarantool
         def reconnect(previous)
           previous&.join
           run_hook('on_lost') { @on_lost&.call }
+
           reconnect_with_backoff
         rescue StandardError => e
           warn(e.full_message)
@@ -107,6 +113,7 @@ module Tarantool
 
         def reconnect_with_backoff
           attempt = 0
+
           while @state.pause(@backoff.delay(attempt))
             result = attempt_connect
             return run_hook('on_ready') { install(result) } if result.is_a?(Connection)

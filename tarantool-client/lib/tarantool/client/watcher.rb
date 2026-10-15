@@ -17,6 +17,7 @@ module Tarantool
       def unwatch
         @active = false
         @watchers.remove(self)
+
         nil
       end
 
@@ -28,6 +29,7 @@ module Tarantool
         return unless @active
 
         @notified = true
+
         @callback.call(key, value)
       end
     end

@@ -25,6 +25,7 @@ module Tarantool
           (@watchers[key] ||= []) << watcher
         end
         @jobs.push(-> { catch_up(watcher) })
+
         watcher
       end
 
@@ -50,6 +51,7 @@ module Tarantool
       # Runs the block on the dispatcher after the events queued so far.
       def defer
         @lock.synchronize { @dispatcher ||= start_dispatcher }
+
         @jobs.push(lambda do
           yield
         rescue StandardError => e
@@ -76,6 +78,7 @@ module Tarantool
           @watchers.clear
           @values.clear
         end
+
         @dispatcher&.join unless Thread.current == @dispatcher
       end
 
@@ -101,6 +104,7 @@ module Tarantool
         return if watchers.empty?
 
         watchers.each { |watcher| run_callback(watcher, value) }
+
         acknowledge(key)
       end
 
@@ -108,6 +112,7 @@ module Tarantool
       # gets the cached one, unless an event queued before this job already reached it.
       def catch_up(watcher)
         known, value = @lock.synchronize { [@values.key?(watcher.key), @values[watcher.key]] }
+
         run_callback(watcher, value) if known && !watcher.notified?
       end
 

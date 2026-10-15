@@ -55,6 +55,22 @@ client.delete(:users, [42])
 
 Names are resolved through a schema cache loaded from `_vspace` and `_vindex`. A request resolved by name carries the schema version. If the schema changed meanwhile, the server rejects the request without running it; the client then reloads the schema once and retries within the same timeout.
 
+`after:` continues a `select` past a tuple (keyset pagination, `IPROTO_AFTER_TUPLE`). It works on TREE indexes, including non-unique ones and `:lt`/`:le` (descending); a HASH index raises `ServerError` (code 112).
+
+```ruby
+page = client.select(:users, [18], index: :age, iterator: :ge, limit: 50)
+next_page = client.select(:users, [18], index: :age, iterator: :ge, limit: 50, after: page.last)
+```
+
+`space_info` returns the format and indexes from the same schema cache; an unknown name costs one reload. Inside a transaction it reads the schema the transaction started with; on a `Pool` it accepts `mode:`.
+
+```ruby
+info = client.space_info(:users)
+info.fields.map(&:name)              # => ["id", "email", "age"]
+info.primary_index.parts.map(&:name) # => ["id"]
+info.indexes['age'].unique           # => false
+```
+
 ## Lua
 
 ```ruby

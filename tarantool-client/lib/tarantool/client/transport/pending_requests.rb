@@ -45,6 +45,7 @@ module Tarantool
             [first, @failure, @futures.values.tap { @futures.clear }]
           end
           futures.each { |future| future.reject(failure) }
+
           first
         end
       end

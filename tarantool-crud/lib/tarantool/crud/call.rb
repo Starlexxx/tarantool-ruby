@@ -24,6 +24,7 @@ module Tarantool
       def perform(function, arguments, options)
         options = @defaults.options_for(function).merge(options)
         timeout = options[:timeout] && (options[:timeout] + @timeout_margin)
+
         @caller.call("crud.#{function}", [*arguments, options], timeout:)
       end
     end

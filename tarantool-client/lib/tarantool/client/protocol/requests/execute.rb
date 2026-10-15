@@ -10,6 +10,7 @@ module Tarantool
 
           def body
             key = statement.is_a?(Integer) ? Constants::STMT_ID : Constants::SQL_TEXT
+
             { key => statement, Constants::SQL_BIND => bindings }
           end
         end

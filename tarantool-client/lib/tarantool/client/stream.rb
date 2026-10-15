@@ -8,6 +8,7 @@ module Tarantool
       include Operations
 
       LOST = 'connection lost during the transaction; the server rolled it back'
+      FINISHED = 'transaction is finished'
 
       def initialize(connection:, schema_cache:, id:, request_timeout:)
         @connection = connection
@@ -21,6 +22,7 @@ module Tarantool
         raise TransactionError, TransactionScope::NESTED unless @state == :idle
 
         start(isolation, timeout)
+
         run(&)
       end
 
@@ -34,6 +36,7 @@ module Tarantool
       def start(isolation, timeout)
         response = perform(Protocol::Requests::Begin.new(isolation:, timeout:))
         @schema = TransactionSchema.new(@schema_cache, @connection, response.schema_version)
+
         @state = :active
       end
 
@@ -41,13 +44,14 @@ module Tarantool
       def run
         result = yield self
         finish(Protocol::Requests::Commit.new)
+
         result
       ensure
         abandon if @state == :active
       end
 
       def perform(request, timeout: nil, schema_version: nil, on_push: nil)
-        raise TransactionError, 'transaction is finished' if @state == :finished
+        check_active
 
         send_request(request, timeout: timeout || @request_timeout, schema_version:, on_push:)
       end
@@ -64,11 +68,22 @@ module Tarantool
         check_connection
         deadline = Transport::Deadline.after(timeout)
         request = yield(*@schema.resolve(space, index, deadline))
+
         perform(request, timeout: remaining(deadline), schema_version: @schema.version)
       rescue ServerError => e
         raise unless e.code == Protocol::Constants::ER_WRONG_SCHEMA_VERSION
 
         @schema.raise_changed(deadline)
+      rescue TimeoutError
+        raise TimeoutError, "no response within #{timeout}s"
+      end
+
+      def lookup_space(space, timeout)
+        check_active
+        check_connection
+        timeout ||= @request_timeout
+
+        @schema.space_info(space, Transport::Deadline.after(timeout))
       rescue TimeoutError
         raise TimeoutError, "no response within #{timeout}s"
       end
@@ -81,17 +96,23 @@ module Tarantool
       # its outcome is unknown (the server may have committed), and a rollback would add nothing.
       def finish(request)
         @state = :finished
+
         send_request(request, timeout: @request_timeout)
       end
 
       # A stream is bound to its connection's session, so a reconnect can't carry the transaction over.
       def send_request(request, **)
         check_connection
+
         @connection.perform(request, stream_id: @id, **)
       end
 
       def check_connection
         raise TransactionError, LOST if @state != :idle && @connection.closed?
+      end
+
+      def check_active
+        raise TransactionError, FINISHED if @state == :finished
       end
 
       # Runs while an error or a non-local exit is already propagating, which a failed rollback must

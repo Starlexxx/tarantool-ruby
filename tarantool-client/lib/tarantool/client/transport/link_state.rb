@@ -92,6 +92,7 @@ module Tarantool
         # Returns false once closed; close cuts the sleep short.
         def pause(delay)
           wake_at = Deadline.after(delay)
+
           @lock.synchronize do
             until @state == :closed || (remaining = Deadline.remaining(wake_at)).zero?
               @changed.wait(@lock, remaining)

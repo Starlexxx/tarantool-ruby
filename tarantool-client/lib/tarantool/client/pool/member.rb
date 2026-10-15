@@ -22,6 +22,7 @@ module Tarantool
         def start
           connect
           wait_for_status
+
           nil
         rescue Error => e
           retry_in_background if @config.reconnect
@@ -42,6 +43,7 @@ module Tarantool
             [@retrier, @client]
           end
           retrier&.join
+
           client&.close
         end
 
@@ -52,6 +54,7 @@ module Tarantool
           # A role belongs to one session; the next one must report its own before the member is routed to.
           client.disconnect_handler = -> { @lock.synchronize { @read_only = nil } }
           client.watch('box.status') { |_key, status| update(status) }
+
           install(client)
         rescue Error
           client&.close
@@ -63,6 +66,7 @@ module Tarantool
             @client = client unless @closed
             @closed
           end
+
           client.close if closed
         end
 
@@ -75,6 +79,7 @@ module Tarantool
 
         def wait_for_status
           deadline = Transport::Deadline.after(@config.connect_timeout)
+
           @lock.synchronize do
             while @read_only.nil? && !@closed
               remaining = Transport::Deadline.remaining(deadline)
@@ -98,6 +103,7 @@ module Tarantool
         def retry_connect
           backoff = Backoff.new(base: @config.reconnect_delay, max: @config.reconnect_max_delay)
           attempt = 0
+
           while attempt < @config.reconnect_attempts && pause(backoff.delay(attempt))
             return if try_connect
 
@@ -109,6 +115,7 @@ module Tarantool
 
         def try_connect
           connect
+
           true
         rescue Error
           false

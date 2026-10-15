@@ -10,6 +10,7 @@ module Tarantool
 
           def unpack(payload)
             stack = Codec::FACTORY.load(payload, allow_unknown_ext: true).fetch(Constants::ERROR_STACK)
+
             Client::BoxError.from_stack(stack)
           end
 

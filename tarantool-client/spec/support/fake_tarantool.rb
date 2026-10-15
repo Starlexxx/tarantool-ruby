@@ -56,6 +56,7 @@ class FakeTarantool
   def event(key, data = nil, sync: 0)
     body = { 0x57 => key }
     body[0x58] = data unless data.nil?
+
     @write_lock.synchronize { @socket.write(iproto_frame({ 0x00 => 0x4c, 0x01 => sync }, body)) }
   end
 
@@ -69,6 +70,7 @@ class FakeTarantool
     disconnect
     @server.close
     @thread.kill.join
+
     FileUtils.remove_entry(@dir)
   end
 
@@ -78,6 +80,7 @@ class FakeTarantool
     @dir = Dir.mktmpdir
     @path = File.join(@dir, 'tarantool.sock')
     @server = UNIXServer.new(@path)
+
     @thread = Thread.new { serve }
   end
 
@@ -96,6 +99,7 @@ class FakeTarantool
 
     sleep @options[:delay]
     socket.write(iproto_greeting)
+
     loop { route(Tarantool::Client::Protocol::Codec.read_response(socket)) }
   rescue IOError, SystemCallError, Tarantool::ProtocolError
     socket.close
@@ -128,6 +132,7 @@ class FakeTarantool
 
   def stale_schema?(request)
     sent = request.header[0x05]
+
     @options[:check_schema_version] && sent && sent != schema_version
   end
 
@@ -138,6 +143,7 @@ class FakeTarantool
 
   def write(request, type, body)
     frame = iproto_frame({ 0x00 => type, 0x01 => request.sync, 0x05 => schema_version }, body)
+
     @write_lock.synchronize { @socket.write(frame) }
   end
 end
