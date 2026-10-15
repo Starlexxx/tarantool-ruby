@@ -32,6 +32,10 @@ module Tarantool
         Result.from_crud(value('select', Conditions.build(conditions), **options))
       end
 
+      def each(conditions = nil, batch_size: 1000, **options, &)
+        Scan.new(self, conditions, batch_size:, options:).each(&)
+      end
+
       def count(conditions = nil, **) = value('count', Conditions.build(conditions), **)
 
       def len(**) = value('len', **)
