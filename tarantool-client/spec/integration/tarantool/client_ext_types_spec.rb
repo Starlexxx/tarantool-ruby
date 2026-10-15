@@ -37,22 +37,22 @@ RSpec.describe Tarantool::Client, :integration do
     LUA
   end
 
+  def lua(code, args = [])
+    client.eval(prelude + code, args)
+  end
+
   before do
     client.eval(<<~LUA)
-      local space = box.schema.space.create('ext_values', {if_not_exists = true, format = {
+      if box.space.ext_values then box.space.ext_values:drop() end
+      local space = box.schema.space.create('ext_values', {format = {
         {name = 'id', type = 'unsigned'}, {name = 'decimal', type = 'decimal'}, {name = 'uuid', type = 'uuid'},
         {name = 'datetime', type = 'datetime'}, {name = 'interval', type = 'any'},
       }})
-      space:create_index('pk', {if_not_exists = true})
-      space:truncate()
+      space:create_index('pk')
     LUA
   end
 
   after { client.close }
-
-  def lua(code, args = [])
-    client.eval(prelude + code, args)
-  end
 
   it 'round-trips every ext type through a typed space' do
     client.insert(:ext_values, [1, decimal, uuid, time, interval])
