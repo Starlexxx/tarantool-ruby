@@ -82,6 +82,32 @@ RSpec.describe Tarantool::Client::Pool::Member do
     expect(member.read_only).to be(false)
   end
 
+  context 'when a new connection reports its role late' do
+    let(:late) { Thread::Queue.new }
+    let(:server) do
+      announced = {}
+      FakeTarantool.new do |request, fake|
+        next fake.reply(request, []) unless request.type == 0x4a && !announced[fake.connections]
+
+        announced[fake.connections] = true
+        late.pop if fake.connections > 1
+        fake.event('box.status', { 'is_ro' => roles['a'] })
+      end
+    end
+
+    it 'forgets the old role on reconnect even if nobody asked for it meanwhile' do
+      member.start
+      client = member.client
+      roles['a'] = false
+      server.disconnect
+      wait_for { server.connections == 2 && client.connected? }
+
+      expect(member.read_only).to be_nil
+      late << true
+      wait_for { member.read_only == false }
+    end
+  end
+
   it 'stops waiting for box.status when closed during start' do
     silent = FakeTarantool.new { |request, fake| fake.reply(request, []) }
     member = described_class.new(silent.uri, { connect_timeout: 5 })

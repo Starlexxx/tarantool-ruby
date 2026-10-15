@@ -28,13 +28,10 @@ module Tarantool
           e
         end
 
-        # nil while disconnected or before the first box.status, else whether the instance is read-only.
-        # A role seen while disconnected is dropped, so after a reconnect only a fresh box.status counts.
+        # nil while disconnected or before the current connection's first box.status, else whether the
+        # instance is read-only.
         def read_only
-          @lock.synchronize do
-            @read_only = nil unless @client&.connected?
-            @read_only
-          end
+          @lock.synchronize { @read_only if @client&.connected? }
         end
 
         def close
@@ -51,6 +48,8 @@ module Tarantool
 
         def connect
           client = Client.new(**@config.to_h)
+          # A role belongs to one session; the next one must report its own before the member is routed to.
+          client.disconnect_handler = -> { @lock.synchronize { @read_only = nil } }
           client.watch('box.status') { |_key, status| update(status) }
           install(client)
         rescue Error

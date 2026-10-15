@@ -7,6 +7,7 @@ RSpec.describe Tarantool::Client::Transport::Link do
   let(:on_connect) { ->(connection) { callbacks << [:connect, connection] } }
 
   def on_ready = ->(connection) { callbacks << [:ready, connection] }
+  def on_lost = -> { callbacks << [:lost] }
   def backoff = nil
 
   def config
@@ -16,7 +17,7 @@ RSpec.describe Tarantool::Client::Transport::Link do
   end
 
   def build_link
-    described_class.new(config, on_connect:, on_ready:, backoff:)
+    described_class.new(config, on_connect:, on_ready:, on_lost:, backoff:)
   end
 
   def alive_threads(prefix) = Thread.list.select { |thread| thread.alive? && thread.name&.start_with?(prefix) }
@@ -84,9 +85,29 @@ RSpec.describe Tarantool::Client::Transport::Link do
       drop_connection
       link.perform(ping, timeout: 1)
 
-      events = Array.new(4) { callbacks.pop(timeout: 1) }
+      events = Array.new(5) { callbacks.pop(timeout: 1) }.reject { |event| event == [:lost] }
       expect(events.map(&:first)).to eq(%i[connect ready connect ready])
       expect(events.map(&:last).uniq.size).to eq(2)
+    end
+
+    it 'runs on_lost once a reconnect starts, before its first attempt' do
+      drop_connection
+      link.perform(ping, timeout: 1)
+
+      expect(Array.new(5) { callbacks.pop(timeout: 1).first }).to eq(%i[connect ready lost connect ready])
+    end
+
+    context 'when on_lost fails' do
+      def on_lost = -> { raise ArgumentError, 'lost' }
+
+      it 'reconnects anyway and reports the error' do
+        warnings = Thread::Queue.new
+        allow(Warning).to receive(:warn) { |message, **| warnings << message }
+        drop_connection
+
+        expect(warnings.pop(timeout: 1)).to include('on_lost failed')
+        expect(link.perform(ping, timeout: 1).data).to eq([0x40])
+      end
     end
 
     context 'when on_connect fails once after the drop' do

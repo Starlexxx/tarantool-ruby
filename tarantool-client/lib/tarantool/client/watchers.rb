@@ -8,8 +8,8 @@ module Tarantool
     # the server coalesce changes made meanwhile. Watched keys outlive the socket so a reconnect
     # can subscribe to them again.
     class Watchers
-      def initialize(connection, timeout:)
-        @connection = connection
+      def initialize(link, timeout:)
+        @link = link
         @timeout = timeout
         @lock = Mutex.new
         @watchers = {}
@@ -45,6 +45,15 @@ module Tarantool
 
       def dispatch(key, value)
         @jobs.push(-> { deliver(key, value) })
+      end
+
+      # Runs the block on the dispatcher after the events queued so far.
+      def defer
+        @jobs.push(lambda do
+          yield
+        rescue StandardError => e
+          warn("tarantool watchers: deferred job failed: #{e.class}: #{e.message}")
+        end)
       end
 
       # A new session has no subscriptions. WATCH also makes the server send each key's current value,
@@ -117,7 +126,7 @@ module Tarantool
       end
 
       def send_request(request)
-        @connection.notify(request, timeout: @timeout)
+        @link.notify(request, timeout: @timeout)
       end
     end
   end

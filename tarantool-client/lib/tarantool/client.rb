@@ -60,9 +60,14 @@ module Tarantool
 
     attr_reader :config
 
+    # @api private
+    # Called on the watcher dispatcher thread when the connection is lost and a reconnect starts:
+    # after every event of the lost connection and before any of the next one.
+    attr_writer :disconnect_handler
+
     def initialize(uri = nil, **)
       @config = Configuration.build(uri, **)
-      @link = Transport::Link.new(@config, on_connect: method(:load_schema), on_ready: method(:resubscribe))
+      @link = Transport::Link.new(@config, **link_hooks)
       @watchers = Watchers.new(@link, timeout: @config.request_timeout)
       @link.event_handler = @watchers.method(:dispatch)
       @schema_cache = SchemaCache.new
@@ -113,6 +118,8 @@ module Tarantool
 
     private
 
+    def link_hooks = { on_connect: method(:load_schema), on_ready: method(:resubscribe), on_lost: method(:lost) }
+
     def perform(request, timeout: nil, schema_version: nil, on_push: nil)
       @link.perform(request, timeout: timeout || @config.request_timeout, schema_version:, on_push:)
     end
@@ -125,6 +132,10 @@ module Tarantool
 
     def resubscribe(connection)
       @watchers.resubscribe(connection)
+    end
+
+    def lost
+      @watchers.defer(&@disconnect_handler) if @disconnect_handler
     end
 
     # Name-resolved requests carry the schema version they were resolved against, so the

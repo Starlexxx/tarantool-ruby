@@ -10,11 +10,13 @@ module Tarantool
         attr_writer :event_handler
 
         # on_connect runs on each new connection before requests can use it and may raise to fail the
-        # attempt; on_ready runs once the connection is current.
-        def initialize(config, on_connect:, on_ready:, backoff: nil)
+        # attempt; on_ready runs once the connection is current; on_lost runs when a reconnect starts,
+        # before its first attempt.
+        def initialize(config, on_connect:, on_ready:, on_lost: nil, backoff: nil)
           @config = config
           @on_connect = on_connect
           @on_ready = on_ready
+          @on_lost = on_lost
           @backoff = backoff || Backoff.new(base: config.reconnect_delay, max: config.reconnect_max_delay)
           @state = LinkState.new(config.address, reconnect: config.reconnect)
         end
@@ -96,6 +98,7 @@ module Tarantool
         # thread would leave the link reconnecting forever, and its exception would resurface in every join.
         def reconnect(previous)
           previous&.join
+          run_hook('on_lost') { @on_lost&.call }
           reconnect_with_backoff
         rescue Exception => e # rubocop:disable Lint/RescueException
           warn(e.full_message)
@@ -106,7 +109,7 @@ module Tarantool
           attempt = 0
           while @state.pause(@backoff.delay(attempt))
             result = attempt_connect
-            return reinstall(result) if result.is_a?(Connection)
+            return run_hook('on_ready') { install(result) } if result.is_a?(Connection)
 
             attempt += 1
             return give_up(attempt, result) if attempt >= @config.reconnect_attempts
@@ -119,11 +122,11 @@ module Tarantool
           e
         end
 
-        # The connection stays current: a failed on_ready is the caller's bug, not a reason to drop it.
-        def reinstall(connection)
-          install(connection)
+        # A failing hook is the caller's bug, not a reason to stop reconnecting or to drop the new connection.
+        def run_hook(name)
+          yield
         rescue StandardError => e
-          warn("on_ready failed for #{@config.address}: #{e.full_message}")
+          warn("#{name} failed for #{@config.address}: #{e.full_message}")
         end
 
         def give_up(attempts, error)
