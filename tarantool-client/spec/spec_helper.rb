@@ -3,6 +3,7 @@
 require 'tarantool/client'
 
 require_relative 'support/iproto_helpers'
+require_relative 'support/fake_tarantool'
 
 RSpec.configure do |config|
   config.include IprotoHelpers
