@@ -60,25 +60,29 @@ module Tarantool
 
     def initialize(uri = nil, **)
       @config = Configuration.build(uri, **)
-      @connection = Transport::Connection.new(@config)
-      @watchers = Watchers.new(@connection, timeout: @config.request_timeout)
-      @connection.event_handler = @watchers.method(:dispatch)
-      @connection.connect
-      @schema_cache = SchemaCache.new(@connection).tap { |cache| cache.reload(timeout: @config.request_timeout) }
+      @link = Transport::Link.new(@config, on_connect: method(:load_schema), on_ready: method(:resubscribe))
+      @watchers = Watchers.new(@link, timeout: @config.request_timeout)
+      @link.event_handler = @watchers.method(:dispatch)
+      @schema_cache = SchemaCache.new(@link)
       @stream_ids = Transport::StreamIds.new
+      @link.connect
     rescue StandardError
-      @connection&.close
+      @link&.close
       raise
     end
 
     def server_version
-      @connection.greeting.version
+      @link.greeting.version
+    end
+
+    def connected?
+      @link.connected?
     end
 
     def transaction(isolation: :default, timeout: nil, &block)
       TransactionScope.enter(self) do
         stream = Stream.new(
-          connection: @connection, schema_cache: @schema_cache, id: @stream_ids.next,
+          connection: @link.connection, schema_cache: @schema_cache, id: @stream_ids.next,
           request_timeout: @config.request_timeout
         )
         stream.transaction(isolation:, timeout:, &block)
@@ -96,7 +100,7 @@ module Tarantool
     end
 
     def close
-      @connection.close
+      @link.close
       @watchers.close
     end
 
@@ -107,7 +111,17 @@ module Tarantool
     private
 
     def perform(request, timeout: nil, schema_version: nil, on_push: nil)
-      @connection.perform(request, timeout: timeout || @config.request_timeout, schema_version:, on_push:)
+      @link.perform(request, timeout: timeout || @config.request_timeout, schema_version:, on_push:)
+    end
+
+    # Runs for every new connection before requests can use it. A new instance may reuse a schema
+    # version with other ids, so the old schema must never resolve a name for it.
+    def load_schema(connection)
+      @schema_cache.replace(Schema.fetch(connection, timeout: @config.request_timeout))
+    end
+
+    def resubscribe(connection)
+      @watchers.resubscribe(connection)
     end
 
     # Name-resolved requests carry the schema version they were resolved against, so the
