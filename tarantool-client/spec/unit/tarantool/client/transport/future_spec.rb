@@ -25,4 +25,34 @@ RSpec.describe Tarantool::Client::Transport::Future do
 
     expect(future.value(1)).to eq(:late)
   end
+
+  it 'yields pushed messages in order before returning the value' do
+    future.push(:first)
+    future.push(:second)
+    future.resolve(:done)
+    messages = []
+
+    expect(future.value(1) { |message| messages << message }).to eq(:done)
+    expect(messages).to eq(%i[first second])
+  end
+
+  it 'skips pushed messages when no block is given' do
+    future.push(:first)
+    future.resolve(:done)
+
+    expect(future.value(1)).to eq(:done)
+  end
+
+  it 'counts pushes against one timeout' do
+    Thread.new do
+      10.times do
+        future.push(:tick)
+        sleep 0.02
+      end
+    end
+    started = Tarantool::Client::Transport::Deadline.now
+
+    expect { future.value(0.05) { nil } }.to raise_error(Tarantool::TimeoutError, 'no response within 0.05s')
+    expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.15
+  end
 end

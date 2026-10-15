@@ -25,6 +25,10 @@ module Tarantool
           delete(sync)&.resolve(response)
         end
 
+        def push(sync, message)
+          @lock.synchronize { @futures[sync] }&.push(message)
+        end
+
         def delete(sync)
           @lock.synchronize { @futures.delete(sync) }
         end

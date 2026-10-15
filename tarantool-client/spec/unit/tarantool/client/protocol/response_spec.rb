@@ -26,4 +26,21 @@ RSpec.describe Tarantool::Client::Protocol::Response do
   it 'detects pushes' do
     expect(described_class.new({ 0x00 => 0x80, 0x01 => 1 }, { 0x30 => ['hi'] })).to be_push
   end
+
+  it 'exposes the key and value of an event' do
+    response = described_class.new({ 0x00 => 0x4c, 0x01 => 0 }, { 0x57 => 'box.status', 0x58 => { 'is_ro' => false } })
+
+    expect(response).to have_attributes(event?: true, push?: false, event_key: 'box.status',
+                                        event_data: { 'is_ro' => false })
+  end
+
+  it 'returns nil event data for a key that was never broadcast' do
+    response = described_class.new({ 0x00 => 0x4c, 0x01 => 0 }, { 0x57 => 'app.state' })
+
+    expect(response.event_data).to be_nil
+  end
+
+  it 'does not treat replies as events' do
+    expect(described_class.new({ 0x00 => 0, 0x01 => 1 }, {})).not_to be_event
+  end
 end

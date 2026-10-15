@@ -138,6 +138,70 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       it 'returns the final reply' do
         expect(connection.perform(eval_request('x'), timeout: 1).data).to eq(['done'])
       end
+
+      it 'passes each pushed message to on_push' do
+        messages = []
+        connection.perform(eval_request('x'), timeout: 1, on_push: ->(message) { messages << message })
+
+        expect(messages).to eq(['progress'])
+      end
+
+      it 'raises the on_push error and stays usable' do
+        expect { connection.perform(eval_request('x'), timeout: 1, on_push: ->(_message) { raise 'boom' }) }
+          .to raise_error(RuntimeError, 'boom')
+        expect(connection.perform(eval_request('x'), timeout: 1).data).to eq(['done'])
+      end
+    end
+
+    context 'when an event carries the sync of a pending request' do
+      let(:handler) do
+        lambda do |request, fake|
+          fake.event('k', 1, sync: request.sync)
+          fake.reply(request, ['done'])
+        end
+      end
+
+      it 'resolves the request with its reply, not the event' do
+        expect(connection.perform(eval_request('x'), timeout: 1).data).to eq(['done'])
+      end
+    end
+
+    context 'when on_push is slow' do
+      let(:handler) do
+        lambda do |request, fake|
+          fake.push(request, ['tick']) if request.body[0x27] == 'slow'
+          fake.reply(request, [request.body[0x27]])
+        end
+      end
+
+      it 'keeps answering other requests' do
+        slow = Thread.new { connection.perform(eval_request('slow'), timeout: 2, on_push: ->(_message) { sleep 0.5 }) }
+        sleep 0.05
+        started = Tarantool::Client::Transport::Deadline.now
+
+        expect(connection.perform(eval_request('fast'), timeout: 1).data).to eq(['fast'])
+        expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.25
+        slow.join
+      end
+    end
+
+    context 'when the server keeps pushing without replying' do
+      let(:handler) do
+        lambda do |request, fake|
+          10.times do
+            fake.push(request, ['tick'])
+            sleep 0.05
+          end
+        end
+      end
+
+      it 'bounds the request by one timeout' do
+        started = Tarantool::Client::Transport::Deadline.now
+
+        expect { connection.perform(eval_request('x'), timeout: 0.2, on_push: ->(_message) {}) }
+          .to raise_error(Tarantool::TimeoutError, 'no response within 0.2s')
+        expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.4
+      end
     end
 
     context 'when the server sends a malformed frame' do
@@ -209,6 +273,37 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       connection.close
 
       expect { connection.perform(eval_request('x'), timeout: 1) }.to raise_error(Tarantool::ClientClosedError)
+    end
+  end
+
+  describe '#notify' do
+    let(:watch) { Tarantool::Client::Protocol::Requests::Watch.new(key: 'box.status') }
+
+    after { connection.close }
+
+    it 'writes a request without waiting for a reply' do
+      connection.notify(watch, timeout: 1)
+
+      expect(server.next_request).to have_attributes(type: 0x4a, body: { 0x57 => 'box.status' })
+    end
+
+    it 'raises ClientClosedError after close' do
+      connection.close
+
+      expect { connection.notify(watch, timeout: 1) }.to raise_error(Tarantool::ClientClosedError)
+    end
+  end
+
+  describe 'events' do
+    after { connection.close }
+
+    it 'hands event keys and values to the event handler' do
+      events = Thread::Queue.new
+      connection.event_handler = ->(key, value) { events << [key, value] }
+      server.event('box.status', { 'is_ro' => false })
+      server.event('app.state')
+
+      expect(Array.new(2) { events.pop(timeout: 1) }).to eq([['box.status', { 'is_ro' => false }], ['app.state', nil]])
     end
   end
 end

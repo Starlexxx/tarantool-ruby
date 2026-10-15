@@ -27,11 +27,14 @@ require_relative 'client/protocol/requests/commit'
 require_relative 'client/protocol/requests/rollback'
 require_relative 'client/protocol/requests/auth'
 require_relative 'client/protocol/requests/id'
+require_relative 'client/protocol/requests/watch'
+require_relative 'client/protocol/requests/unwatch'
 require_relative 'client/transport/future'
 require_relative 'client/transport/pending_requests'
 require_relative 'client/transport/stream_ids'
 require_relative 'client/transport/deadline'
 require_relative 'client/transport/frame_writer'
+require_relative 'client/transport/handshake'
 require_relative 'client/transport/connection'
 require_relative 'client/schema'
 require_relative 'client/schema_cache'
@@ -41,6 +44,8 @@ require_relative 'client/transaction_schema'
 require_relative 'client/operations'
 require_relative 'client/transaction_scope'
 require_relative 'client/stream'
+require_relative 'client/watcher'
+require_relative 'client/watchers'
 
 module Tarantool
   # Connection to one Tarantool instance. Safe to share between threads and fibers.
@@ -51,9 +56,11 @@ module Tarantool
 
     def initialize(uri = nil, **)
       @config = Configuration.build(uri, **)
-      @connection = Transport::Connection.new(@config).connect
-      @schema_cache = SchemaCache.new(@connection)
-      @schema_cache.reload(timeout: @config.request_timeout)
+      @connection = Transport::Connection.new(@config)
+      @watchers = Watchers.new(@connection, timeout: @config.request_timeout)
+      @connection.event_handler = @watchers.method(:dispatch)
+      @connection.connect
+      @schema_cache = SchemaCache.new(@connection).tap { |cache| cache.reload(timeout: @config.request_timeout) }
       @stream_ids = Transport::StreamIds.new
     rescue StandardError
       @connection&.close
@@ -74,8 +81,19 @@ module Tarantool
       end
     end
 
+    # The block gets the current value first (nil if the key was never broadcast), then every
+    # change. It runs on a dispatcher thread shared by all watchers of this client, so a slow
+    # block delays the others; exceptions it raises are reported with warn. Calling #unwatch
+    # from another thread may still let one in-flight callback run.
+    def watch(key, &block)
+      raise ArgumentError, 'watch requires a block' unless block
+
+      @watchers.add(key, block)
+    end
+
     def close
       @connection.close
+      @watchers.close
     end
 
     def inspect
@@ -84,8 +102,8 @@ module Tarantool
 
     private
 
-    def perform(request, timeout: nil, schema_version: nil)
-      @connection.perform(request, timeout: timeout || @config.request_timeout, schema_version:)
+    def perform(request, timeout: nil, schema_version: nil, on_push: nil)
+      @connection.perform(request, timeout: timeout || @config.request_timeout, schema_version:, on_push:)
     end
 
     # Name-resolved requests carry the schema version they were resolved against, so the

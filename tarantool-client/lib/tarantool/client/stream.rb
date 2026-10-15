@@ -44,10 +44,10 @@ module Tarantool
         abandon if @state == :active
       end
 
-      def perform(request, timeout: nil, schema_version: nil)
+      def perform(request, timeout: nil, schema_version: nil, on_push: nil)
         raise TransactionError, 'transaction is finished' if @state == :finished
 
-        @connection.perform(request, timeout: timeout || @request_timeout, stream_id: @id, schema_version:)
+        @connection.perform(request, timeout: timeout || @request_timeout, stream_id: @id, schema_version:, on_push:)
       end
 
       def perform_on_space(space, index, timeout: nil, &)

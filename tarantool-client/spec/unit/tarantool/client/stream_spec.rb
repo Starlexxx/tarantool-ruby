@@ -137,4 +137,20 @@ RSpec.describe Tarantool::Client::Stream do
       expect { transaction { raise 'boom' } }.to raise_error(RuntimeError, 'boom')
     end
   end
+
+  context 'when a call pushes messages' do
+    let(:handler) do
+      lambda do |request, fake|
+        fake.push(request, ['started']) if request.type == 0x0a
+        fake.reply(request, [])
+      end
+    end
+
+    it 'passes them to on_push inside the transaction' do
+      messages = []
+      transaction { |tx| tx.call('job', on_push: ->(message) { messages << message }) }
+
+      expect(messages).to eq(['started'])
+    end
+  end
 end

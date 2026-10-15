@@ -110,6 +110,32 @@ RSpec.describe Tarantool::Client do
     end
   end
 
+  context 'with a server that pushes' do
+    let(:server) do
+      FakeTarantool.new do |request, fake|
+        if request.type == 0x0a
+          fake.push(request, ['started'])
+          fake.reply(request, ['done'])
+        else
+          fake.reply(request, [])
+        end
+      end
+    end
+    let(:client) { described_class.new(server.uri) }
+
+    after do
+      client.close
+      server.stop
+    end
+
+    it 'passes pushed messages to on_push and returns the final reply' do
+      messages = []
+
+      expect(client.call('job', on_push: ->(message) { messages << message })).to eq(['done'])
+      expect(messages).to eq(['started'])
+    end
+  end
+
   context 'when another client changes the schema' do
     let!(:schema_state) { { users_id: 512, vspace_requests: 0, churn: false } }
     let(:server) { FakeTarantool.new(check_schema_version: true, &handler) }
@@ -180,6 +206,66 @@ RSpec.describe Tarantool::Client do
       expect { client.select(:users, 1, index: :primary, timeout: 0.3) }
         .to raise_error(Tarantool::TimeoutError, 'no response within 0.3s')
       expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.6
+    end
+  end
+
+  context 'with watchers' do
+    let!(:watch_requests) { Thread::Queue.new }
+    let(:server) do
+      FakeTarantool.new do |request, fake|
+        next watch_requests << request if [0x4a, 0x4b].include?(request.type)
+
+        fake.reply(request, [])
+      end
+    end
+    let(:client) { described_class.new(server.uri) }
+    let(:events) { Thread::Queue.new }
+
+    after do
+      client.close
+      server.stop
+    end
+
+    it 'subscribes with WATCH and passes events to the block' do
+      client.watch('config') { |key, value| events << [key, value] }
+
+      expect(watch_requests.pop(timeout: 1)).to have_attributes(type: 0x4a, body: { 0x57 => 'config' })
+      server.event('config', { 'a' => 1 })
+      expect(events.pop(timeout: 1)).to eq(['config', { 'a' => 1 }])
+    end
+
+    it 'acknowledges each event with another WATCH' do
+      client.watch('config') { |key, value| events << [key, value] }
+      watch_requests.pop(timeout: 1)
+      server.event('config', 1)
+      events.pop(timeout: 1)
+
+      expect(watch_requests.pop(timeout: 1)).to have_attributes(type: 0x4a, body: { 0x57 => 'config' })
+    end
+
+    it 'sends UNWATCH when the watcher is removed' do
+      client.watch('config') { nil }.unwatch
+      watch_requests.pop(timeout: 1)
+
+      expect(watch_requests.pop(timeout: 1)).to have_attributes(type: 0x4b, body: { 0x57 => 'config' })
+    end
+
+    it 'requires a block' do
+      expect { client.watch('config') }.to raise_error(ArgumentError, 'watch requires a block')
+    end
+
+    it 'stops the dispatcher thread on close' do
+      client.watch('config') { nil }
+      client.close
+
+      expect(Thread.list.none? { |thread| thread.name == 'tarantool-watchers' && thread.alive? }).to be(true)
+    end
+
+    it 'raises ClientClosedError when watching a key again after close' do
+      client.watch('config') { nil }
+      client.close
+
+      expect { client.watch('config') { nil } }.to raise_error(Tarantool::ClientClosedError)
     end
   end
 

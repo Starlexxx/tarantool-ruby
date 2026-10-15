@@ -32,6 +32,8 @@ module Tarantool
         VERSION = 0x54
         FEATURES = 0x55
         TIMEOUT = 0x56
+        EVENT_KEY = 0x57
+        EVENT_DATA = 0x58
         TXN_ISOLATION = 0x59
 
         OK = 0x00
@@ -51,6 +53,9 @@ module Tarantool
         ROLLBACK = 0x10
         PING = 0x40
         ID = 0x49
+        WATCH = 0x4a
+        UNWATCH = 0x4b
+        EVENT = 0x4c
         CHUNK = 0x80
         TYPE_ERROR = 0x8000
 

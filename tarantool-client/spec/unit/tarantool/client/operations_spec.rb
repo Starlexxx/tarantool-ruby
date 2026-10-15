@@ -10,7 +10,7 @@ RSpec.describe Tarantool::Client::Operations do
     Class.new do
       include Tarantool::Client::Operations
 
-      attr_reader :performed
+      attr_reader :performed, :on_push
 
       def initialize(body)
         @body = body
@@ -19,8 +19,9 @@ RSpec.describe Tarantool::Client::Operations do
 
       private
 
-      def perform(request, timeout: nil)
+      def perform(request, timeout: nil, on_push: nil)
         @performed << [request, timeout]
+        @on_push = on_push
         Tarantool::Client::Protocol::Response.new({ 0x00 => 0, 0x01 => 1 }, @body)
       end
 
@@ -75,6 +76,13 @@ RSpec.describe Tarantool::Client::Operations do
     expect(target.call('api.get', [1])).to eq(data)
     expect(target.eval('return ...', [1])).to eq(data)
     expect(last_request).to eq(requests::Eval.new(expression: 'return ...', arguments: [1]))
+  end
+
+  it 'passes on_push through call' do
+    on_push = ->(_message) {}
+    target.call('api.get', [1], on_push:)
+
+    expect(target.on_push).to be(on_push)
   end
 
   it 'wraps a Hash key in an array instead of converting it to pairs' do
