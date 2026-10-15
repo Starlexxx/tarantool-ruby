@@ -8,6 +8,7 @@ module Tarantool
         module Decimal
           MAX_DIGITS = 38
           NEGATIVE_SIGNS = %w[b d].freeze
+          BCD_NIBBLES = /\A\d+[a-f]\z/
 
           module_function
 
@@ -22,7 +23,7 @@ module Tarantool
             unpacker = MessagePack::Unpacker.new.feed(payload)
             scale = unpacker.read
             nibbles = unpacker.buffer.read_all.unpack1('H*')
-            unless scale.is_a?(Integer) && nibbles.match?(/\A\d+[a-f]\z/)
+            unless scale.is_a?(Integer) && nibbles.match?(BCD_NIBBLES)
               raise ArgumentError, "malformed decimal: #{nibbles}"
             end
 
