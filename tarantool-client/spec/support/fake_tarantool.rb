@@ -8,18 +8,16 @@ require 'tmpdir'
 # Other requests go to the handler block if given, otherwise to a queue the
 # test drains with #next_request and answers with #reply. With
 # check_schema_version it rejects requests carrying a stale schema version
-# the way Tarantool does, before they reach the handler.
+# the way Tarantool does, before they reach the handler. A delay slows down
+# the greeting and the ID and AUTH replies.
 class FakeTarantool
   include IprotoHelpers
 
   attr_reader :path, :headers
   attr_accessor :schema_version
 
-  def initialize(auth_error: nil, id_error: nil, greeting: true, check_schema_version: false, &handler)
-    @auth_error = auth_error
-    @id_error = id_error
-    @greeting = greeting
-    @check_schema_version = check_schema_version
+  def initialize(auth_error: nil, id_error: nil, greeting: true, check_schema_version: false, delay: 0, &handler)
+    @options = { auth_error:, id_error:, greeting:, check_schema_version:, delay: }
     @headers = []
     @schema_version = 1
     @handler = handler
@@ -73,8 +71,9 @@ class FakeTarantool
 
   def serve
     @socket = socket = @server.accept
-    return sleep unless @greeting
+    return sleep unless @options[:greeting]
 
+    sleep @options[:delay]
     socket.write(iproto_greeting)
     loop { route(Tarantool::Client::Protocol::Codec.read_response(socket)) }
   rescue IOError, SystemCallError, Tarantool::ProtocolError
@@ -93,20 +92,22 @@ class FakeTarantool
   end
 
   def identify(request)
-    return write(request, 0x00, { 0x54 => 3, 0x55 => [0, 1, 2, 3] }) unless @id_error
+    sleep @options[:delay]
+    return write(request, 0x00, { 0x54 => 3, 0x55 => [0, 1, 2, 3] }) unless @options[:id_error]
 
-    reply_error(request, code: 48, message: @id_error)
+    reply_error(request, code: 48, message: @options[:id_error])
   end
 
   def authenticate(request)
-    return write(request, 0x00, {}) unless @auth_error
+    sleep @options[:delay]
+    return write(request, 0x00, {}) unless @options[:auth_error]
 
-    reply_error(request, code: 47, message: @auth_error)
+    reply_error(request, code: 47, message: @options[:auth_error])
   end
 
   def stale_schema?(request)
     sent = request.header[0x05]
-    @check_schema_version && sent && sent != schema_version
+    @options[:check_schema_version] && sent && sent != schema_version
   end
 
   def reject_stale_schema(request)

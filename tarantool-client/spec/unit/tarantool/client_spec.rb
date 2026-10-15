@@ -20,6 +20,10 @@ RSpec.describe Tarantool::Client do
       server.stop
     end
 
+    it 'shows only the address when inspected' do
+      expect(client.inspect).to eq("#<Tarantool::Client #{server.path}>")
+    end
+
     it 'reports the server version' do
       expect(client.server_version).to eq('2.11.1')
     end

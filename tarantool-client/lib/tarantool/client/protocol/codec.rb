@@ -67,6 +67,8 @@ module Tarantool
 
           data
         end
+
+        private_class_method :unpack_frame, :validate_header, :validate_body
       end
     end
   end

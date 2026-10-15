@@ -27,7 +27,7 @@ module Tarantool
           deadline = Deadline.after(timeout)
           sync, future = @pending.register
           write(Protocol::Codec.encode(request, sync:, stream_id:, schema_version:), deadline)
-          response = future.value(Deadline.remaining(deadline))
+          response = await(future, deadline, timeout)
           raise ServerError.from_response(response) if response.error?
 
           response
@@ -45,44 +45,46 @@ module Tarantool
         private
 
         def establish
-          @socket = open_socket
+          deadline = Deadline.after(@config.connect_timeout)
+          @socket = open_socket(deadline)
           @writer = FrameWriter.new(@socket)
-          @greeting = read_greeting
+          @greeting = read_greeting(deadline)
           start_reader
-          handshake
+          handshake(deadline)
         rescue IOError, SystemCallError, SocketError, TimeoutError, ServerError => e
           raise ConnectionError, "cannot connect to #{@config.address}: #{e.message}"
         end
 
-        def open_socket
+        def open_socket(deadline)
           return UNIXSocket.new(@config.path) if @config.path
 
-          Socket.tcp(@config.host, @config.port, connect_timeout: @config.connect_timeout).tap do |socket|
+          Socket.tcp(@config.host, @config.port, connect_timeout: Deadline.remaining(deadline)).tap do |socket|
             socket.setsockopt(Socket::IPPROTO_TCP, Socket::TCP_NODELAY, 1)
           end
         end
 
-        def read_greeting
-          @socket.timeout = @config.connect_timeout
+        def read_greeting(deadline)
+          @socket.timeout = Deadline.remaining(deadline)
           Protocol::Greeting.parse(Protocol::Codec.read_exactly(@socket, Protocol::Constants::GREETING_SIZE))
         ensure
           @socket.timeout = nil
         end
 
-        def handshake
+        def handshake(deadline)
           id = Protocol::Requests::Id.new(
             version: Protocol::Constants::PROTOCOL_VERSION, features: Protocol::Constants::CLIENT_FEATURES
           )
-          @server_features = perform(id, timeout: @config.connect_timeout).body.fetch(Protocol::Constants::FEATURES, [])
-          authenticate if @config.user && @config.user != 'guest'
+          response = perform(id, timeout: Deadline.remaining(deadline))
+          @server_features = response.body.fetch(Protocol::Constants::FEATURES, [])
+          authenticate(deadline) if @config.user && @config.user != 'guest'
         end
 
-        def authenticate
+        def authenticate(deadline)
           scramble = Protocol::Auth::ChapSha1.scramble(@config.password.to_s, greeting.salt)
           request = Protocol::Requests::Auth.new(
             user: @config.user, mechanism: Protocol::Auth::ChapSha1::MECHANISM, scramble:
           )
-          perform(request, timeout: @config.connect_timeout)
+          perform(request, timeout: Deadline.remaining(deadline))
         rescue ServerError => e
           raise AuthenticationError, e.message
         end
@@ -106,18 +108,21 @@ module Tarantool
           break_connection("connection to #{@config.address} lost: #{reason || 'reader stopped'}")
         end
 
-        # A partially written frame corrupts the stream, so any interruption here
-        # (deadline, IO error, Thread#raise, Timeout) kills the connection.
+        def await(future, deadline, timeout)
+          future.value(Deadline.remaining(deadline))
+        rescue TimeoutError
+          raise TimeoutError, "no response within #{timeout}s"
+        end
+
+        # A partially written frame corrupts the stream, so any interruption after the
+        # first byte (deadline, IO error, Thread#raise, Timeout) kills the connection.
         def write(frame, deadline)
-          completed = false
-          @writer.write(frame, deadline)
-          completed = true
+          @writer.write(frame, deadline) { break_connection("write to #{@config.address} did not complete") }
         rescue IOError, SystemCallError => e
-          break_connection("write to #{@config.address} failed: #{e.message}")
           failure = @pending.failure
-          raise failure.exception(failure.message)
-        ensure
-          break_connection("write to #{@config.address} did not complete") unless completed
+          raise failure.exception(failure.message) if failure
+
+          raise ConnectionError, "write to #{@config.address} failed: #{e.message}"
         end
 
         def break_connection(message)

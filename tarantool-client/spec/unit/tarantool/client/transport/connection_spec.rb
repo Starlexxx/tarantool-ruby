@@ -71,6 +71,15 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       rejecting.stop
     end
 
+    it 'bounds the whole handshake by one connect timeout' do
+      slow = FakeTarantool.new(delay: 0.15)
+      config = Tarantool::Client::Configuration.build(slow.uri, user: 'app', password: 'secret', connect_timeout: 0.25)
+
+      expect { described_class.new(config).connect }.to raise_error(Tarantool::ConnectionError, /cannot connect/)
+    ensure
+      slow.stop
+    end
+
     it 'raises ConnectionError when nothing listens' do
       config = Tarantool::Client::Configuration.build('unix:/nonexistent/tarantool.sock')
 
@@ -85,6 +94,15 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       let(:handler) { ->(request, fake) { fake.reply(request, [request.body[0x27]]) } }
 
       it 'returns the response' do
+        expect(connection.perform(eval_request('return 1'), timeout: 1).data).to eq(['return 1'])
+      end
+
+      it 'stays usable when a write times out before sending anything' do
+        writer = connection.instance_variable_get(:@writer)
+        allow(writer).to receive(:write).and_raise(Tarantool::TimeoutError, 'socket write timed out')
+
+        expect { connection.perform(eval_request('x'), timeout: 0.2) }.to raise_error(Tarantool::TimeoutError)
+        allow(writer).to receive(:write).and_call_original
         expect(connection.perform(eval_request('return 1'), timeout: 1).data).to eq(['return 1'])
       end
 
@@ -170,7 +188,8 @@ RSpec.describe Tarantool::Client::Transport::Connection do
     end
 
     it 'raises TimeoutError when the server stays silent' do
-      expect { connection.perform(eval_request('x'), timeout: 0.05) }.to raise_error(Tarantool::TimeoutError)
+      expect { connection.perform(eval_request('x'), timeout: 0.05) }
+        .to raise_error(Tarantool::TimeoutError, 'no response within 0.05s')
     end
 
     it 'fails a waiting request with ClientClosedError on close' do

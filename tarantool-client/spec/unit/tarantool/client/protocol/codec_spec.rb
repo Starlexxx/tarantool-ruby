@@ -5,6 +5,11 @@ require 'stringio'
 RSpec.describe Tarantool::Client::Protocol::Codec do
   let(:ping) { Data.define(:type, :body).new(type: 0x40, body: {}) }
 
+  it 'exposes only framing entry points' do
+    expect(described_class.singleton_class.public_instance_methods(false))
+      .to contain_exactly(:encode, :decode, :read_response, :read_exactly)
+  end
+
   describe '.encode' do
     it 'frames header and body behind a uint32 size prefix' do
       expect(described_class.encode(ping, sync: 1).unpack1('H*')).to eq('ce00000006820040010180')

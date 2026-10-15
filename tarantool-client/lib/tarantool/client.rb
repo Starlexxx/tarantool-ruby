@@ -55,6 +55,10 @@ module Tarantool
       @connection.close
     end
 
+    def inspect
+      "#<#{self.class.name} #{@config.address}>"
+    end
+
     private
 
     def perform(request, timeout: nil, schema_version: nil)
