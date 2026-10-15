@@ -51,3 +51,25 @@ jobs:
         env:
           TARANTOOL_FAILOVER_URIS: tcp://app:secret@localhost:3311,tcp://app:secret@localhost:3312
           TARANTOOL_FAILOVER_CONTAINERS: tarantool-failover-failover-a-1,tarantool-failover-failover-b-1
+
+  crud:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ['3.2', '3.3', '3.4']
+        tarantool:
+          - { service: tarantool-2.11, port: 3311 }
+          - { service: tarantool-3, port: 3312 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - run: docker compose -f tarantool-crud/docker-compose.yml up -d --wait --build ${{ matrix.tarantool.service }}
+      - run: bundle exec rspec
+        working-directory: tarantool-crud
+        env:
+          INTEGRATION: '1'
+          TARANTOOL_CRUD_URI: tcp://app:secret@localhost:${{ matrix.tarantool.port }}

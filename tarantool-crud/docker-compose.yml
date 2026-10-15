@@ -1,0 +1,27 @@
+x-tarantool: &tarantool
+  # TT_* variables baked into the 3.x image switch Tarantool to declarative config mode and break box.cfg scripts.
+  entrypoint: ['env', '-u', 'TT_APP_NAME', '-u', 'TT_INSTANCE_NAME', 'tarantool']
+  command: ['/opt/tarantool/init.lua']
+  volumes:
+    - ./spec/integration/init.lua:/opt/tarantool/init.lua:ro
+  healthcheck:
+    test:
+      - CMD-SHELL
+      - >-
+        tarantool -e "local c = require('net.box').connect('app:secret@127.0.0.1:3301')
+        os.exit(pcall(c.call, c, 'crud.len', {'customers'}) and 0 or 1)"
+    interval: 1s
+    retries: 60
+
+services:
+  tarantool-2.11:
+    <<: *tarantool
+    image: tarantool-crud:2.11
+    build: { context: docker, args: { TARANTOOL_VERSION: '2.11' } }
+    ports: ['3311:3301']
+
+  tarantool-3:
+    <<: *tarantool
+    image: tarantool-crud:3
+    build: { context: docker, args: { TARANTOOL_VERSION: '3' } }
+    ports: ['3312:3301']
