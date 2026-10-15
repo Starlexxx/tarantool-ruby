@@ -173,6 +173,7 @@ RSpec.describe Tarantool::Client::Watchers do
     events.pop(timeout: 1)
     watchers.dispatch('k', 2)
     closing = Thread.new { watchers.close }
+    Thread.pass until closing.stop?
     hold << :go
     closing.join
 
