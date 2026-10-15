@@ -33,10 +33,19 @@ module Tarantool
 
       # An unknown name may have been created after the last load, so it costs one reload.
       def resolve(space, index, deadline, schema = @schema)
-        [schema, schema.resolve(space, index)]
+        with_reload(schema, deadline) { |current| [current, current.resolve(space, index)] }
+      end
+
+      def space_info(space, deadline)
+        with_reload(@schema, deadline) { |current| current.space_info(space) }
+      end
+
+      private
+
+      def with_reload(schema, deadline)
+        yield schema
       rescue SchemaError
-        schema = reload(schema, timeout: Transport::Deadline.remaining(deadline))
-        [schema, schema.resolve(space, index)]
+        yield reload(schema, timeout: Transport::Deadline.remaining(deadline))
       end
     end
   end

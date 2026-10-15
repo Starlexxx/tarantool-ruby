@@ -63,6 +63,20 @@ RSpec.describe Tarantool::Client::SchemaCache do
     expect(schema_state[:vspace_requests]).to eq(2)
   end
 
+  it 'reloads once to find the info of a space created after the last load' do
+    load_schema
+    schema_state[:spaces] = [[512, 1, 'users'], [600, 1, 'orders']]
+
+    expect(cache.space_info(:orders, deadline).id).to eq(600)
+  end
+
+  it 'raises SchemaError for space info still unknown after one reload' do
+    load_schema
+
+    expect { cache.space_info(:orders, deadline) }.to raise_error(Tarantool::SchemaError)
+    expect(schema_state[:vspace_requests]).to eq(2)
+  end
+
   it 'bounds the wait for a reload running in another thread by the timeout' do
     stale = load_schema
     schema_state[:delay] = 0.5
