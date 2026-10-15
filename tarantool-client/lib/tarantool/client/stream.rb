@@ -8,6 +8,7 @@ module Tarantool
       include Operations
 
       LOST = 'connection lost during the transaction; the server rolled it back'
+      FINISHED = 'transaction is finished'
 
       def initialize(connection:, schema_cache:, id:, request_timeout:)
         @connection = connection
@@ -47,8 +48,7 @@ module Tarantool
       end
 
       def perform(request, timeout: nil, schema_version: nil, on_push: nil)
-        raise TransactionError, 'transaction is finished' if @state == :finished
-
+        check_active
         send_request(request, timeout: timeout || @request_timeout, schema_version:, on_push:)
       end
 
@@ -73,6 +73,12 @@ module Tarantool
         raise TimeoutError, "no response within #{timeout}s"
       end
 
+      def lookup_space(space, timeout)
+        check_active
+        check_connection
+        @schema.space_info(space, Transport::Deadline.after(timeout || @request_timeout))
+      end
+
       def remaining(deadline)
         Transport::Deadline.remaining(deadline)
       end
@@ -92,6 +98,10 @@ module Tarantool
 
       def check_connection
         raise TransactionError, LOST if @state != :idle && @connection.closed?
+      end
+
+      def check_active
+        raise TransactionError, FINISHED if @state == :finished
       end
 
       # Runs while an error or a non-local exit is already propagating, which a failed rollback must

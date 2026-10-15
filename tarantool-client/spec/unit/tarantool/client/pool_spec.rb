@@ -50,6 +50,27 @@ RSpec.describe Tarantool::Client::Pool do
     end
   end
 
+  context 'with a member that has a schema' do
+    let(:server) do
+      announced = {}
+      FakeTarantool.new do |request, fake|
+        next announce(fake, announced, false) if request.type == 0x4a
+
+        fake.reply(request, request.body[0x10] == 281 ? [[512, 1, 'users', 'memtx', 0, {}, []]] : [])
+      end
+    end
+    let(:pool) { described_class.new([server.uri], reconnect_delay: 0.01) }
+
+    after do
+      pool.close
+      server.stop
+    end
+
+    it 'returns space info from the instance picked by mode' do
+      expect(pool.space_info(:users, mode: :rw).id).to eq(512)
+    end
+  end
+
   describe 'routing' do
     let(:roles) { { 'rw' => false, 'ro1' => true, 'ro2' => true } }
     let(:servers) { roles.keys.to_h { |name| [name, status_server(name, roles)] } }

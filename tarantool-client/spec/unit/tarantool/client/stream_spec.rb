@@ -71,6 +71,16 @@ RSpec.describe Tarantool::Client::Stream do
     expect(server.headers.find { |header| header[0x00] == 0x01 && header.key?(0x0a) }[0x05]).to eq(1)
   end
 
+  it 'returns space info inside the transaction' do
+    expect(transaction { |tx| tx.space_info(:users) }).to have_attributes(id: 512, name: 'users')
+  end
+
+  it 'rejects space info once the transaction is finished' do
+    finished = transaction { |tx| tx }
+
+    expect { finished.space_info(:users) }.to raise_error(Tarantool::TransactionError, 'transaction is finished')
+  end
+
   it 'catches up with a schema that changed before BEGIN' do
     schema_cache
     server.schema_version = 2

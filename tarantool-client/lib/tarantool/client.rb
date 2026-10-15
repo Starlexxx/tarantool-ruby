@@ -170,6 +170,15 @@ module Tarantool
       raise TimeoutError, "no response within #{timeout}s"
     end
 
+    def lookup_space(space, timeout)
+      timeout ||= @config.request_timeout
+      deadline = Transport::Deadline.after(timeout)
+      @link.connection(deadline)
+      @schema_cache.space_info(space, deadline)
+    rescue TimeoutError
+      raise TimeoutError, "no response within #{timeout}s"
+    end
+
     def perform_with_schema_check(space, index, deadline)
       schema, ids = @schema_cache.resolve(space, index, deadline)
       perform_resolved(schema, yield(*ids), deadline)

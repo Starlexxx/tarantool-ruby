@@ -2,13 +2,17 @@
 
 module Tarantool
   class Client
-    # Data operations, call, eval and SQL. Includers implement `perform(request, timeout:, on_push: nil)`
-    # and `perform_on_space(space, index, timeout:) { |space_id, index_id| request }`,
-    # which returns the response to the request built by the block.
+    # Data operations, call, eval and SQL. Includers implement `perform(request, timeout:, on_push: nil)`,
+    # `perform_on_space(space, index, timeout:) { |space_id, index_id| request }`, which returns the response to
+    # the request built by the block, and `lookup_space(space, timeout)`, which returns its SpaceInfo.
     module Operations
       def ping(timeout: nil)
         perform(Protocol::Requests::Ping.new, timeout:)
         true
+      end
+
+      def space_info(space, timeout: nil)
+        lookup_space(space, timeout)
       end
 
       def select(space, key = [], index: 0, limit: Protocol::Constants::MAX_LIMIT, offset: 0, iterator: :eq,
