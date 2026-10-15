@@ -50,7 +50,8 @@ module Tarantool
 
         ITERATORS = {
           eq: 0, req: 1, all: 2, lt: 3, le: 4, ge: 5, gt: 6,
-          bits_all_set: 7, bits_any_set: 8, bits_all_not_set: 9, overlaps: 10, neighbor: 11
+          bits_all_set: 7, bits_any_set: 8, bits_all_not_set: 9, overlaps: 10, neighbor: 11,
+          np: 12, pp: 13
         }.freeze
 
         PROTOCOL_VERSION = 3

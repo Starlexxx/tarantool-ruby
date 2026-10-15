@@ -48,4 +48,41 @@ RSpec.describe Tarantool::Client::Protocol::Codec do
       expect { described_class.read_response(io) }.to raise_error(Tarantool::ProtocolError)
     end
   end
+
+  describe '.decode' do
+    it 'raises ProtocolError when the header is not a map' do
+      payload = MessagePack.pack([1, 2])
+
+      expect { described_class.decode(payload) }
+        .to raise_error(Tarantool::ProtocolError, 'malformed frame: header must be a map with a request type')
+    end
+
+    it 'raises ProtocolError when the header has no request type' do
+      payload = MessagePack.pack({ 0x01 => 9 })
+
+      expect { described_class.decode(payload) }
+        .to raise_error(Tarantool::ProtocolError, 'malformed frame: header must be a map with a request type')
+    end
+
+    it 'raises ProtocolError when the body is not a map' do
+      payload = MessagePack.pack({ 0x00 => 0, 0x01 => 9 }) + MessagePack.pack(nil)
+
+      expect { described_class.decode(payload) }
+        .to raise_error(Tarantool::ProtocolError, 'malformed frame: body must be a map')
+    end
+
+    it 'raises ProtocolError on trailing bytes' do
+      payload = MessagePack.pack({ 0x00 => 0, 0x01 => 9 }) + MessagePack.pack({}) + MessagePack.pack(1)
+
+      expect { described_class.decode(payload) }
+        .to raise_error(Tarantool::ProtocolError, 'malformed frame: trailing bytes')
+    end
+
+    it 'decodes an unknown ext type in the body to a MessagePack::ExtensionValue' do
+      body = { 0x30 => [MessagePack::ExtensionValue.new(42, 'x')] }
+      payload = MessagePack.pack({ 0x00 => 0, 0x01 => 9 }) + MessagePack.pack(body)
+
+      expect(described_class.decode(payload).data.first).to have_attributes(type: 42, payload: 'x')
+    end
+  end
 end

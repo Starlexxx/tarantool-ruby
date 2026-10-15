@@ -28,11 +28,31 @@ module Tarantool
         def decode(payload)
           unpacker = FACTORY.unpacker(allow_unknown_ext: true)
           unpacker.feed(payload)
+          header, body = unpack_frame(unpacker)
+
+          validate_header(header)
+          validate_body(body)
+          raise ProtocolError, 'malformed frame: trailing bytes' unless unpacker.buffer.empty?
+
+          Response.new(header, body)
+        end
+
+        def unpack_frame(unpacker)
           header = unpacker.read
           body = unpacker.buffer.empty? ? {} : unpacker.read
-          Response.new(header, body)
-        rescue MessagePack::UnpackError, EOFError => e
+          [header, body]
+        rescue StandardError => e
           raise ProtocolError, "malformed frame: #{e.message}"
+        end
+
+        def validate_header(header)
+          return if header.is_a?(Hash) && header.key?(Constants::REQUEST_TYPE)
+
+          raise ProtocolError, 'malformed frame: header must be a map with a request type'
+        end
+
+        def validate_body(body)
+          raise ProtocolError, 'malformed frame: body must be a map' unless body.is_a?(Hash)
         end
 
         def read_exactly(io, size)
