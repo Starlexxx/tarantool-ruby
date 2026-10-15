@@ -65,7 +65,11 @@ module Tarantool
         SQL_INFO_ROW_COUNT = 0x00
         SQL_INFO_AUTOINCREMENT_IDS = 0x01
 
+        MP_DECIMAL = 0x01
+        MP_UUID = 0x02
         MP_ERROR = 0x03
+        MP_DATETIME = 0x04
+        MP_INTERVAL = 0x06
         ERROR_STACK = 0x00
         ERROR_FIELDS = {
           0x00 => :type, 0x01 => :file, 0x02 => :line, 0x03 => :message,

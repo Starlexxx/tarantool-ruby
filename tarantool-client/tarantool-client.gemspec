@@ -15,6 +15,7 @@ Gem::Specification.new do |spec|
   spec.files = Dir['lib/**/*.rb', 'LICENSE']
   spec.require_paths = ['lib']
 
+  spec.add_dependency 'bigdecimal', '~> 3.1'
   spec.add_dependency 'msgpack', '~> 1.7'
 
   spec.metadata['rubygems_mfa_required'] = 'true'

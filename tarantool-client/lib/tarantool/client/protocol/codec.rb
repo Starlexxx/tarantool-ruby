@@ -8,12 +8,7 @@ module Tarantool
         SIZE_MARKER = 0xce
         PREFIX_SIZE = 5
         FACTORY = MessagePack::Factory.new.tap do |factory|
-          factory.register_type(
-            Constants::MP_ERROR, BoxError,
-            unpacker: lambda { |payload|
-              BoxError.from_stack(FACTORY.load(payload, allow_unknown_ext: true).fetch(Constants::ERROR_STACK))
-            }
-          )
+          Extensions.each { |extension| factory.register_type(extension.type, extension.klass, **extension.options) }
         end.freeze
 
         module_function

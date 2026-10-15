@@ -5,9 +5,11 @@ module Tarantool
     module Protocol
       # Greeting sent by the server on connect: a 64-byte banner and a 64-byte base64 salt line.
       Greeting = Data.define(:version, :salt) do
+        self::BANNER_VERSION = /\ATarantool (\S+)/
+
         def self.parse(bytes)
           banner = bytes.byteslice(0, 64)
-          version = banner[/\ATarantool (\S+)/, 1]
+          version = banner[Greeting::BANNER_VERSION, 1]
           raise ProtocolError, "unexpected greeting: #{banner.strip.inspect}" unless version
 
           new(version:, salt: bytes.byteslice(64, 64).strip.unpack1('m'))
