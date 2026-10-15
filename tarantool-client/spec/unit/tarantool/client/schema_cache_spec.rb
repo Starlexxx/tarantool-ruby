@@ -9,7 +9,7 @@ RSpec.describe Tarantool::Client::SchemaCache do
       next fake.reply(request, [[512, 0, 'primary']]) unless request.body[0x10] == 281
 
       schema_state[:vspace_requests] += 1
-      sleep 0.05
+      sleep schema_state.fetch(:delay, 0.05)
       fake.reply(request, schema_state[:spaces])
     end
   end
@@ -54,5 +54,26 @@ RSpec.describe Tarantool::Client::SchemaCache do
 
     expect { cache.resolve(:orders, 0, deadline) }.to raise_error(Tarantool::SchemaError)
     expect(schema_state[:vspace_requests]).to eq(2)
+  end
+
+  it 'bounds the wait for a reload running in another thread by the timeout' do
+    stale = cache.reload(timeout: 1)
+    schema_state[:delay] = 0.5
+    slow = Thread.new { cache.reload(stale, timeout: 1) }
+    sleep 0.05
+    started = Tarantool::Client::Transport::Deadline.now
+
+    expect { cache.reload(stale, timeout: 0.1) }.to raise_error(Tarantool::TimeoutError)
+    expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.3
+    slow.join
+  end
+
+  it 'serves a replaced schema without fetching' do
+    stale = cache.reload(timeout: 1)
+    replaced = Tarantool::Client::Schema.new(version: 2, spaces: [[600, 1, 'orders']], indexes: [])
+    cache.replace(replaced)
+
+    expect(cache.reload(stale, timeout: 1)).to be(replaced)
+    expect(schema_state[:vspace_requests]).to eq(1)
   end
 end

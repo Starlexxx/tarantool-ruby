@@ -8,15 +8,21 @@ module Tarantool
 
       def initialize(connection)
         @connection = connection
-        @lock = Mutex.new
+        @lock = Transport::TimedLock.new
       end
 
       def reload(stale = nil, timeout:)
-        @lock.synchronize do
+        deadline = Transport::Deadline.after(timeout)
+        @lock.synchronize(deadline) do
           return @schema unless @schema.equal?(stale)
 
-          @schema = Schema.fetch(@connection, timeout:)
+          @schema = Schema.fetch(@connection, timeout: Transport::Deadline.remaining(deadline))
         end
+      end
+
+      # Takes no lock: a reload holding it may be waiting for the reconnect that installs this schema.
+      def replace(schema)
+        @schema = schema
       end
 
       # An unknown name may have been created after the last load, so it costs one reload.

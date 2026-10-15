@@ -3,19 +3,19 @@
 module Tarantool
   class Client
     module Transport
-      # Serializes whole-frame writes to a socket, each bounded by its own deadline.
+      # Serializes whole-frame writes to a socket; both the wait for the lock and the write are bounded by the deadline.
       # Yields when a write is interrupted after part of the frame went out, because
       # the stream is corrupt from then on.
       class FrameWriter
         def initialize(socket)
           @socket = socket
-          @lock = Mutex.new
+          @lock = TimedLock.new
         end
 
         # Async interrupts (Thread#raise, Timeout) are held until the blocking wait, so they
         # never land between a write and the update of the unsent remainder.
         def write(frame, deadline)
-          @lock.synchronize do
+          @lock.synchronize(deadline) do
             rest = frame
             Thread.handle_interrupt(Object => :on_blocking) do
               rest = write_some(rest, deadline) until rest.empty?

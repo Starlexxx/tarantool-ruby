@@ -20,6 +20,25 @@ RSpec.describe Tarantool::Client::Transport::FrameWriter do
     nil until socket.write_nonblock('x' * 4096, exception: false) == :wait_writable
   end
 
+  def write_in_background(frame, timeout)
+    Thread.new do
+      write(frame, timeout)
+    rescue Tarantool::TimeoutError
+      :timed_out
+    end
+  end
+
+  it 'bounds the wait for a write in progress by the deadline' do
+    fill_socket_buffer
+    blocked = write_in_background('x', 0.5)
+    sleep 0.05
+    started = Tarantool::Client::Transport::Deadline.now
+
+    expect { write('y', 0.05) }.to raise_error(Tarantool::TimeoutError)
+    expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.3
+    expect(blocked.value).to eq(:timed_out)
+  end
+
   it 'writes the whole frame' do
     reader = Thread.new { peer.read(1_000_000) }
     write('x' * 1_000_000, 1)
