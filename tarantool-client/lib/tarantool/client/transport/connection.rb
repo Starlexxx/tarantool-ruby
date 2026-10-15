@@ -50,7 +50,7 @@ module Tarantool
           @writer = FrameWriter.new(@socket)
           @greeting = read_greeting(deadline)
           start_reader
-          handshake(deadline)
+          @server_features = Handshake.perform(self, @config, deadline)
         rescue IOError, SystemCallError, SocketError, TimeoutError, ServerError => e
           raise ConnectionError, "cannot connect to #{@config.address}: #{e.message}"
         end
@@ -68,25 +68,6 @@ module Tarantool
           Protocol::Greeting.parse(Protocol::Codec.read_exactly(@socket, Protocol::Constants::GREETING_SIZE))
         ensure
           @socket.timeout = nil
-        end
-
-        def handshake(deadline)
-          id = Protocol::Requests::Id.new(
-            version: Protocol::Constants::PROTOCOL_VERSION, features: Protocol::Constants::CLIENT_FEATURES
-          )
-          response = perform(id, timeout: Deadline.remaining(deadline))
-          @server_features = response.body.fetch(Protocol::Constants::FEATURES, [])
-          authenticate(deadline) if @config.user && @config.user != 'guest'
-        end
-
-        def authenticate(deadline)
-          scramble = Protocol::Auth::ChapSha1.scramble(@config.password.to_s, greeting.salt)
-          request = Protocol::Requests::Auth.new(
-            user: @config.user, mechanism: Protocol::Auth::ChapSha1::MECHANISM, scramble:
-          )
-          perform(request, timeout: Deadline.remaining(deadline))
-        rescue ServerError => e
-          raise AuthenticationError, e.message
         end
 
         def start_reader
