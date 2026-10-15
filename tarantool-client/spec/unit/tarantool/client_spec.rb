@@ -86,7 +86,7 @@ RSpec.describe Tarantool::Client do
       lambda do |request, fake|
         case request.body[0x10]
         when 281 then reply_vspace(request, fake)
-        when 289 then fake.reply(request, [[schema_state[:users_id], 0, 'primary']])
+        when 289 then reply_vindex(request, fake)
         else fake.reply(request, [[request.body[0x10], request.body[0x20]]])
         end
       end
@@ -94,9 +94,14 @@ RSpec.describe Tarantool::Client do
 
     def reply_vspace(request, fake)
       schema_state[:vspace_requests] += 1
-      sleep 0.5 if schema_state[:slow]
+      sleep schema_state[:delay].to_f
       fake.reply(request, [[schema_state[:users_id], 1, 'users']])
       fake.schema_version += 1 if schema_state[:churn]
+    end
+
+    def reply_vindex(request, fake)
+      sleep schema_state[:delay].to_f
+      fake.reply(request, [[schema_state[:users_id], 0, 'primary']])
     end
 
     before do
@@ -131,9 +136,18 @@ RSpec.describe Tarantool::Client do
     end
 
     it 'reloads the schema within the request timeout' do
-      schema_state[:slow] = true
+      schema_state[:delay] = 0.5
 
       expect { client.select(:users, 1, timeout: 0.1) }.to raise_error(Tarantool::TimeoutError)
+    end
+
+    it 'bounds the stale request, reload and retry by one timeout' do
+      schema_state[:delay] = 0.25
+      started = Tarantool::Client::Transport::Deadline.now
+
+      expect { client.select(:users, 1, index: :primary, timeout: 0.3) }
+        .to raise_error(Tarantool::TimeoutError, 'no response within 0.3s')
+      expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.6
     end
   end
 

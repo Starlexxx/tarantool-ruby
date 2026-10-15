@@ -67,22 +67,34 @@ module Tarantool
 
     # Name-resolved requests carry the schema version they were resolved against, so the
     # server rejects them (ER_WRONG_SCHEMA_VERSION) instead of running them on a stale id.
-    def perform_on_space(space, index, timeout: nil)
+    def perform_on_space(space, index, timeout: nil, &)
       return perform(yield(space, index), timeout:) if space.is_a?(Integer) && index.is_a?(Integer)
 
-      schema, ids = resolve(@schema, space, index, timeout)
-      perform(yield(*ids), timeout:, schema_version: schema.version)
+      perform_by_name(space, index, timeout || @config.request_timeout, &)
+    end
+
+    # Every schema fetch and attempt draws on one deadline, so the whole call stays within timeout.
+    def perform_by_name(space, index, timeout, &)
+      perform_with_schema_check(space, index, Transport::Deadline.after(timeout), &)
+    rescue TimeoutError
+      raise TimeoutError, "no response within #{timeout}s"
+    end
+
+    def perform_with_schema_check(space, index, deadline)
+      schema, ids = resolve(@schema, space, index, deadline)
+      perform(yield(*ids), timeout: Transport::Deadline.remaining(deadline), schema_version: schema.version)
     rescue ServerError => e
       raise unless e.code == Protocol::Constants::ER_WRONG_SCHEMA_VERSION
 
-      schema, ids = resolve(reload_schema(schema, timeout:), space, index, timeout)
-      perform(yield(*ids), timeout:, schema_version: schema.version)
+      schema = reload_schema(schema, timeout: Transport::Deadline.remaining(deadline))
+      schema, ids = resolve(schema, space, index, deadline)
+      perform(yield(*ids), timeout: Transport::Deadline.remaining(deadline), schema_version: schema.version)
     end
 
-    def resolve(schema, space, index, timeout)
+    def resolve(schema, space, index, deadline)
       [schema, schema.resolve(space, index)]
     rescue SchemaError
-      schema = reload_schema(schema, timeout:)
+      schema = reload_schema(schema, timeout: Transport::Deadline.remaining(deadline))
       [schema, schema.resolve(space, index)]
     end
 
