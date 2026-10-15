@@ -59,4 +59,18 @@ RSpec.describe Tarantool::Client::Transport::PendingRequests do
 
     expect(pending.failure).to be_a(Tarantool::ClientClosedError)
   end
+
+  it 'delivers pushes without completing the request' do
+    sync, future = pending.register
+    pending.push(sync, :progress)
+    pending.resolve(sync, :response)
+    messages = []
+
+    expect(future.value(1) { |message| messages << message }).to eq(:response)
+    expect(messages).to eq([:progress])
+  end
+
+  it 'ignores pushes for unknown syncs' do
+    expect { pending.push(42, :progress) }.not_to raise_error
+  end
 end
