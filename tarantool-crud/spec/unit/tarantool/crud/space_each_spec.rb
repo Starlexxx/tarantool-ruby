@@ -28,4 +28,10 @@ RSpec.describe Tarantool::Crud::Space do
 
     expect(transport.requests.map { |request| request.arguments.last }).to eq([{ first: 1000 }])
   end
+
+  it 'rejects a non-positive batch_size without making a request' do
+    expect { users.each(batch_size: 0) }.to raise_error(ArgumentError)
+    expect { users.each(batch_size: -1) }.to raise_error(ArgumentError)
+    expect(transport.requests).to be_empty
+  end
 end
