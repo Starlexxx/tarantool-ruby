@@ -1,9 +1,10 @@
 # frozen_string_literal: true
 
 RSpec.describe Tarantool::Client::Operations do
-  subject(:target) { target_class.new(data) }
+  subject(:target) { target_class.new(body) }
 
   let(:data) { [[1, 'a@b.c']] }
+  let(:body) { { 0x30 => data } }
   let(:requests) { Tarantool::Client::Protocol::Requests }
   let(:target_class) do
     Class.new do
@@ -11,8 +12,8 @@ RSpec.describe Tarantool::Client::Operations do
 
       attr_reader :performed
 
-      def initialize(data)
-        @data = data
+      def initialize(body)
+        @body = body
         @performed = []
       end
 
@@ -20,7 +21,7 @@ RSpec.describe Tarantool::Client::Operations do
 
       def perform(request, timeout: nil)
         @performed << [request, timeout]
-        Tarantool::Client::Protocol::Response.new({ 0x00 => 0, 0x01 => 1 }, { 0x30 => @data })
+        Tarantool::Client::Protocol::Response.new({ 0x00 => 0, 0x01 => 1 }, @body)
       end
 
       def perform_on_space(space, index, timeout:)
@@ -87,5 +88,28 @@ RSpec.describe Tarantool::Client::Operations do
     target.select(:users, time)
 
     expect(last_request.key).to eq([time])
+  end
+
+  context 'with SQL' do
+    let(:body) { { 0x32 => [{ 0x00 => 'id' }], 0x30 => [[1]], 0x43 => 7 } }
+
+    it 'executes SQL text with bindings' do
+      expect(target.execute('SELECT id FROM t WHERE id = ?', [1])).to have_attributes(rows: [[1]], columns: ['id'])
+      expect(last_request).to eq(requests::Execute.new(statement: 'SELECT id FROM t WHERE id = ?', bindings: [1]))
+    end
+
+    it 'executes a prepared statement by its id' do
+      statement = Tarantool::Client::PreparedStatement.new(7, ->(*) {})
+      target.execute(statement, [1])
+      expect(last_request).to eq(requests::Execute.new(statement: 7, bindings: [1]))
+    end
+
+    it 'prepares a statement that executes through the same target' do
+      statement = target.prepare('SELECT id FROM t WHERE id = ?', timeout: 0.5)
+
+      expect(target.performed.last).to eq([requests::Prepare.new(statement: 'SELECT id FROM t WHERE id = ?'), 0.5])
+      expect(statement.execute([1]).rows).to eq([[1]])
+      expect(last_request).to eq(requests::Execute.new(statement: 7, bindings: [1]))
+    end
   end
 end
