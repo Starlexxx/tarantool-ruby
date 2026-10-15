@@ -2,7 +2,7 @@
 
 RSpec.describe Tarantool::Client::Protocol::Extensions do
   it 'registers MP_ERROR as BoxError without a packer' do
-    entry = described_class.find { |extension| extension.type == 0x03 }
+    entry = described_class.find { |extension| extension.type == Tarantool::Client::Protocol::Constants::MP_ERROR }
 
     expect(entry).to have_attributes(klass: Tarantool::Client::BoxError, options: { unpacker: an_instance_of(Method) })
   end

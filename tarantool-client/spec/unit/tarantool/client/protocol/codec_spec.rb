@@ -101,14 +101,14 @@ RSpec.describe Tarantool::Client::Protocol::Codec do
     end
 
     it 'decodes other extension values nested in box.error fields' do
-      uuid = MessagePack::ExtensionValue.new(2, "\x01".b * 16)
-      stack = { 0x00 => [{ 0x03 => 'boom', 0x06 => { 'id' => uuid } }] }
+      unknown = MessagePack::ExtensionValue.new(42, 'x')
+      stack = { 0x00 => [{ 0x03 => 'boom', 0x06 => { 'id' => unknown } }] }
       body = { 0x30 => [MessagePack::ExtensionValue.new(3, MessagePack.pack(stack))] }
       payload = MessagePack.pack({ 0x00 => 0, 0x01 => 9 }) + MessagePack.pack(body)
 
       error = described_class.decode(payload).data.first
 
-      expect(error.fields).to eq('id' => uuid)
+      expect(error.fields).to eq('id' => unknown)
     end
 
     it 'decodes a box.error nested in box.error fields' do
