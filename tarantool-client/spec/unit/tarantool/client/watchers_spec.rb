@@ -95,9 +95,30 @@ RSpec.describe Tarantool::Client::Watchers do
     expect(events.pop(timeout: 0.1)).to be_nil
   end
 
+  it 'never calls a watcher removed while an event for it is queued' do
+    hold = Thread::Queue.new
+    watchers.add('k', ->(_key, _value) { hold.tap { events << :started }.pop(timeout: 1) })
+    removed = collect('k')
+    collect('k')
+    watchers.dispatch('k', 1)
+    events.pop(timeout: 1)
+    removed.unwatch
+    hold << :go
+
+    expect(events.pop(timeout: 1)).to eq(['k', 1])
+    expect(events.pop(timeout: 0.1)).to be_nil
+  end
+
   it 'ignores a lost connection on unwatch' do
     watcher = collect('k')
     allow(connection).to receive(:notify).and_raise(Tarantool::ConnectionError, 'lost')
+
+    expect { watcher.unwatch }.not_to raise_error
+  end
+
+  it 'ignores a write timeout on unwatch' do
+    watcher = collect('k')
+    allow(connection).to receive(:notify).and_raise(Tarantool::TimeoutError, 'socket write timed out')
 
     expect { watcher.unwatch }.not_to raise_error
   end

@@ -28,7 +28,8 @@ module Tarantool
         watcher
       end
 
-      # A lost connection has already dropped the server-side subscription.
+      # Errors are swallowed: the watcher is already gone locally, and a server-side subscription left
+      # behind by an unsent UNWATCH yields at most one event, which is ignored and never acked.
       def remove(watcher)
         @lock.synchronize do
           watchers = @watchers[watcher.key]
@@ -38,7 +39,7 @@ module Tarantool
           @values.delete(watcher.key)
           send_request(Protocol::Requests::Unwatch.new(key: watcher.key))
         end
-      rescue ConnectionError
+      rescue Error
         nil
       end
 
