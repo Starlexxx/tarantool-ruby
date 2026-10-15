@@ -28,6 +28,7 @@ require_relative 'client/transport/deadline'
 require_relative 'client/transport/frame_writer'
 require_relative 'client/transport/connection'
 require_relative 'client/schema'
+require_relative 'client/schema_cache'
 require_relative 'client/operations'
 
 module Tarantool
@@ -40,8 +41,8 @@ module Tarantool
     def initialize(uri = nil, **)
       @config = Configuration.build(uri, **)
       @connection = Transport::Connection.new(@config).connect
-      @schema_lock = Mutex.new
-      reload_schema
+      @schema_cache = SchemaCache.new(@connection)
+      @schema_cache.reload(timeout: @config.request_timeout)
     rescue StandardError
       @connection&.close
       raise
@@ -81,29 +82,14 @@ module Tarantool
     end
 
     def perform_with_schema_check(space, index, deadline)
-      schema, ids = resolve(@schema, space, index, deadline)
+      schema, ids = @schema_cache.resolve(space, index, deadline)
       perform(yield(*ids), timeout: Transport::Deadline.remaining(deadline), schema_version: schema.version)
     rescue ServerError => e
       raise unless e.code == Protocol::Constants::ER_WRONG_SCHEMA_VERSION
 
-      schema = reload_schema(schema, timeout: Transport::Deadline.remaining(deadline))
-      schema, ids = resolve(schema, space, index, deadline)
+      fresh = @schema_cache.reload(schema, timeout: Transport::Deadline.remaining(deadline))
+      schema, ids = @schema_cache.resolve(space, index, deadline, fresh)
       perform(yield(*ids), timeout: Transport::Deadline.remaining(deadline), schema_version: schema.version)
-    end
-
-    def resolve(schema, space, index, deadline)
-      [schema, schema.resolve(space, index)]
-    rescue SchemaError
-      schema = reload_schema(schema, timeout: Transport::Deadline.remaining(deadline))
-      [schema, schema.resolve(space, index)]
-    end
-
-    def reload_schema(stale = nil, timeout: nil)
-      @schema_lock.synchronize do
-        return @schema unless @schema.equal?(stale)
-
-        @schema = Schema.fetch(@connection, timeout: timeout || @config.request_timeout)
-      end
     end
   end
 end
