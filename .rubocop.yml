@@ -1,0 +1,25 @@
+plugins:
+  - rubocop-performance
+  - rubocop-rspec
+
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 3.2
+  SuggestExtensions: false
+  Exclude:
+    - 'vendor/**/*'
+    - 'tmp/**/*'
+
+Metrics/ParameterLists:
+  CountKeywordArgs: false
+
+RSpec/ExampleLength:
+  Max: 10
+
+RSpec/MultipleExpectations:
+  Max: 3
+
+Naming/PredicateMethod:
+  AllowedMethods:
+    - call
+    - ping

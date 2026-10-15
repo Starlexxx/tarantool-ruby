@@ -1,0 +1,165 @@
+# frozen_string_literal: true
+
+RSpec.describe Tarantool::Client do
+  context 'with a connected client' do
+    let(:handler) do
+      lambda do |request, fake|
+        space_id = request.body[0x10]
+        case space_id
+        when 281 then fake.reply(request, [[512, 1, 'users']])
+        when 289 then fake.reply(request, [[512, 0, 'primary']])
+        else fake.reply(request, [[space_id, request.body[0x20]]])
+        end
+      end
+    end
+    let(:server) { FakeTarantool.new(&handler) }
+    let(:client) { described_class.new(server.uri, user: 'app', password: 'secret') }
+
+    after do
+      client.close
+      server.stop
+    end
+
+    it 'shows only the address when inspected' do
+      expect(client.inspect).to eq("#<Tarantool::Client #{server.path}>")
+    end
+
+    it 'reports the server version' do
+      expect(client.server_version).to eq('2.11.1')
+    end
+
+    it 'resolves names through the loaded schema' do
+      expect(client.select(:users, 7, index: :primary)).to eq([[512, [7]]])
+    end
+
+    context 'when a name becomes known after a reload' do
+      let!(:schema_state) { { orders: false } }
+      let(:handler) do
+        lambda do |request, fake|
+          space_id = request.body[0x10]
+          case space_id
+          when 281
+            rows = [[512, 1, 'users']]
+            rows << [600, 1, 'orders'] if schema_state[:orders]
+            fake.reply(request, rows)
+          when 289 then fake.reply(request, [[512, 0, 'primary']])
+          else fake.reply(request, [[space_id, request.body[0x20]]])
+          end
+        end
+      end
+
+      it 'resolves the name once the schema is reloaded and includes it' do
+        expect { client.select(:orders, 1) }.to raise_error(Tarantool::SchemaError)
+
+        schema_state[:orders] = true
+
+        expect(client.select(:orders, 1)).to eq([[600, [1]]])
+      end
+    end
+
+    it 'reloads the schema once before raising SchemaError for an unknown name' do
+      client
+      before = server.headers.count { |header| header[0x00] == 0x01 }
+
+      expect { client.select(:orders, 1) }.to raise_error(Tarantool::SchemaError)
+      expect(server.headers.count { |header| header[0x00] == 0x01 }).to eq(before + 2)
+    end
+
+    it 'sends the schema version with requests resolved by name' do
+      client.select(:users, 1)
+
+      expect(server.headers.last[0x05]).to eq(1)
+    end
+
+    it 'sends no schema version for numeric space and index ids' do
+      client.select(512, 1, index: 0)
+
+      expect(server.headers.last).not_to have_key(0x05)
+    end
+  end
+
+  context 'when another client changes the schema' do
+    let!(:schema_state) { { users_id: 512, vspace_requests: 0, churn: false } }
+    let(:server) { FakeTarantool.new(check_schema_version: true, &handler) }
+    let(:client) { described_class.new(server.uri, user: 'app', password: 'secret') }
+    let(:handler) do
+      lambda do |request, fake|
+        case request.body[0x10]
+        when 281 then reply_vspace(request, fake)
+        when 289 then reply_vindex(request, fake)
+        else fake.reply(request, [[request.body[0x10], request.body[0x20]]])
+        end
+      end
+    end
+
+    def reply_vspace(request, fake)
+      schema_state[:vspace_requests] += 1
+      sleep schema_state[:delay].to_f
+      fake.reply(request, [[schema_state[:users_id], 1, 'users']])
+      fake.schema_version += 1 if schema_state[:churn]
+    end
+
+    def reply_vindex(request, fake)
+      sleep schema_state[:delay].to_f
+      fake.reply(request, [[schema_state[:users_id], 0, 'primary']])
+    end
+
+    before do
+      client
+      schema_state[:users_id] = 513
+      server.schema_version = 2
+    end
+
+    after do
+      client.close
+      server.stop
+    end
+
+    it 'reloads once and retries with the new ids' do
+      expect(client.select(:users, 1, index: :primary)).to eq([[513, [1]]])
+      expect(schema_state[:vspace_requests]).to eq(2)
+    end
+
+    it 'raises ServerError when the retry also hits a stale schema' do
+      schema_state[:churn] = true
+
+      expect { client.select(:users, 1) }
+        .to raise_error(Tarantool::ServerError) { |error| expect(error.code).to eq(109) }
+      expect(schema_state[:vspace_requests]).to eq(2)
+    end
+
+    it 'performs a single reload when many threads hit a stale schema concurrently' do
+      threads = Array.new(10) { Thread.new { client.select(:users, 1, index: :primary) } }
+
+      expect(threads.map(&:value)).to all(eq([[513, [1]]]))
+      expect(schema_state[:vspace_requests]).to eq(2)
+    end
+
+    it 'reloads the schema within the request timeout' do
+      schema_state[:delay] = 0.5
+
+      expect { client.select(:users, 1, timeout: 0.1) }.to raise_error(Tarantool::TimeoutError)
+    end
+
+    it 'bounds the stale request, reload and retry by one timeout' do
+      schema_state[:delay] = 0.25
+      started = Tarantool::Client::Transport::Deadline.now
+
+      expect { client.select(:users, 1, index: :primary, timeout: 0.3) }
+        .to raise_error(Tarantool::TimeoutError, 'no response within 0.3s')
+      expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.6
+    end
+  end
+
+  context 'when the initial schema load fails' do
+    it 'closes the connection and re-raises' do
+      failing = FakeTarantool.new { |request, fake| fake.reply_error(request, code: 1, message: 'boom') }
+
+      expect { described_class.new(failing.uri, user: 'app', password: 'secret') }
+        .to raise_error(Tarantool::ServerError, 'boom')
+      expect(Thread.list.none? { |t| t.name&.start_with?('tarantool-reader') }).to be(true)
+    ensure
+      failing.stop
+    end
+  end
+end
