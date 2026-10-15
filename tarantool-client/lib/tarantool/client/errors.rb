@@ -1,0 +1,39 @@
+# frozen_string_literal: true
+
+module Tarantool
+  # Base class for every error raised by tarantool-ruby gems.
+  class Error < StandardError; end
+
+  # Socket-level failure: refused, lost or broken connection.
+  class ConnectionError < Error; end
+
+  # Request issued after the connection was closed by the client.
+  class ClientClosedError < ConnectionError; end
+
+  # No response within the request timeout.
+  class TimeoutError < Error; end
+
+  # Server rejected the credentials.
+  class AuthenticationError < Error; end
+
+  # Malformed or unexpected data from the server.
+  class ProtocolError < Error; end
+
+  # Space or index name cannot be resolved.
+  class SchemaError < Error; end
+
+  # Error returned by the server for a request.
+  class ServerError < Error
+    attr_reader :code, :error_stack
+
+    def self.from_response(response)
+      new(response.error_message, code: response.error_code, error_stack: response.error_stack)
+    end
+
+    def initialize(message, code:, error_stack: [])
+      super(message)
+      @code = code
+      @error_stack = error_stack
+    end
+  end
+end
