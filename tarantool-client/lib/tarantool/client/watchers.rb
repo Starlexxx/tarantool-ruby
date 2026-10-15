@@ -49,6 +49,7 @@ module Tarantool
 
       # Runs the block on the dispatcher after the events queued so far.
       def defer
+        @lock.synchronize { @dispatcher ||= start_dispatcher }
         @jobs.push(lambda do
           yield
         rescue StandardError => e

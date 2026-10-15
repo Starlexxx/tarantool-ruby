@@ -29,7 +29,8 @@ module Tarantool
         end
 
         # nil while disconnected or before the current connection's first box.status, else whether the
-        # instance is read-only.
+        # instance is read-only. The role is dropped as soon as the connection is lost; it can briefly come
+        # back only while the watcher dispatcher still delivers that connection's queued box.status.
         def read_only
           @lock.synchronize { @read_only if @client&.connected? }
         end

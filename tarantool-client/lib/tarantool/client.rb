@@ -61,8 +61,8 @@ module Tarantool
     attr_reader :config
 
     # @api private
-    # Called on the watcher dispatcher thread when the connection is lost and a reconnect starts:
-    # after every event of the lost connection and before any of the next one.
+    # Called when the connection is lost, before the first reconnect attempt, then again on the watcher
+    # dispatcher thread after every event of the lost connection and before any of the next one.
     attr_writer :disconnect_handler
 
     def initialize(uri = nil, **)
@@ -135,7 +135,10 @@ module Tarantool
     end
 
     def lost
-      @watchers.defer(&@disconnect_handler) if @disconnect_handler
+      return unless @disconnect_handler
+
+      @disconnect_handler.call
+      @watchers.defer(&@disconnect_handler)
     end
 
     # Name-resolved requests carry the schema version they were resolved against, so the

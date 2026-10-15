@@ -106,6 +106,19 @@ RSpec.describe Tarantool::Client::Pool::Member do
       late << true
       wait_for { member.read_only == false }
     end
+
+    it 'forgets the old role on reconnect while the watcher dispatcher is busy' do
+      member.start
+      busy = Thread::Queue.new
+      member.client.instance_variable_get(:@watchers).defer { busy.pop(timeout: 2) }
+      server.disconnect
+      wait_for { server.connections == 2 && member.client.connected? }
+
+      expect(member.read_only).to be_nil
+    ensure
+      busy << true
+      late << true
+    end
   end
 
   it 'stops waiting for box.status when closed during start' do

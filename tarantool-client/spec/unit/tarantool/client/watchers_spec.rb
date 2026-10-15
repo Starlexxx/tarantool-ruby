@@ -28,6 +28,12 @@ RSpec.describe Tarantool::Client::Watchers do
     expect(sent_so_far).to eq([watch_request('k')])
   end
 
+  it 'runs a deferred job without any watcher' do
+    watchers.defer { events << :ran }
+
+    expect(events.pop(timeout: 1)).to eq(:ran)
+  end
+
   it 'runs callbacks off the thread that dispatched the event' do
     watchers.add('k', ->(_key, _value) { events << Thread.current })
     watchers.dispatch('k', 1)
