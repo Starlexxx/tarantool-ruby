@@ -39,6 +39,8 @@ require_relative 'client/sql_result'
 require_relative 'client/prepared_statement'
 require_relative 'client/transaction_schema'
 require_relative 'client/operations'
+require_relative 'client/transaction_scope'
+require_relative 'client/stream'
 
 module Tarantool
   # Connection to one Tarantool instance. Safe to share between threads and fibers.
