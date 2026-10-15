@@ -5,7 +5,7 @@ module Tarantool
     # Data operations, call and eval. Includers implement
     # `perform(request, timeout:)` and `resolve(space, index)`.
     module Operations
-      def ping(timeout: nil) # rubocop:disable Naming/PredicateMethod
+      def ping(timeout: nil)
         perform(Protocol::Requests::Ping.new, timeout:)
         true
       end
@@ -13,7 +13,7 @@ module Tarantool
       def select(space, key = [], index: 0, limit: Protocol::Constants::MAX_LIMIT, offset: 0, iterator: :eq,
                  timeout: nil)
         space_id, index_id = resolve(space, index)
-        request = Protocol::Requests::Select.new(space_id:, index_id:, key: Array(key), limit:, offset:, iterator:)
+        request = Protocol::Requests::Select.new(space_id:, index_id:, key: key_tuple(key), limit:, offset:, iterator:)
         perform(request, timeout:).data
       end
 
@@ -29,7 +29,7 @@ module Tarantool
 
       def update(space, key, operations, index: 0, timeout: nil)
         space_id, index_id = resolve(space, index)
-        request = Protocol::Requests::Update.new(space_id:, index_id:, key: Array(key), operations:)
+        request = Protocol::Requests::Update.new(space_id:, index_id:, key: key_tuple(key), operations:)
         perform(request, timeout:).data.first
       end
 
@@ -41,7 +41,7 @@ module Tarantool
 
       def delete(space, key, index: 0, timeout: nil)
         space_id, index_id = resolve(space, index)
-        perform(Protocol::Requests::Delete.new(space_id:, index_id:, key: Array(key)), timeout:).data.first
+        perform(Protocol::Requests::Delete.new(space_id:, index_id:, key: key_tuple(key)), timeout:).data.first
       end
 
       def call(function_name, arguments = [], timeout: nil)
@@ -50,6 +50,12 @@ module Tarantool
 
       def eval(expression, arguments = [], timeout: nil)
         perform(Protocol::Requests::Eval.new(expression:, arguments:), timeout:).data
+      end
+
+      private
+
+      def key_tuple(key)
+        key.is_a?(Array) ? key : [key]
       end
     end
   end

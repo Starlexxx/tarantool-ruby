@@ -18,3 +18,8 @@ RSpec/ExampleLength:
 
 RSpec/MultipleExpectations:
   Max: 3
+
+Naming/PredicateMethod:
+  AllowedMethods:
+    - call
+    - ping

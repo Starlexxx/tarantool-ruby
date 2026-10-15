@@ -75,4 +75,17 @@ RSpec.describe Tarantool::Client::Operations do
     expect(target.eval('return ...', [1])).to eq(data)
     expect(last_request).to eq(requests::Eval.new(expression: 'return ...', arguments: [1]))
   end
+
+  it 'wraps a Hash key in an array instead of converting it to pairs' do
+    target.select(:users, { email: 'a@b.c' })
+
+    expect(last_request.key).to eq([{ email: 'a@b.c' }])
+  end
+
+  it 'wraps a Time key in an array instead of coercing it' do
+    time = Time.now
+    target.select(:users, time)
+
+    expect(last_request.key).to eq([time])
+  end
 end

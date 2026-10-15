@@ -41,6 +41,7 @@ module Tarantool
       @connection = Transport::Connection.new(@config).connect
       @schema_lock = Mutex.new
       reload_schema
+      @server_schema_version = @schema.version
     rescue StandardError
       @connection&.close
       raise
@@ -58,22 +59,26 @@ module Tarantool
 
     def perform(request, timeout: nil)
       response = @connection.perform(request, timeout: timeout || @config.request_timeout)
-      @server_schema_version = response.schema_version
+      version = response.schema_version
+      @server_schema_version = version if version && (@server_schema_version.nil? || version > @server_schema_version)
       response
     end
 
     def resolve(space, index)
-      reload_schema if @schema.version != @server_schema_version
-      @schema.resolve(space, index)
+      return [space, index] if space.is_a?(Integer) && index.is_a?(Integer)
+
+      schema = @schema
+      schema = reload_schema(schema) if schema.version != @server_schema_version
+      schema.resolve(space, index)
     rescue SchemaError
-      reload_schema
-      @schema.resolve(space, index)
+      reload_schema(schema).resolve(space, index)
     end
 
-    def reload_schema
+    def reload_schema(stale = nil)
       @schema_lock.synchronize do
+        return @schema unless @schema.equal?(stale)
+
         @schema = Schema.fetch(@connection, timeout: @config.request_timeout)
-        @server_schema_version = @schema.version
       end
     end
   end

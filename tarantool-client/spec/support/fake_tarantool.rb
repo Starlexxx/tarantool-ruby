@@ -11,12 +11,14 @@ class FakeTarantool
   include IprotoHelpers
 
   attr_reader :path, :auth_requests
+  attr_accessor :schema_version
 
   def initialize(auth_error: nil, id_error: nil, greeting: true, &handler)
     @auth_error = auth_error
     @id_error = id_error
     @greeting = greeting
     @auth_requests = 0
+    @schema_version = 1
     @handler = handler
     @requests = Thread::Queue.new
     @write_lock = Mutex.new
@@ -97,7 +99,7 @@ class FakeTarantool
   end
 
   def write(request, type, body)
-    frame = iproto_frame({ 0x00 => type, 0x01 => request.sync, 0x05 => 1 }, body)
+    frame = iproto_frame({ 0x00 => type, 0x01 => request.sync, 0x05 => schema_version }, body)
     @write_lock.synchronize { @socket.write(frame) }
   end
 end
