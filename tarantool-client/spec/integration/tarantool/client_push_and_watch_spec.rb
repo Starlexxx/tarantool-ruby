@@ -38,12 +38,15 @@ RSpec.describe Tarantool::Client, :integration do
     expect(events.pop(timeout: 1)).to eq([key, 1])
   end
 
-  it 'stops delivering after unwatch' do
-    watcher = client.watch(key) { |*event| events << event }
+  it 'stops delivering after unwatch but keeps delivering to other watchers' do
+    removed = client.watch(key) { |*event| events << event }
+    client.watch(key) { |_key, value| events << [:kept, value] }
     events.pop(timeout: 1)
-    watcher.unwatch
+    events.pop(timeout: 1)
+    removed.unwatch
     broadcast(2)
 
+    expect(events.pop(timeout: 1)).to eq([:kept, 2])
     expect(events.pop(timeout: 0.2)).to be_nil
   end
 
