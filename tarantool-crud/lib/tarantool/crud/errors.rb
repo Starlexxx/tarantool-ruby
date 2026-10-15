@@ -44,6 +44,18 @@ module Tarantool
     class ReplaceManyError < Error; end
     class UpsertManyError < Error; end
 
+    # Raised by *_many! when any row failed; result holds the rows that were written.
+    class ManyError < Error
+      attr_reader :result
+
+      def initialize(result)
+        @result = result
+        super("#{result.errors.size} crud operation(s) failed, first: #{result.errors.first.message}")
+      end
+
+      def errors = result.errors
+    end
+
     class Error
       CLASSES = {
         'InsertError' => InsertError,
