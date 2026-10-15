@@ -98,6 +98,12 @@ RSpec.describe Tarantool::Client::Operations do
       expect(last_request).to eq(requests::Execute.new(statement: 'SELECT id FROM t WHERE id = ?', bindings: [1]))
     end
 
+    it 'executes a prepared statement by its id' do
+      statement = Tarantool::Client::PreparedStatement.new(7, ->(*) {})
+      target.execute(statement, [1])
+      expect(last_request).to eq(requests::Execute.new(statement: 7, bindings: [1]))
+    end
+
     it 'prepares a statement that executes through the same target' do
       statement = target.prepare('SELECT id FROM t WHERE id = ?', timeout: 0.5)
 

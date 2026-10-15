@@ -97,6 +97,33 @@ RSpec.describe Tarantool::Client::Stream do
     end
   end
 
+  it 'raises TransactionError when prepare is called inside a transaction' do
+    expect { transaction { |tx| tx.prepare('SELECT 1') } }
+      .to raise_error(Tarantool::TransactionError, /prepare statements on the client/)
+    expect(stream_requests).to eq([[0x0e, 1], [0x10, 1]])
+  end
+
+  it 'executes a prepared statement inside a transaction' do
+    statement = Tarantool::Client::PreparedStatement.new(7, ->(*) {})
+    transaction { |tx| tx.execute(statement, [1]) }
+    expect(stream_requests).to include([0x0b, 1])
+  end
+
+  context 'when the commit fails' do
+    let(:handler) do
+      lambda do |request, fake|
+        next fake.reply_error(request, code: 1, message: 'commit failed') if request.type == 0x0f
+
+        fake.reply(request, request.body[0x10] == 281 ? [[512, 1, 'users']] : [[512, 0, 'primary']])
+      end
+    end
+
+    it 'raises the commit error and sends no rollback' do
+      expect { transaction { nil } }.to raise_error(Tarantool::ServerError, 'commit failed')
+      expect(stream_requests).to eq([[0x0e, 1], [0x0f, 1]])
+    end
+  end
+
   context 'when the rollback fails' do
     let(:handler) do
       lambda do |request, fake|

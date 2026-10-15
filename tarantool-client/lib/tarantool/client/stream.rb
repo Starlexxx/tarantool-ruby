@@ -22,6 +22,11 @@ module Tarantool
         run(&)
       end
 
+      def prepare(*)
+        raise TransactionError,
+              'prepare statements on the client; execute them in the transaction with tx.execute(statement, bindings)'
+      end
+
       private
 
       def start(isolation, timeout)

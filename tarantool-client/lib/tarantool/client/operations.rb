@@ -58,7 +58,8 @@ module Tarantool
       end
 
       def execute(sql, bindings = [], timeout: nil)
-        SqlResult.from_response(perform(Protocol::Requests::Execute.new(statement: sql, bindings:), timeout:))
+        statement = sql.is_a?(PreparedStatement) ? sql.id : sql
+        SqlResult.from_response(perform(Protocol::Requests::Execute.new(statement:, bindings:), timeout:))
       end
 
       def prepare(sql, timeout: nil)

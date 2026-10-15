@@ -60,6 +60,18 @@ RSpec.describe Tarantool::Client, :integration do
     expect(client.execute('SELECT COUNT(*) FROM "sql_tx"').rows).to eq([[0]])
   end
 
+  it 'runs a prepared statement inside the transaction' do
+    statement = client.prepare('INSERT INTO "sql_tx" VALUES (?, ?)')
+    expect do
+      client.transaction do |tx|
+        tx.execute(statement, [1, 'a'])
+        raise 'boom'
+      end
+    end.to raise_error(RuntimeError, 'boom')
+    expect(client.execute('SELECT COUNT(*) FROM "sql_tx"').rows).to eq([[0]])
+    statement.close
+  end
+
   it 'raises TransactionError for a nested transaction and rolls back the outer one' do
     expect do
       client.transaction do |tx|
