@@ -30,8 +30,8 @@ module Tarantool
           raise TimeoutError, "no response within #{timeout}s" if Deadline.remaining(deadline)&.zero?
 
           sync, future = @pending.register
-          write(Protocol::Codec.encode(request, sync:, stream_id:, schema_version:), deadline)
-          response = await(future, deadline, timeout, &on_push)
+          frame = Protocol::Codec.encode(request, sync:, stream_id:, schema_version:)
+          response = exchange(frame, future, deadline, timeout, &on_push)
           raise ServerError.from_response(response) if response.error?
 
           response
@@ -106,7 +106,9 @@ module Tarantool
           @pending.resolve(response.sync, response)
         end
 
-        def await(future, deadline, timeout, &)
+        # A write that runs out of time, waiting for the lock or for the socket, is reported like a missing reply.
+        def exchange(frame, future, deadline, timeout, &)
+          write(frame, deadline)
           future.value(Deadline.remaining(deadline), &)
         rescue TimeoutError
           raise TimeoutError, "no response within #{timeout}s"

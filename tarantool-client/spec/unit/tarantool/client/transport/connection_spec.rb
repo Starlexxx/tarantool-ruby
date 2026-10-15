@@ -117,6 +117,20 @@ RSpec.describe Tarantool::Client::Transport::Connection do
         expect(connection.perform(eval_request('return 1'), timeout: 1).data).to eq(['return 1'])
       end
 
+      it 'reports a write lock held past the timeout as no response' do
+        lock = connection.instance_variable_get(:@writer).instance_variable_get(:@lock)
+        held = Thread::Queue.new
+        release = Thread::Queue.new
+        holder = Thread.new { lock.synchronize(nil) { (held << true) && release.pop } }
+        held.pop
+
+        expect { connection.perform(eval_request('x'), timeout: 0.05) }
+          .to raise_error(Tarantool::TimeoutError, 'no response within 0.05s')
+      ensure
+        release << true
+        holder.join
+      end
+
       it 'sends the schema version in the request header' do
         connection.perform(eval_request('return 1'), timeout: 1, schema_version: 80)
 
