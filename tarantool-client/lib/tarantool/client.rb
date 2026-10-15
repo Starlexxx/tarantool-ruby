@@ -20,18 +20,30 @@ require_relative 'client/protocol/requests/upsert'
 require_relative 'client/protocol/requests/delete'
 require_relative 'client/protocol/requests/call'
 require_relative 'client/protocol/requests/eval'
+require_relative 'client/protocol/requests/execute'
+require_relative 'client/protocol/requests/prepare'
+require_relative 'client/protocol/requests/begin'
+require_relative 'client/protocol/requests/commit'
+require_relative 'client/protocol/requests/rollback'
 require_relative 'client/protocol/requests/auth'
 require_relative 'client/protocol/requests/id'
 require_relative 'client/protocol/requests/watch'
 require_relative 'client/protocol/requests/unwatch'
 require_relative 'client/transport/future'
 require_relative 'client/transport/pending_requests'
+require_relative 'client/transport/stream_ids'
 require_relative 'client/transport/deadline'
 require_relative 'client/transport/frame_writer'
 require_relative 'client/transport/handshake'
 require_relative 'client/transport/connection'
 require_relative 'client/schema'
+require_relative 'client/schema_cache'
+require_relative 'client/sql_result'
+require_relative 'client/prepared_statement'
+require_relative 'client/transaction_schema'
 require_relative 'client/operations'
+require_relative 'client/transaction_scope'
+require_relative 'client/stream'
 require_relative 'client/watcher'
 require_relative 'client/watchers'
 
@@ -48,8 +60,8 @@ module Tarantool
       @watchers = Watchers.new(@connection, timeout: @config.request_timeout)
       @connection.event_handler = @watchers.method(:dispatch)
       @connection.connect
-      @schema_lock = Mutex.new
-      reload_schema
+      @schema_cache = SchemaCache.new(@connection).tap { |cache| cache.reload(timeout: @config.request_timeout) }
+      @stream_ids = Transport::StreamIds.new
     rescue StandardError
       @connection&.close
       raise
@@ -57,6 +69,16 @@ module Tarantool
 
     def server_version
       @connection.greeting.version
+    end
+
+    def transaction(isolation: :default, timeout: nil, &block)
+      TransactionScope.enter(self) do
+        stream = Stream.new(
+          connection: @connection, schema_cache: @schema_cache, id: @stream_ids.next,
+          request_timeout: @config.request_timeout
+        )
+        stream.transaction(isolation:, timeout:, &block)
+      end
     end
 
     # The block gets the current value first (nil if the key was never broadcast), then every
@@ -100,29 +122,14 @@ module Tarantool
     end
 
     def perform_with_schema_check(space, index, deadline)
-      schema, ids = resolve(@schema, space, index, deadline)
+      schema, ids = @schema_cache.resolve(space, index, deadline)
       perform(yield(*ids), timeout: Transport::Deadline.remaining(deadline), schema_version: schema.version)
     rescue ServerError => e
       raise unless e.code == Protocol::Constants::ER_WRONG_SCHEMA_VERSION
 
-      schema = reload_schema(schema, timeout: Transport::Deadline.remaining(deadline))
-      schema, ids = resolve(schema, space, index, deadline)
+      fresh = @schema_cache.reload(schema, timeout: Transport::Deadline.remaining(deadline))
+      schema, ids = @schema_cache.resolve(space, index, deadline, fresh)
       perform(yield(*ids), timeout: Transport::Deadline.remaining(deadline), schema_version: schema.version)
-    end
-
-    def resolve(schema, space, index, deadline)
-      [schema, schema.resolve(space, index)]
-    rescue SchemaError
-      schema = reload_schema(schema, timeout: Transport::Deadline.remaining(deadline))
-      [schema, schema.resolve(space, index)]
-    end
-
-    def reload_schema(stale = nil, timeout: nil)
-      @schema_lock.synchronize do
-        return @schema unless @schema.equal?(stale)
-
-        @schema = Schema.fetch(@connection, timeout: timeout || @config.request_timeout)
-      end
     end
   end
 end

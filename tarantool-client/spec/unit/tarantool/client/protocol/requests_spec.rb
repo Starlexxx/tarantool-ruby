@@ -68,4 +68,34 @@ RSpec.describe Tarantool::Client::Protocol::Requests do
     expect(encoded(described_class::Watch.new(key: 'box.status'))).to eq([0x4a, { 0x57 => 'box.status' }])
     expect(encoded(described_class::Unwatch.new(key: 'box.status'))).to eq([0x4b, { 0x57 => 'box.status' }])
   end
+
+  it 'builds EXECUTE from SQL text or a prepared statement id' do
+    expect(encoded(described_class::Execute.new(statement: 'SELECT ?', bindings: [1])))
+      .to eq([0x0b, { 0x40 => 'SELECT ?', 0x41 => [1] }])
+    expect(encoded(described_class::Execute.new(statement: 7, bindings: [])))
+      .to eq([0x0b, { 0x43 => 7, 0x41 => [] }])
+  end
+
+  it 'builds PREPARE for SQL text and for deallocation by statement id' do
+    expect(encoded(described_class::Prepare.new(statement: 'SELECT 1'))).to eq([0x0d, { 0x40 => 'SELECT 1' }])
+    expect(encoded(described_class::Prepare.new(statement: 7))).to eq([0x0d, { 0x43 => 7 }])
+  end
+
+  it 'builds BEGIN with the isolation level and the timeout as a float' do
+    request = described_class::Begin.new(isolation: :read_committed, timeout: 5)
+
+    expect(encoded(request)).to eq([0x0e, { 0x59 => 1, 0x56 => 5.0 }])
+    expect(request.body[0x56]).to be_a(Float)
+    expect(encoded(described_class::Begin.new(isolation: :default, timeout: nil))).to eq([0x0e, { 0x59 => 0 }])
+  end
+
+  it 'rejects unknown isolation levels' do
+    expect { described_class::Begin.new(isolation: :serializable, timeout: nil) }
+      .to raise_error(ArgumentError, /unknown isolation level/)
+  end
+
+  it 'builds COMMIT and ROLLBACK' do
+    expect(encoded(described_class::Commit.new)).to eq([0x0f, {}])
+    expect(encoded(described_class::Rollback.new)).to eq([0x10, {}])
+  end
 end

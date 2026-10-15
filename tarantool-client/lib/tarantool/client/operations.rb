@@ -2,7 +2,7 @@
 
 module Tarantool
   class Client
-    # Data operations, call and eval. Includers implement `perform(request, timeout:, on_push: nil)`
+    # Data operations, call, eval and SQL. Includers implement `perform(request, timeout:, on_push: nil)`
     # and `perform_on_space(space, index, timeout:) { |space_id, index_id| request }`,
     # which returns the response to the request built by the block.
     module Operations
@@ -57,6 +57,16 @@ module Tarantool
 
       def eval(expression, arguments = [], timeout: nil)
         perform(Protocol::Requests::Eval.new(expression:, arguments:), timeout:).data
+      end
+
+      def execute(sql, bindings = [], timeout: nil)
+        statement = sql.is_a?(PreparedStatement) ? sql.id : sql
+        SqlResult.from_response(perform(Protocol::Requests::Execute.new(statement:, bindings:), timeout:))
+      end
+
+      def prepare(sql, timeout: nil)
+        response = perform(Protocol::Requests::Prepare.new(statement: sql), timeout:)
+        PreparedStatement.new(response.body.fetch(Protocol::Constants::STMT_ID), method(:perform))
       end
 
       private
