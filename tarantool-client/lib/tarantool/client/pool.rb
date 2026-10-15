@@ -13,7 +13,7 @@ module Tarantool
 
         @members = addresses.map { |address| Member.new(address, options) }
         @lock = Mutex.new
-        @turn = 0
+        @turns = Hash.new(0)
         start_members
       rescue StandardError
         close
@@ -32,8 +32,13 @@ module Tarantool
       end
 
       def close
-        @members&.each(&:close)
-        nil
+        errors = (@members || []).filter_map do |member|
+          member.close
+          nil
+        rescue StandardError => e
+          e
+        end
+        raise errors.first if errors.any?
       end
 
       def inspect
@@ -43,15 +48,30 @@ module Tarantool
       private
 
       def start_members
-        errors = @members.map { |member| Thread.new { member.start } }.map(&:value)
-        raise NoAvailableInstanceError, "no instance reachable: #{errors.map(&:message).join('; ')}" if errors.all?
+        results = start_in_parallel
+        unexpected = results.find { |result| result.is_a?(Exception) && !result.is_a?(Error) }
+        raise unexpected if unexpected
+        raise NoAvailableInstanceError, "no instance reachable: #{results.map(&:message).join('; ')}" if results.all?
+      end
+
+      # Each member's start error, or the exception its thread raised. Joins every thread before
+      # returning so none outlives a failed Pool.new.
+      def start_in_parallel
+        threads = @members.map do |member|
+          Thread.new { member.start }.tap { |thread| thread.report_on_exception = false }
+        end
+        threads.map do |thread|
+          thread.value
+        rescue Exception => e # rubocop:disable Lint/RescueException
+          e
+        end
       end
 
       def client_for(mode)
         members = candidates(mode)
         raise NoAvailableInstanceError, "no instance available for mode #{mode.inspect}" if members.empty?
 
-        members[@lock.synchronize { @turn += 1 } % members.size].client
+        members[@lock.synchronize { @turns[mode] += 1 } % members.size].client
       end
 
       def candidates(mode)

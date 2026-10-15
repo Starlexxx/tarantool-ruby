@@ -11,9 +11,43 @@ RSpec.describe Tarantool::Client::Pool do
 
     expect { described_class.new([down.uri], reconnect_delay: 0.01) }
       .to raise_error(Tarantool::NoAvailableInstanceError, /cannot connect/)
-    expect(Thread.list.none? { |thread| thread.name&.start_with?('tarantool-pool') && thread.alive? }).to be(true)
+    expect(leftover_threads).to be_empty
   ensure
     down.stop
+  end
+
+  context 'with a member that fails unexpectedly' do
+    let(:silent) { FakeTarantool.new { |request, fake| fake.reply(request, []) } }
+    let(:servers) { [status_server('rw', { 'rw' => false }), silent] }
+    let(:members) { [] }
+
+    before do
+      allow(Tarantool::Client::Pool::Member).to receive(:new).and_wrap_original do |original, *args|
+        original.call(*args).tap { |member| members << member }
+      end
+    end
+
+    after { servers.each(&:stop) }
+
+    it 'waits for the other members to start before raising' do
+      allow(Tarantool::Client).to receive(:new).and_wrap_original do |original, **options|
+        options[:path] == servers.first.path ? raise('boom') : original.call(**options)
+      end
+
+      expect { described_class.new(servers.map(&:uri), connect_timeout: 0.3) }.to raise_error('boom')
+      expect(leftover_threads).to be_empty
+    end
+
+    it 'closes every member even if one fails to close' do
+      pool = described_class.new(servers.map(&:uri), connect_timeout: 0.3)
+      allow(members.first).to receive(:close).and_wrap_original do |original|
+        original.call
+        raise 'boom'
+      end
+
+      expect { pool.close }.to raise_error('boom')
+      expect(members.map(&:client)).to all(satisfy { |client| !client.connected? })
+    end
   end
 
   describe 'routing' do
@@ -34,6 +68,12 @@ RSpec.describe Tarantool::Client::Pool do
 
     it 'round-robins :ro requests among the read-only instances' do
       expect(served_by(:ro, 4).tally).to eq('ro1' => 2, 'ro2' => 2)
+    end
+
+    it 'round-robins each mode on its own' do
+      ro = Array.new(4) { served_by(:rw, 1) && served_by(:ro, 1).first }
+
+      expect(ro.tally).to eq('ro1' => 2, 'ro2' => 2)
     end
 
     it 'uses every instance for :any, the default' do

@@ -7,8 +7,6 @@ module Tarantool
       # An address that is down at start keeps being retried in the background.
       class Member
         def initialize(uri, options)
-          @uri = uri
-          @options = options
           @config = Configuration.build(uri, **options)
           @lock = Mutex.new
           @changed = ConditionVariable.new
@@ -17,6 +15,7 @@ module Tarantool
 
         def address = @config.address
         def client = @lock.synchronize { @client }
+        def inspect = "#<#{self.class.name} #{address}>"
 
         # Connects and waits up to connect_timeout for the first box.status. Returns the error when the
         # instance is unreachable.
@@ -30,8 +29,12 @@ module Tarantool
         end
 
         # nil while disconnected or before the first box.status, else whether the instance is read-only.
+        # A role seen while disconnected is dropped, so after a reconnect only a fresh box.status counts.
         def read_only
-          @lock.synchronize { @read_only if @client&.connected? }
+          @lock.synchronize do
+            @read_only = nil unless @client&.connected?
+            @read_only
+          end
         end
 
         def close
@@ -47,7 +50,7 @@ module Tarantool
         private
 
         def connect
-          client = Client.new(@uri, **@options)
+          client = Client.new(**@config.to_h)
           client.watch('box.status') { |_key, status| update(status) }
           install(client)
         rescue Error
@@ -73,7 +76,7 @@ module Tarantool
         def wait_for_status
           deadline = Transport::Deadline.after(@config.connect_timeout)
           @lock.synchronize do
-            while @read_only.nil?
+            while @read_only.nil? && !@closed
               remaining = Transport::Deadline.remaining(deadline)
               break if remaining&.zero?
 
@@ -83,10 +86,15 @@ module Tarantool
         end
 
         def retry_in_background
-          @retrier = Thread.new { retry_connect }
-          @retrier.name = "tarantool-pool-connect #{address}"
+          @lock.synchronize do
+            next if @closed
+
+            @retrier = Thread.new { retry_connect }
+            @retrier.name = "tarantool-pool-connect #{address}"
+          end
         end
 
+        # The thread must never die with an exception: #close joins it and would re-raise it.
         def retry_connect
           backoff = Backoff.new(base: @config.reconnect_delay, max: @config.reconnect_max_delay)
           attempt = 0
@@ -95,12 +103,17 @@ module Tarantool
 
             attempt += 1
           end
+        rescue Exception => e # rubocop:disable Lint/RescueException
+          warn "tarantool pool: gave up connecting to #{address}: #{e.class}: #{e.message}"
         end
 
         def try_connect
           connect
           true
         rescue Error
+          false
+        rescue StandardError => e
+          warn "tarantool pool: connecting to #{address} failed: #{e.class}: #{e.message}"
           false
         end
 

@@ -15,6 +15,10 @@ module PoolHelpers
     end
   end
 
+  def leftover_threads
+    Thread.list.select { |thread| thread.alive? && thread.name&.match?(/\Atarantool-(pool|reconnect|watchers)/) }
+  end
+
   def change_role(server, roles, name, read_only)
     roles[name] = read_only
     server.event('box.status', { 'is_ro' => read_only })
