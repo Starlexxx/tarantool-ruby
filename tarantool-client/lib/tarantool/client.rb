@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'msgpack'
+require 'bigdecimal'
 
 require_relative 'client/version'
 require_relative 'client/errors'
@@ -11,6 +12,7 @@ require_relative 'client/uuid'
 require_relative 'client/protocol/extensions'
 require_relative 'client/protocol/extensions/error'
 require_relative 'client/protocol/extensions/uuid'
+require_relative 'client/protocol/extensions/decimal'
 require_relative 'client/protocol/response'
 require_relative 'client/protocol/codec'
 require_relative 'client/protocol/greeting'
