@@ -50,6 +50,7 @@ require_relative 'client/transaction_scope'
 require_relative 'client/stream'
 require_relative 'client/watcher'
 require_relative 'client/watchers'
+require_relative 'client/pool'
 require_relative 'client/pool/member'
 
 module Tarantool

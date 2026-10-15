@@ -1,0 +1,109 @@
+# frozen_string_literal: true
+
+RSpec.describe Tarantool::Client::Pool do
+  it 'rejects an empty address list' do
+    expect { described_class.new([]) }.to raise_error(ArgumentError, /at least one address/)
+  end
+
+  it 'raises NoAvailableInstanceError when no address answers' do
+    down = FakeTarantool.new
+    down.refusing = true
+
+    expect { described_class.new([down.uri], reconnect_delay: 0.01) }
+      .to raise_error(Tarantool::NoAvailableInstanceError, /cannot connect/)
+    expect(Thread.list.none? { |thread| thread.name&.start_with?('tarantool-pool') && thread.alive? }).to be(true)
+  ensure
+    down.stop
+  end
+
+  describe 'routing' do
+    let(:roles) { { 'rw' => false, 'ro1' => true, 'ro2' => true } }
+    let(:servers) { roles.keys.to_h { |name| [name, status_server(name, roles)] } }
+    let(:pool) { described_class.new(servers.values.map(&:uri), reconnect_delay: 0.01) }
+
+    after do
+      pool.close
+      servers.each_value(&:stop)
+    end
+
+    def served_by(mode, times) = Array.new(times) { pool.eval('return 1', mode:).first }
+
+    it 'sends :rw requests to the writable instance' do
+      expect(served_by(:rw, 3)).to eq(%w[rw rw rw])
+    end
+
+    it 'round-robins :ro requests among the read-only instances' do
+      expect(served_by(:ro, 4).tally).to eq('ro1' => 2, 'ro2' => 2)
+    end
+
+    it 'uses every instance for :any, the default' do
+      expect(Array.new(3) { pool.eval('return 1').first }).to contain_exactly('rw', 'ro1', 'ro2')
+    end
+
+    it 'prefers read-only instances for :prefer_ro' do
+      expect(served_by(:prefer_ro, 4)).to all(start_with('ro'))
+    end
+
+    it 'prefers the writable instance for :prefer_rw' do
+      expect(served_by(:prefer_rw, 2)).to eq(%w[rw rw])
+    end
+
+    it 'follows a role change reported through box.status' do
+      pool
+      change_role(servers['ro1'], roles, 'ro1', false)
+      wait_for { served_by(:rw, 2).include?('ro1') }
+      change_role(servers['rw'], roles, 'rw', true)
+
+      wait_for { served_by(:rw, 2) == %w[ro1 ro1] }
+      expect(served_by(:ro, 2)).to contain_exactly('rw', 'ro2')
+    end
+
+    it 'runs transactions on the writable instance' do
+      expect(pool.transaction { |tx| tx.eval('return 1') }).to eq(['rw'])
+    end
+
+    it 'rejects an unknown mode' do
+      expect { pool.ping(mode: :primary) }.to raise_error(ArgumentError, /unknown mode :primary/)
+    end
+
+    it 'shows only the addresses when inspected' do
+      expect(pool.inspect).to eq("#<Tarantool::Client::Pool #{servers.values.map(&:path).join(', ')}>")
+    end
+
+    context 'without read-only instances' do
+      let(:roles) { { 'rw' => false } }
+
+      it 'falls back to the writable instance for :prefer_ro' do
+        expect(served_by(:prefer_ro, 2)).to eq(%w[rw rw])
+      end
+
+      it 'raises NoAvailableInstanceError for :ro' do
+        expect { pool.ping(mode: :ro) }.to raise_error(Tarantool::NoAvailableInstanceError, /mode :ro/)
+      end
+    end
+
+    context 'without a writable instance' do
+      let(:roles) { { 'ro1' => true } }
+
+      it 'falls back to a read-only instance for :prefer_rw' do
+        expect(served_by(:prefer_rw, 2)).to eq(%w[ro1 ro1])
+      end
+
+      it 'raises NoAvailableInstanceError for a transaction' do
+        expect { pool.transaction { nil } }.to raise_error(Tarantool::NoAvailableInstanceError, /mode :rw/)
+      end
+    end
+
+    context 'when an instance is down at start' do
+      before { servers['ro2'].refusing = true }
+
+      it 'starts with the others and adds it once it answers' do
+        expect(served_by(:ro, 2)).to eq(%w[ro1 ro1])
+        servers['ro2'].refusing = false
+
+        wait_for { served_by(:ro, 2).include?('ro2') }
+        expect(served_by(:ro, 2)).to contain_exactly('ro1', 'ro2')
+      end
+    end
+  end
+end
