@@ -177,6 +177,59 @@ RSpec.describe Tarantool::Client do
     end
   end
 
+  context 'with watchers' do
+    let!(:watch_requests) { Thread::Queue.new }
+    let(:server) do
+      FakeTarantool.new do |request, fake|
+        next watch_requests << request if [0x4a, 0x4b].include?(request.type)
+
+        fake.reply(request, [])
+      end
+    end
+    let(:client) { described_class.new(server.uri) }
+    let(:events) { Thread::Queue.new }
+
+    after do
+      client.close
+      server.stop
+    end
+
+    it 'subscribes with WATCH and passes events to the block' do
+      client.watch('config') { |key, value| events << [key, value] }
+
+      expect(watch_requests.pop(timeout: 1)).to have_attributes(type: 0x4a, body: { 0x57 => 'config' })
+      server.event('config', { 'a' => 1 })
+      expect(events.pop(timeout: 1)).to eq(['config', { 'a' => 1 }])
+    end
+
+    it 'acknowledges each event with another WATCH' do
+      client.watch('config') { |key, value| events << [key, value] }
+      watch_requests.pop(timeout: 1)
+      server.event('config', 1)
+      events.pop(timeout: 1)
+
+      expect(watch_requests.pop(timeout: 1)).to have_attributes(type: 0x4a, body: { 0x57 => 'config' })
+    end
+
+    it 'sends UNWATCH when the watcher is removed' do
+      client.watch('config') { nil }.unwatch
+      watch_requests.pop(timeout: 1)
+
+      expect(watch_requests.pop(timeout: 1)).to have_attributes(type: 0x4b, body: { 0x57 => 'config' })
+    end
+
+    it 'requires a block' do
+      expect { client.watch('config') }.to raise_error(ArgumentError, 'watch requires a block')
+    end
+
+    it 'stops the dispatcher thread on close' do
+      client.watch('config') { nil }
+      client.close
+
+      expect(Thread.list.none? { |thread| thread.name == 'tarantool-watchers' && thread.alive? }).to be(true)
+    end
+  end
+
   context 'when the initial schema load fails' do
     it 'closes the connection and re-raises' do
       failing = FakeTarantool.new { |request, fake| fake.reply_error(request, code: 1, message: 'boom') }

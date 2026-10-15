@@ -44,7 +44,10 @@ module Tarantool
 
     def initialize(uri = nil, **)
       @config = Configuration.build(uri, **)
-      @connection = Transport::Connection.new(@config).connect
+      @connection = Transport::Connection.new(@config)
+      @watchers = Watchers.new(@connection, timeout: @config.request_timeout)
+      @connection.event_handler = @watchers.method(:dispatch)
+      @connection.connect
       @schema_lock = Mutex.new
       reload_schema
     rescue StandardError
@@ -56,8 +59,19 @@ module Tarantool
       @connection.greeting.version
     end
 
+    # The block gets the current value first (nil if the key was never broadcast), then every
+    # change. It runs on a dispatcher thread shared by all watchers of this client, so a slow
+    # block delays the others; exceptions it raises are reported with warn. Calling #unwatch
+    # from another thread may still let one in-flight callback run.
+    def watch(key, &block)
+      raise ArgumentError, 'watch requires a block' unless block
+
+      @watchers.add(key, block)
+    end
+
     def close
       @connection.close
+      @watchers.close
     end
 
     def inspect
