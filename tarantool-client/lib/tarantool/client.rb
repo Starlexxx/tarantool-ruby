@@ -32,6 +32,8 @@ require_relative 'client/transport/handshake'
 require_relative 'client/transport/connection'
 require_relative 'client/schema'
 require_relative 'client/operations'
+require_relative 'client/watcher'
+require_relative 'client/watchers'
 
 module Tarantool
   # Connection to one Tarantool instance. Safe to share between threads and fibers.
