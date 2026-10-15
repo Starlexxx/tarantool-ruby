@@ -48,13 +48,15 @@ module Tarantool
       end
 
       # A new session has no subscriptions. WATCH also makes the server send each key's current value,
-      # so watchers learn what changed while the client was away.
+      # so watchers learn what changed while the client was away. A failed key does not skip the rest.
       def resubscribe(connection)
         @lock.synchronize do
-          @watchers.each_key { |key| connection.notify(Protocol::Requests::Watch.new(key:), timeout: @timeout) }
+          @watchers.each_key do |key|
+            connection.notify(Protocol::Requests::Watch.new(key:), timeout: @timeout)
+          rescue Error
+            nil
+          end
         end
-      rescue Error
-        nil
       end
 
       def close

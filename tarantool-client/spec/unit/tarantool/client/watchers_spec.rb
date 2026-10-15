@@ -201,6 +201,15 @@ RSpec.describe Tarantool::Client::Watchers do
       expect(resent).to be_empty
     end
 
+    it 'sends WATCH for the other keys when one fails' do
+      collect('a')
+      collect('b')
+      allow(fresh).to receive(:notify).with(watch_request('a'), any_args).and_raise(Tarantool::TimeoutError, 'slow')
+      watchers.resubscribe(fresh)
+
+      expect(resent).to eq([watch_request('b')])
+    end
+
     it 'ignores a connection that is already gone' do
       collect('a')
       allow(fresh).to receive(:notify).and_raise(Tarantool::ConnectionError, 'lost')
