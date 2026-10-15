@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'pp'
+
 RSpec.describe Tarantool::Client::Configuration do
   describe '.build' do
     it 'uses defaults without arguments' do
@@ -28,6 +30,18 @@ RSpec.describe Tarantool::Client::Configuration do
 
     it 'parses a tarantool-style unix socket URI' do
       expect(described_class.build('unix/:/tmp/tt.sock').path).to eq('/tmp/tt.sock')
+    end
+
+    it 'keeps a relative unix socket path relative' do
+      expect(described_class.build('unix:tt.sock').path).to eq('tt.sock')
+    end
+
+    it 'rejects a bare unix URI' do
+      expect { described_class.build('unix:') }.to raise_error(ArgumentError, 'invalid Tarantool URI')
+    end
+
+    it 'rejects a unix URI with no path' do
+      expect { described_class.build('unix://') }.to raise_error(ArgumentError, 'invalid Tarantool URI')
     end
 
     it 'parses an IPv6 host without a scheme' do
@@ -83,6 +97,15 @@ RSpec.describe Tarantool::Client::Configuration do
     it 'matches inspect' do
       config = described_class.build('tcp://app:secret@db.local')
       expect(config.to_s).to eq(config.inspect)
+    end
+  end
+
+  describe '#pretty_print' do
+    it 'masks the password' do
+      config = described_class.build('tcp://app:secret@db.local')
+      output = PP.pp(config, +'')
+      expect(output).to include('[FILTERED]')
+      expect(output).not_to include('secret')
     end
   end
 end

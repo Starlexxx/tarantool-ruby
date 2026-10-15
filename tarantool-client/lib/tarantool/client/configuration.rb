@@ -16,11 +16,17 @@ module Tarantool
 
       def self.parse_uri(uri)
         return {} if uri.nil?
-
-        match = %r{\Aunix/?:(?://)?(.+)\z}.match(uri)
-        return { path: "/#{match[1].delete_prefix('/')}" } if match
+        return parse_unix_uri(uri) if uri.match?(%r{\Aunix/?:})
 
         parse_tcp_uri(uri)
+      end
+
+      def self.parse_unix_uri(uri)
+        match = %r{\Aunix/?:(?://(?=/))?(.+)\z}.match(uri)
+        path = match && match[1]
+        raise ArgumentError, 'invalid Tarantool URI' if path.nil? || path.match?(%r{\A/*\z})
+
+        { path: path }
       end
 
       def self.parse_tcp_uri(uri)
@@ -35,7 +41,7 @@ module Tarantool
       rescue URI::InvalidURIError
         raise ArgumentError, 'invalid Tarantool URI'
       end
-      private_class_method :defaults, :parse_uri, :parse_tcp_uri
+      private_class_method :defaults, :parse_uri, :parse_unix_uri, :parse_tcp_uri
 
       def address
         return path if path
@@ -48,6 +54,8 @@ module Tarantool
         "#<data #{self.class.name} #{fields}>"
       end
       alias_method :to_s, :inspect
+
+      def pretty_print(printer) = printer.text(inspect)
     end
   end
 end
