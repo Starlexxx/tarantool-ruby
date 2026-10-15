@@ -63,4 +63,16 @@ RSpec.describe Tarantool::Client::Protocol::Requests do
     expect(encoded(described_class::Id.new(version: 3, features: [0, 1])))
       .to eq([0x49, { 0x54 => 3, 0x55 => [0, 1] }])
   end
+
+  it 'builds EXECUTE from SQL text or a prepared statement id' do
+    expect(encoded(described_class::Execute.new(statement: 'SELECT ?', bindings: [1])))
+      .to eq([0x0b, { 0x40 => 'SELECT ?', 0x41 => [1] }])
+    expect(encoded(described_class::Execute.new(statement: 7, bindings: [])))
+      .to eq([0x0b, { 0x43 => 7, 0x41 => [] }])
+  end
+
+  it 'builds PREPARE for SQL text and for deallocation by statement id' do
+    expect(encoded(described_class::Prepare.new(statement: 'SELECT 1'))).to eq([0x0d, { 0x40 => 'SELECT 1' }])
+    expect(encoded(described_class::Prepare.new(statement: 7))).to eq([0x0d, { 0x43 => 7 }])
+  end
 end

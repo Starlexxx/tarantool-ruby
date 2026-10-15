@@ -23,6 +23,11 @@ module Tarantool
         OPS = 0x28
         DATA = 0x30
         ERROR_24 = 0x31
+        METADATA = 0x32
+        SQL_TEXT = 0x40
+        SQL_BIND = 0x41
+        SQL_INFO = 0x42
+        STMT_ID = 0x43
         ERROR = 0x52
         VERSION = 0x54
         FEATURES = 0x55
@@ -37,12 +42,18 @@ module Tarantool
         EVAL = 0x08
         UPSERT = 0x09
         CALL = 0x0a
+        EXECUTE = 0x0b
+        PREPARE = 0x0d
         PING = 0x40
         ID = 0x49
         CHUNK = 0x80
         TYPE_ERROR = 0x8000
 
         ER_WRONG_SCHEMA_VERSION = 109
+
+        FIELD_NAME = 0x00
+        SQL_INFO_ROW_COUNT = 0x00
+        SQL_INFO_AUTOINCREMENT_IDS = 0x01
 
         MP_ERROR = 0x03
         ERROR_STACK = 0x00
