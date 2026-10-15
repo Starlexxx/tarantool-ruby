@@ -52,6 +52,17 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       rejecting.stop
     end
 
+    it 'keeps the server error code and the server error as cause' do
+      rejecting = FakeTarantool.new(auth_error: 'User not found or supplied credentials are invalid')
+      config = Tarantool::Client::Configuration.build(rejecting.uri, user: 'app', password: 'wrong')
+
+      expect { described_class.new(config).connect }.to raise_error(Tarantool::AuthenticationError) { |error|
+        expect([error.code, error.cause]).to match([47, an_instance_of(Tarantool::ServerError)])
+      }
+    ensure
+      rejecting.stop
+    end
+
     it 'raises ConnectionError when the server sends no greeting' do
       silent = FakeTarantool.new(greeting: false)
       config = Tarantool::Client::Configuration.build(silent.uri, connect_timeout: 0.1)
