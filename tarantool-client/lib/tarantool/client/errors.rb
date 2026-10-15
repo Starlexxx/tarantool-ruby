@@ -22,7 +22,7 @@ module Tarantool
   # Space or index name cannot be resolved.
   class SchemaError < Error; end
 
-  # A transaction cannot proceed because the schema changed mid-flight.
+  # Transaction misuse or a transaction that can no longer proceed.
   class TransactionError < Error; end
 
   # Error returned by the server for a request.
