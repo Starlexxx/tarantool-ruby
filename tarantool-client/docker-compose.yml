@@ -1,10 +1,14 @@
 x-tarantool: &tarantool
-  entrypoint: ['tarantool']
+  # TT_* variables baked into the 3.x image switch Tarantool to declarative config mode and break box.cfg scripts.
+  entrypoint: ['env', '-u', 'TT_APP_NAME', '-u', 'TT_INSTANCE_NAME', 'tarantool']
   command: ['/opt/tarantool/init.lua']
   volumes:
     - ./spec/integration/init.lua:/opt/tarantool/init.lua:ro
   healthcheck:
-    test: ['CMD', 'tarantool', '-e', "os.exit(require('socket').tcp_connect('127.0.0.1', 3301) and 0 or 1)"]
+    test:
+      - CMD-SHELL
+      - >-
+        tarantool -e "os.exit(require('socket').tcp_connect('127.0.0.1', 3301) and 0 or 1)"
     interval: 1s
     retries: 30
 
