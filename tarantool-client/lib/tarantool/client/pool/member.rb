@@ -103,7 +103,7 @@ module Tarantool
 
             attempt += 1
           end
-        rescue Exception => e # rubocop:disable Lint/RescueException
+        rescue StandardError => e
           warn "tarantool pool: gave up connecting to #{address}: #{e.class}: #{e.message}"
         end
 

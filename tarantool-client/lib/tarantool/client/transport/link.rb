@@ -100,7 +100,7 @@ module Tarantool
           previous&.join
           run_hook('on_lost') { @on_lost&.call }
           reconnect_with_backoff
-        rescue Exception => e # rubocop:disable Lint/RescueException
+        rescue StandardError => e
           warn(e.full_message)
           @state.give_up(ConnectionError.new("reconnect to #{@config.address} failed: #{e.class}: #{e.message}"))
         end

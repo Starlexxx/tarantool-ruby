@@ -60,7 +60,7 @@ module Tarantool
         threads = @members.map { |member| start_thread(member) }
         threads.map do |thread|
           thread.value
-        rescue Exception => e # rubocop:disable Lint/RescueException
+        rescue StandardError => e
           e
         end
       end

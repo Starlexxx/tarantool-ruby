@@ -141,18 +141,17 @@ RSpec.describe Tarantool::Client::Transport::Link do
       end
     end
 
-    context 'when the reconnect thread hits an unexpected exception' do
-      let(:on_connect) do
-        calls = 0
-        ->(_connection) { raise NotImplementedError, 'bug' if (calls += 1) == 2 }
-      end
+    context 'when the reconnect thread hits an unexpected error' do
+      let(:backoff) { instance_double(Tarantool::Client::Backoff) }
+
+      before { allow(backoff).to receive(:delay).and_raise(RuntimeError, 'bug') }
 
       it 'closes the link with the error' do
         allow(Warning).to receive(:warn)
         drop_connection
 
         expect { link.perform(ping, timeout: 1) }
-          .to raise_error(Tarantool::ConnectionError, /reconnect to .* failed: NotImplementedError: bug/)
+          .to raise_error(Tarantool::ConnectionError, /reconnect to .* failed: RuntimeError: bug/)
       end
     end
 
