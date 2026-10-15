@@ -57,13 +57,18 @@ module Tarantool
       # Each member's start error, or the exception its thread raised. Joins every thread before
       # returning so none outlives a failed Pool.new.
       def start_in_parallel
-        threads = @members.map do |member|
-          Thread.new { member.start }.tap { |thread| thread.report_on_exception = false }
-        end
+        threads = @members.map { |member| start_thread(member) }
         threads.map do |thread|
           thread.value
         rescue Exception => e # rubocop:disable Lint/RescueException
           e
+        end
+      end
+
+      def start_thread(member)
+        Thread.new { member.start }.tap do |thread|
+          thread.name = "tarantool-pool-start #{member.address}"
+          thread.report_on_exception = false
         end
       end
 

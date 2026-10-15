@@ -25,7 +25,8 @@ module Tarantool
         end
       end
 
-      # Skips the TimedLock: a reload holding it may be waiting for the reconnect that installs this schema.
+      # Skips the TimedLock: a reload holding it may hang on a lost connection until its timeout, and a new
+      # connection's schema must not wait for that.
       def replace(schema)
         @assign.synchronize { @schema = schema }
       end
