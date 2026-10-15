@@ -64,8 +64,8 @@ module Tarantool
 
     private
 
-    def perform(request, timeout: nil, schema_version: nil)
-      @connection.perform(request, timeout: timeout || @config.request_timeout, schema_version:)
+    def perform(request, timeout: nil, schema_version: nil, on_push: nil)
+      @connection.perform(request, timeout: timeout || @config.request_timeout, schema_version:, on_push:)
     end
 
     # Name-resolved requests carry the schema version they were resolved against, so the

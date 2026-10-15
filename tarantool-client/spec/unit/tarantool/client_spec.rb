@@ -78,6 +78,32 @@ RSpec.describe Tarantool::Client do
     end
   end
 
+  context 'with a server that pushes' do
+    let(:server) do
+      FakeTarantool.new do |request, fake|
+        if request.type == 0x0a
+          fake.push(request, ['started'])
+          fake.reply(request, ['done'])
+        else
+          fake.reply(request, [])
+        end
+      end
+    end
+    let(:client) { described_class.new(server.uri) }
+
+    after do
+      client.close
+      server.stop
+    end
+
+    it 'passes pushed messages to on_push and returns the final reply' do
+      messages = []
+
+      expect(client.call('job', on_push: ->(message) { messages << message })).to eq(['done'])
+      expect(messages).to eq(['started'])
+    end
+  end
+
   context 'when another client changes the schema' do
     let!(:schema_state) { { users_id: 512, vspace_requests: 0, churn: false } }
     let(:server) { FakeTarantool.new(check_schema_version: true, &handler) }

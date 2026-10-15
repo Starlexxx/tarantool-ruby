@@ -2,7 +2,7 @@
 
 module Tarantool
   class Client
-    # Data operations, call and eval. Includers implement `perform(request, timeout:)`
+    # Data operations, call and eval. Includers implement `perform(request, timeout:, on_push: nil)`
     # and `perform_on_space(space, index, timeout:) { |space_id, index_id| request }`,
     # which returns the response to the request built by the block.
     module Operations
@@ -49,8 +49,10 @@ module Tarantool
         end.data.first
       end
 
-      def call(function_name, arguments = [], timeout: nil)
-        perform(Protocol::Requests::Call.new(function_name:, arguments:), timeout:).data
+      # on_push runs in the calling thread for each box.session.push message; an exception
+      # raised by it abandons the call.
+      def call(function_name, arguments = [], timeout: nil, on_push: nil)
+        perform(Protocol::Requests::Call.new(function_name:, arguments:), timeout:, on_push:).data
       end
 
       def eval(expression, arguments = [], timeout: nil)
