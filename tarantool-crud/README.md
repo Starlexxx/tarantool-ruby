@@ -50,6 +50,16 @@ Any object responding to `call(function, arguments, timeout:)` can serve as the 
 
 Write Hash tuples and Hash conditions with braces. Bare `key: value` arguments are crud options.
 
+## Results
+
+`select` and `each` return a `Result`: Enumerable of Hash rows (Symbol keys, taken from crud's metadata), plus
+`tuples` (raw Arrays), `metadata`, `first`, `last`, `size`, `empty?`. Single-row operations (`get`, `insert`,
+`update`, ...) return a Hash row or `nil`, not a `Result`.
+
+`insert_many`/`replace_many`/`upsert_many` return a `ManyResult`, which adds `errors` and `success?`. If the whole
+call fails (missing space, empty row list, ...), crud reports it as `InsertManyError`/`ReplaceManyError`/
+`UpsertManyError` inside `errors` with no rows, rather than raising.
+
 ## Conditions
 
 An Array of `[operator, field, value]` or a Hash:
