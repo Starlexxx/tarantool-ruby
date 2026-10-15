@@ -27,3 +27,54 @@ require_relative 'client/transport/deadline'
 require_relative 'client/transport/frame_writer'
 require_relative 'client/transport/connection'
 require_relative 'client/schema'
+require_relative 'client/operations'
+
+module Tarantool
+  # Connection to one Tarantool instance. Safe to share between threads and fibers.
+  class Client
+    include Operations
+
+    attr_reader :config
+
+    def initialize(uri = nil, **)
+      @config = Configuration.build(uri, **)
+      @connection = Transport::Connection.new(@config).connect
+      @schema_lock = Mutex.new
+      reload_schema
+    rescue StandardError
+      @connection&.close
+      raise
+    end
+
+    def server_version
+      @connection.greeting.version
+    end
+
+    def close
+      @connection.close
+    end
+
+    private
+
+    def perform(request, timeout: nil)
+      response = @connection.perform(request, timeout: timeout || @config.request_timeout)
+      @server_schema_version = response.schema_version
+      response
+    end
+
+    def resolve(space, index)
+      reload_schema if @schema.version != @server_schema_version
+      @schema.resolve(space, index)
+    rescue SchemaError
+      reload_schema
+      @schema.resolve(space, index)
+    end
+
+    def reload_schema
+      @schema_lock.synchronize do
+        @schema = Schema.fetch(@connection, timeout: @config.request_timeout)
+        @server_schema_version = @schema.version
+      end
+    end
+  end
+end
