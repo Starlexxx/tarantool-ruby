@@ -29,6 +29,10 @@ module Tarantool
           @lock.synchronize { @futures.delete(sync) }
         end
 
+        def failure
+          @lock.synchronize { @failure }
+        end
+
         def fail_all(error)
           failure, futures = @lock.synchronize do
             @failure ||= error

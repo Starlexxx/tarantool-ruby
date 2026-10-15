@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'timeout'
+
 RSpec.describe Tarantool::Client::Transport::Connection do
   let(:handler) { nil }
   let(:server) { FakeTarantool.new(&handler) }
@@ -22,6 +24,22 @@ RSpec.describe Tarantool::Client::Transport::Connection do
     it 'stores features announced by the server' do
       expect(connection.server_features).to eq([0, 1, 2, 3])
     end
+
+    it 'authenticates a named user' do
+      connection
+
+      expect(server.auth_requests).to eq(1)
+    end
+
+    context 'without a user' do
+      let(:config) { Tarantool::Client::Configuration.build(server.uri) }
+
+      it 'skips authentication' do
+        connection
+
+        expect(server.auth_requests).to eq(0)
+      end
+    end
   end
 
   describe 'connect failures' do
@@ -30,6 +48,25 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       config = Tarantool::Client::Configuration.build(rejecting.uri, user: 'app', password: 'wrong')
 
       expect { described_class.new(config).connect }.to raise_error(Tarantool::AuthenticationError, /credentials/)
+    ensure
+      rejecting.stop
+    end
+
+    it 'raises ConnectionError when the server sends no greeting' do
+      silent = FakeTarantool.new(greeting: false)
+      config = Tarantool::Client::Configuration.build(silent.uri, connect_timeout: 0.1)
+
+      expect { described_class.new(config).connect }.to raise_error(Tarantool::ConnectionError, /cannot connect/)
+    ensure
+      silent.stop
+    end
+
+    it 'raises ConnectionError when the server rejects the handshake' do
+      rejecting = FakeTarantool.new(id_error: 'Unknown request type')
+      config = Tarantool::Client::Configuration.build(rejecting.uri)
+
+      expect { described_class.new(config).connect }
+        .to raise_error(Tarantool::ConnectionError, /cannot connect.*Unknown request type/)
     ensure
       rejecting.stop
     end
@@ -61,6 +98,49 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       end
     end
 
+    context 'when the server pushes before replying' do
+      let(:handler) do
+        lambda do |request, fake|
+          fake.push(request, ['progress'])
+          fake.reply(request, ['done'])
+        end
+      end
+
+      it 'returns the final reply' do
+        expect(connection.perform(eval_request('x'), timeout: 1).data).to eq(['done'])
+      end
+    end
+
+    context 'when the server sends a malformed frame' do
+      let(:handler) { ->(_request, fake) { fake.send_raw("\xff" * 5) } }
+
+      it 'raises ConnectionError' do
+        expect { connection.perform(eval_request('x'), timeout: 1) }.to raise_error(Tarantool::ConnectionError, /lost/)
+      end
+    end
+
+    context 'when the server stops reading' do
+      let(:handler) { ->(_request, _fake) { sleep } }
+
+      before do
+        connection.perform(eval_request('stall'), timeout: 0.05)
+      rescue Tarantool::TimeoutError
+        nil
+      end
+
+      it 'raises TimeoutError when the write misses the deadline' do
+        large = eval_request('x' * 8_000_000)
+
+        expect { Timeout.timeout(2) { connection.perform(large, timeout: 0.2) } }.to raise_error(Tarantool::TimeoutError)
+      end
+
+      it 'marks the connection dead after an incomplete write' do
+        Timeout.timeout(2) { connection.perform(eval_request('x' * 8_000_000), timeout: 0.2) }
+      rescue Tarantool::TimeoutError
+        expect { connection.perform(eval_request('x'), timeout: 1) }.to raise_error(Tarantool::ConnectionError)
+      end
+    end
+
     context 'when the server drops the connection' do
       let(:handler) { ->(_request, fake) { fake.disconnect } }
 
@@ -79,6 +159,19 @@ RSpec.describe Tarantool::Client::Transport::Connection do
 
     it 'raises TimeoutError when the server stays silent' do
       expect { connection.perform(eval_request('x'), timeout: 0.05) }.to raise_error(Tarantool::TimeoutError)
+    end
+
+    it 'fails a waiting request with ClientClosedError on close' do
+      connection
+      waiter = Thread.new do
+        connection.perform(eval_request('x'), timeout: 1)
+      rescue Tarantool::Error => e
+        e.class
+      end
+      server.next_request
+      connection.close
+
+      expect(waiter.value).to eq(Tarantool::ClientClosedError)
     end
 
     it 'raises ClientClosedError after close' do

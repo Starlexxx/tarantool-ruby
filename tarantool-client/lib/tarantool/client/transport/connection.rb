@@ -13,7 +13,6 @@ module Tarantool
         def initialize(config)
           @config = config
           @pending = PendingRequests.new
-          @write_lock = Mutex.new
         end
 
         def connect
@@ -25,9 +24,10 @@ module Tarantool
         end
 
         def perform(request, timeout:, stream_id: nil)
+          deadline = Deadline.after(timeout)
           sync, future = @pending.register
-          write(Protocol::Codec.encode(request, sync:, stream_id:))
-          response = future.value(timeout)
+          write(Protocol::Codec.encode(request, sync:, stream_id:), deadline)
+          response = future.value(Deadline.remaining(deadline))
           raise ServerError.from_response(response) if response.error?
 
           response
@@ -46,10 +46,11 @@ module Tarantool
 
         def establish
           @socket = open_socket
+          @writer = FrameWriter.new(@socket)
           @greeting = read_greeting
-          @reader = Thread.new { read_loop }
+          start_reader
           handshake
-        rescue IOError, SystemCallError, SocketError => e
+        rescue IOError, SystemCallError, SocketError, TimeoutError, ServerError => e
           raise ConnectionError, "cannot connect to #{@config.address}: #{e.message}"
         end
 
@@ -86,19 +87,42 @@ module Tarantool
           raise AuthenticationError, e.message
         end
 
+        def start_reader
+          @reader = Thread.new { read_loop }
+          @reader.name = "tarantool-reader #{@config.address}"
+        end
+
+        # Push frames share the request's sync; callbacks for them are not supported yet.
         def read_loop
           loop do
             response = Protocol::Codec.read_response(@socket)
-            @pending.resolve(response.sync, response)
+            @pending.resolve(response.sync, response) unless response.push?
           end
         rescue IOError, SystemCallError, ProtocolError => e
-          @pending.fail_all(ConnectionError.new("connection to #{@config.address} lost: #{e.message}"))
+          reason = e.message
+        rescue StandardError => e
+          reason = "#{e.class}: #{e.message}"
+        ensure
+          break_connection("connection to #{@config.address} lost: #{reason || 'reader stopped'}")
         end
 
-        def write(frame)
-          @write_lock.synchronize { @socket.write(frame) }
+        # A partially written frame corrupts the stream, so any interruption here
+        # (deadline, IO error, Thread#raise, Timeout) kills the connection.
+        def write(frame, deadline)
+          completed = false
+          @writer.write(frame, deadline)
+          completed = true
         rescue IOError, SystemCallError => e
-          raise ConnectionError, "write to #{@config.address} failed: #{e.message}"
+          break_connection("write to #{@config.address} failed: #{e.message}")
+          failure = @pending.failure
+          raise failure.exception(failure.message)
+        ensure
+          break_connection("write to #{@config.address} did not complete") unless completed
+        end
+
+        def break_connection(message)
+          @pending.fail_all(ConnectionError.new(message))
+          @socket&.close
         end
       end
     end

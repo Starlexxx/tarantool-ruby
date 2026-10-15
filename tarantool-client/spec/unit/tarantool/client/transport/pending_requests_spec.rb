@@ -53,4 +53,10 @@ RSpec.describe Tarantool::Client::Transport::PendingRequests do
 
     expect { pending.register }.to raise_error(Tarantool::ClientClosedError)
   end
+
+  it 'exposes the stored failure' do
+    pending.fail_all(Tarantool::ClientClosedError.new('closed'))
+
+    expect(pending.failure).to be_a(Tarantool::ClientClosedError)
+  end
 end
