@@ -32,7 +32,8 @@ RSpec.describe Tarantool::Client::Protocol::Extensions::Interval do
   {
     'an unknown field id' => "\x01\x09\x01",
     'an unknown adjust value' => "\x01\x08\x07",
-    'a count that does not match the pairs' => "\x02\x03\x01"
+    'a count that does not match the pairs' => "\x02\x03\x01",
+    'a non-integer value' => "\x01\x03\xa1a"
   }.each do |name, bytes|
     it "raises ProtocolError on #{name}" do
       payload = response_payload([MessagePack::ExtensionValue.new(6, bytes.b)])
