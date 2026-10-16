@@ -17,21 +17,26 @@ module Tarantool
         @version = version
       end
 
+      # The ids, and whether the cache had to catch up with the BEGIN version first.
       def resolve(space, index, deadline)
-        pinned(deadline).resolve(space, index)
+        cached = @cache.schema
+        schema = pinned(cached, deadline)
+
+        [schema.resolve(space, index), !schema.equal?(cached)]
       end
 
       def space_info(space, deadline)
-        pinned(deadline).space_info(space)
+        pinned(@cache.schema, deadline).space_info(space)
       end
 
       # A request rejected for its schema version did not run, so the transaction still rolls back
-      # cleanly. The reload spares the retried transaction the same rejection.
-      def raise_changed(deadline)
+      # cleanly. The reload spares the retried transaction the same rejection. Returns whether it reloaded.
+      def refresh?(deadline)
         schema = @cache.schema
-        reload(schema, deadline) if schema.version == version
+        return false unless schema.version == version
 
-        raise TransactionError, CHANGED
+        reload(schema, deadline)
+        true
       end
 
       private
@@ -39,8 +44,7 @@ module Tarantool
       # A cache older than BEGIN was stale before the transaction started and may catch up;
       # anything newer means the schema changed after BEGIN. A schema of another connection means
       # this one was lost, and the versions of two instances can't be compared.
-      def pinned(deadline)
-        schema = @cache.schema
+      def pinned(schema, deadline)
         raise TransactionError, Stream::LOST unless schema.connection.equal?(@connection)
 
         schema = reload(schema, deadline) if schema.version < version

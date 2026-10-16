@@ -87,6 +87,10 @@ RSpec.describe Tarantool::Client::Configuration do
     it 'rejects an invalid URI' do
       expect { described_class.build('tcp://u:p#x@h:1') }.to raise_error(ArgumentError, 'invalid Tarantool URI')
     end
+
+    it 'defaults instrumenter and logger to nil' do
+      expect(described_class.build).to have_attributes(instrumenter: nil, logger: nil)
+    end
   end
 
   describe '#address' do
@@ -122,6 +126,24 @@ RSpec.describe Tarantool::Client::Configuration do
 
     it 'keeps a nil password as nil' do
       expect(described_class.build.inspect).to include('password=nil')
+    end
+
+    it 'shows the instrumenter and the logger by class only' do
+      inspected = described_class.build(instrumenter: Object.new, logger: Logger.new(StringIO.new)).inspect
+
+      expect(inspected).to include('instrumenter=#<Object>', 'logger=#<Logger>')
+    end
+
+    it 'shows a module instrumenter by name' do
+      stub_const('Notifications', Module.new)
+
+      expect(described_class.build(instrumenter: Notifications).inspect).to include('instrumenter=#<Notifications>')
+    end
+
+    it 'shows an anonymous module instrumenter via its inspect' do
+      inspected = described_class.build(instrumenter: Module.new).inspect
+
+      expect(inspected).to match(/instrumenter=#<Module:0x\h+>/)
     end
   end
 

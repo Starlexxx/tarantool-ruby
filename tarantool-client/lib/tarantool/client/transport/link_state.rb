@@ -20,6 +20,16 @@ module Tarantool
           @lock.synchronize { @state == :ready && !@connection.closed? }
         end
 
+        # Without reconnect the link stays on the lost connection; the first caller reports its loss.
+        def claim_loss(connection)
+          @lock.synchronize do
+            next false unless @connection.equal?(connection) && !@lost.equal?(connection)
+
+            @lost = connection
+            true
+          end
+        end
+
         # Records the connection being opened so that close can abort it; raises once the link is closed.
         def attempting(connection)
           @lock.synchronize do

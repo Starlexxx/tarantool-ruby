@@ -8,11 +8,13 @@ module Tarantool
       # @api private
       class Member
         include Pool::MemberForkSafety
+        include Pool::MemberRole
 
         def initialize(uri, options)
           @uri = uri
           @options = options
           @config = Configuration.build(uri, **options)
+          @instrumentation = Instrumentation.build(@config)
           @lock = Mutex.new
           @changed = ConditionVariable.new
           @closed = false
@@ -75,13 +77,6 @@ module Tarantool
           client.close if closed
         end
 
-        def update(status)
-          @lock.synchronize do
-            @read_only = status['is_ro']
-            @changed.broadcast
-          end
-        end
-
         def wait_for_status
           deadline = Transport::Deadline.after(@config.connect_timeout)
 
@@ -115,7 +110,7 @@ module Tarantool
             attempt += 1
           end
         rescue StandardError => e
-          warn "tarantool pool: gave up connecting to #{address}: #{e.class}: #{e.message}"
+          Diagnostics.warn(@config.logger, "tarantool pool: gave up connecting to #{address}: #{e.class}: #{e.message}")
         end
 
         def try_connect
@@ -125,7 +120,7 @@ module Tarantool
         rescue Error
           false
         rescue StandardError => e
-          warn "tarantool pool: connecting to #{address} failed: #{e.class}: #{e.message}"
+          Diagnostics.warn(@config.logger, "tarantool pool: connecting to #{address} failed: #{e.class}: #{e.message}")
           false
         end
 

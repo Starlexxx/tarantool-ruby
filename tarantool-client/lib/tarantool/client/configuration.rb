@@ -8,7 +8,7 @@ module Tarantool
     Configuration = Data.define(
       :host, :port, :path, :user, :password, :connect_timeout, :request_timeout,
       :reconnect, :reconnect_attempts, :reconnect_delay, :reconnect_max_delay,
-      :max_frame_size
+      :max_frame_size, :instrumenter, :logger
     ) do
       def self.build(uri = nil, **options)
         new(**defaults, **parse_uri(uri), **options)
@@ -18,7 +18,7 @@ module Tarantool
         {
           host: 'localhost', port: 3301, path: nil, user: nil, password: nil, connect_timeout: 3, request_timeout: 10,
           reconnect: true, reconnect_attempts: Float::INFINITY, reconnect_delay: 0.1, reconnect_max_delay: 5,
-          max_frame_size: 64 * 1024 * 1024
+          max_frame_size: 64 * 1024 * 1024, instrumenter: nil, logger: nil
         }
       end
 
@@ -59,13 +59,30 @@ module Tarantool
       end
 
       def inspect
-        fields = to_h.merge(password: password && '[FILTERED]').map { |k, v| "#{k}=#{v.inspect}" }.join(', ')
+        fields = to_h.map { |key, value| "#{key}=#{inspect_field(key, value)}" }.join(', ')
 
         "#<data #{self.class.name} #{fields}>"
       end
       alias_method :to_s, :inspect
 
       def pretty_print(printer) = printer.text(inspect)
+
+      private
+
+      def inspect_field(key, value)
+        case key
+        when :password then (value && '[FILTERED]').inspect
+        when :instrumenter, :logger then inspect_object(value)
+        else value.inspect
+        end
+      end
+
+      def inspect_object(value)
+        return 'nil' unless value
+
+        klass = value.is_a?(Module) ? value : value.class
+        klass.name ? "#<#{klass.name}>" : klass.inspect
+      end
     end
   end
 end

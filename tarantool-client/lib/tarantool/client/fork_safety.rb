@@ -17,6 +17,7 @@ module Tarantool
       def reopen_after_fork
         close_inherited_link
         open_link
+        @instrumentation&.notify('fork.tarantool')
       end
 
       # Joining a thread that died with an exception re-raises it; nothing from the parent may stop the reopen.
@@ -28,7 +29,7 @@ module Tarantool
 
       # Watcher registrations outlive a fork; on_ready resubscribes them on the new link.
       def open_link
-        @link = Transport::Link.new(@config, **link_hooks)
+        @link = Transport::Link.new(@config, instrumentation: @instrumentation, **link_hooks)
         @watchers&.restart_after_fork(@link)
         @watchers ||= Watchers.new(@link, timeout: @config.request_timeout)
         @link.event_handler = @watchers.method(:dispatch)

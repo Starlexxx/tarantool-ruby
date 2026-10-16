@@ -58,6 +58,8 @@ module Tarantool
           !@pending.failure.nil?
         end
 
+        def failure = @pending.failure
+
         private
 
         def establish

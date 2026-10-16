@@ -24,6 +24,41 @@ RSpec.describe Tarantool::Client::Pool::Member do
     expect(member.read_only).to be(false)
   end
 
+  context 'with an instrumenter' do
+    subject(:member) { described_class.new(server.uri, { reconnect_delay: 0.01, instrumenter: }) }
+
+    let(:instrumenter) { RecordingInstrumenter.new }
+
+    def roles_reported = instrumenter.payloads('role_change.tarantool')
+
+    it 'reports nothing for the first role' do
+      member.start
+      wait_for { member.read_only == true }
+
+      expect(roles_reported).to eq([])
+    end
+
+    it 'reports a change, not the repeated value reported alongside it' do
+      member.start
+      change_role(server, roles, 'a', true)
+      change_role(server, roles, 'a', false)
+      wait_for { roles_reported.any? }
+
+      expect(roles_reported).to eq([{ read_only: false, address: server.path }])
+    end
+
+    it 'reports nothing for a reconnect that brings back the same role' do
+      member.start
+      server.refusing = true
+      server.disconnect
+      wait_for { member.read_only.nil? }
+      server.refusing = false
+
+      wait_for { member.read_only == true }
+      expect(roles_reported).to eq([])
+    end
+  end
+
   it 'gives access to its client' do
     member.start
 
@@ -68,6 +103,19 @@ RSpec.describe Tarantool::Client::Pool::Member do
       end
       wait_for { member.read_only == true }
     end.to output(/RuntimeError: boom/).to_stderr
+  end
+
+  it 'reports an unexpected connect error to the logger when one is set' do
+    output = StringIO.new
+    logged = described_class.new(server.uri, { reconnect_delay: 0.01, logger: Logger.new(output) })
+    server.refusing = true
+    logged.start
+    allow(Tarantool::Client).to receive(:new).and_raise(RuntimeError, 'boom')
+    server.refusing = false
+
+    wait_for { output.string.include?('RuntimeError: boom') }
+    expect(output.string).to include('RuntimeError: boom')
+    logged.close
   end
 
   it 'forgets the role while disconnected and takes the new one after reconnecting' do

@@ -199,4 +199,42 @@ RSpec.describe Tarantool::Client::Stream do
       expect(messages).to eq(['started'])
     end
   end
+
+  context 'with an instrumenter' do
+    subject(:stream) do
+      described_class.new(connection:, schema_cache:, id: 1, request_timeout: 1, instrumentation:)
+    end
+
+    def instrumenter = @instrumenter ||= RecordingInstrumenter.new
+
+    let(:instrumentation) do
+      Tarantool::Client::Instrumentation.build(Tarantool::Client::Configuration.build(server.uri, instrumenter:))
+    end
+
+    def requests = instrumenter.payloads('request.tarantool')
+
+    it 'emits begin, the operation and commit' do
+      transaction { |tx| tx.insert(:users, [1, 'secret']) }
+
+      expect(requests).to eq([{ request: :begin, address: server.path },
+                              { space: :users, address: server.path, request: :insert },
+                              { request: :commit, address: server.path }])
+    end
+
+    it 'marks a request that caught up with a schema changed before BEGIN' do
+      schema_cache
+      server.schema_version = 2
+      transaction { |tx| tx.select(:users, 1) }
+
+      expect(requests[1]).to include(request: :select, schema_reloaded: true)
+    end
+
+    it 'marks a request rejected for a schema changed after BEGIN' do
+      expect { transaction { |tx| (server.schema_version = 2) && tx.select(:users, 1) } }
+        .to raise_error(Tarantool::TransactionError)
+
+      expect(requests[1]).to include(request: :select, schema_reloaded: true, exception: a_collection_including('Tarantool::TransactionError'))
+      expect(requests.last).to include(request: :rollback)
+    end
+  end
 end

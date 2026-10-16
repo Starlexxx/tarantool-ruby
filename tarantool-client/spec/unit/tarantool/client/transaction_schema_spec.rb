@@ -22,7 +22,7 @@ RSpec.describe Tarantool::Client::TransactionSchema do
   def schema_selects = server.headers.count { |header| header[0x00] == 0x01 }
 
   it 'resolves names with the cached schema of the BEGIN version' do
-    expect(described_class.new(cache, connection, 1).resolve(:users, :primary, deadline)).to eq([512, 0])
+    expect(described_class.new(cache, connection, 1).resolve(:users, :primary, deadline)).to eq([[512, 0], false])
     expect(schema_selects).to eq(2)
   end
 
@@ -42,7 +42,7 @@ RSpec.describe Tarantool::Client::TransactionSchema do
     cache
     server.schema_version = 2
 
-    expect(described_class.new(cache, connection, 2).resolve(:users, 0, deadline)).to eq([512, 0])
+    expect(described_class.new(cache, connection, 2).resolve(:users, 0, deadline)).to eq([[512, 0], true])
     expect(cache.schema.version).to eq(2)
   end
 
@@ -66,11 +66,19 @@ RSpec.describe Tarantool::Client::TransactionSchema do
       .to raise_error(Tarantool::TransactionError, /connection lost/)
   end
 
-  it 'refreshes the cache before raising TransactionError for a rejected request' do
+  it 'refreshes the cache for a rejected request and reports the reload' do
     cache
     server.schema_version = 2
 
-    expect { described_class.new(cache, connection, 1).raise_changed(deadline) }.to raise_error(Tarantool::TransactionError)
+    expect(described_class.new(cache, connection, 1).refresh?(deadline)).to be(true)
     expect(cache.schema.version).to eq(2)
+  end
+
+  it 'does not reload for a rejected request once the cache moved past the BEGIN version' do
+    cache
+    server.schema_version = 2
+    cache.reload(cache.schema, timeout: 1)
+
+    expect(described_class.new(cache, connection, 1).refresh?(deadline)).to be(false)
   end
 end
