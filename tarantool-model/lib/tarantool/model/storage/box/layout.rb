@@ -23,6 +23,7 @@ module Tarantool
           def verify!(attributes:, primary_key:)
             missing = attributes - @names
             raise SchemaMismatchError, "space #{@space_info.name} has no field #{missing.join(', ')}" if missing.any?
+            raise SchemaMismatchError, "space #{@space_info.name} has no primary index" unless @space_info.primary_index
 
             return if primary_key == primary_parts
 

@@ -33,4 +33,16 @@ RSpec.describe Tarantool::Model::Storage::Box::Layout do
     expect { layout.verify!(attributes: %i[id email], primary_key: [:email]) }
       .to raise_error(Tarantool::Model::SchemaMismatchError, /primary key/)
   end
+
+  context 'without a primary index' do
+    let(:info) do
+      fields = %w[id email age].map { |name| client::SpaceInfo::Field.new(name:, type: 'any', is_nullable: true) }
+      client::SpaceInfo.new(id: 512, name: 'users', fields:, indexes: {})
+    end
+
+    it 'rejects the space' do
+      expect { layout.verify!(attributes: %i[id age], primary_key: [:id]) }
+        .to raise_error(Tarantool::Model::SchemaMismatchError, /no primary index/)
+    end
+  end
 end

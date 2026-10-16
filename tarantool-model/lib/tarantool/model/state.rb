@@ -50,12 +50,7 @@ module Tarantool
       end
 
       def key_in_database
-        self.class.primary_key_names.map { |name| attribute_in_database(name.to_s) }
-      end
-
-      # ActiveModel::Dirty does not expose attribute_in_database; we replicate the ActiveRecord semantic.
-      def attribute_in_database(attr_name)
-        attribute_changed?(attr_name) ? attribute_was(attr_name) : public_send(attr_name)
+        self.class.primary_key_names.map { |name| attribute_was(name.to_s) }
       end
 
       def space_storage = self.class.verified_storage
