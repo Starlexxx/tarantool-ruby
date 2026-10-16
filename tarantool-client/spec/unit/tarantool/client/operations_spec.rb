@@ -10,7 +10,7 @@ RSpec.describe Tarantool::Client::Operations do
     Class.new do
       include Tarantool::Client::Operations
 
-      attr_reader :performed, :on_push
+      attr_reader :performed, :on_push, :format
 
       def initialize(body)
         @body = body
@@ -26,8 +26,17 @@ RSpec.describe Tarantool::Client::Operations do
         Tarantool::Client::Protocol::Response.new({ 0x00 => 0, 0x01 => 1 }, @body)
       end
 
-      def perform_on_space(space, index, timeout:)
-        perform(yield(space == :users ? 512 : space, index == :email ? 1 : index), timeout:)
+      def perform_on_space(space, index, timeout:, format: false)
+        @format = format
+
+        perform(yield(space == :users ? 512 : space, index == :email ? 1 : index, users_info), timeout:)
+      end
+
+      def users_info
+        field = Tarantool::Client::SpaceInfo::Field
+        fields = %w[id email].map { |name| field.new(name:, type: 'any', is_nullable: false) }
+
+        Tarantool::Client::SpaceInfo.new(id: 512, name: 'users', fields:, indexes: {})
       end
 
       def lookup_space(space, timeout)
@@ -114,6 +123,59 @@ RSpec.describe Tarantool::Client::Operations do
     target.select(:users, time)
 
     expect(last_request.key).to eq([time])
+  end
+
+  describe 'as:' do
+    it 'returns tuples without needing the format by default' do
+      expect(target.select(:users, 1)).to eq(data)
+      expect(target.format).to be(false)
+    end
+
+    it 'returns Hashes by the format for as: :hash' do
+      expect(target.select(:users, 1, as: :hash)).to eq([{ id: 1, email: 'a@b.c' }])
+      expect(target.format).to be(true)
+    end
+
+    it 'returns rows with the raw tuple for as: :row' do
+      row = Tarantool::Client::Row.new(tuple: [1, 'a@b.c'], attributes: { id: 1, email: 'a@b.c' })
+
+      expect(target.select(:users, 1, as: :row)).to eq([row])
+    end
+
+    it 'shapes the tuple of insert, replace, update and delete' do
+      expect(target.insert(:users, [1, 'a@b.c'], as: :hash)).to eq(id: 1, email: 'a@b.c')
+      expect(target.replace(:users, [1, 'a@b.c'], as: :hash)).to eq(id: 1, email: 'a@b.c')
+      expect([target.update(:users, 1, [], as: :hash), target.delete(:users, 1, as: :hash)])
+        .to eq([{ id: 1, email: 'a@b.c' }] * 2)
+    end
+
+    it 'rejects an unknown shape before sending' do
+      expect { target.select(:users, 1, as: :json) }.to raise_error(ArgumentError, /as: :json/)
+      expect(target.performed).to be_empty
+    end
+  end
+
+  describe 'Hash tuples' do
+    it 'builds the tuple of insert and replace by the format' do
+      target.insert(:users, { email: 'a@b.c', id: 1 })
+      expect(last_request.tuple).to eq([1, 'a@b.c'])
+      expect(target.format).to be(true)
+
+      target.replace(:users, { 'id' => 2 })
+      expect(last_request.tuple).to eq([2, nil])
+    end
+
+    it 'builds the tuple of upsert by the format' do
+      target.upsert(:users, { id: 1 }, [['+', 'email', 1]])
+
+      expect(last_request).to eq(requests::Upsert.new(space_id: 512, tuple: [1, nil], operations: [['+', 'email', 1]]))
+    end
+
+    it 'does not need the format for an Array upsert' do
+      target.upsert(:users, [1], [])
+
+      expect(target.format).to be(false)
+    end
   end
 
   context 'with SQL' do

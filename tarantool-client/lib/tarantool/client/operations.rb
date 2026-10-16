@@ -3,8 +3,10 @@
 module Tarantool
   class Client
     # Data operations, call, eval and SQL. Includers implement `perform(request, timeout:, on_push: nil)`,
-    # `perform_on_space(space, index, timeout:) { |space_id, index_id| request }`, which returns the response to
-    # the request built by the block, and `lookup_space(space, timeout)`, which returns its SpaceInfo.
+    # `perform_on_space(space, index, timeout:, format: false) { |space_id, index_id, space_info| request }`, which
+    # returns the response to the request built by the block, and `lookup_space(space, timeout)`, which returns its
+    # SpaceInfo. With `format: true` the block gets the SpaceInfo of the schema the request is resolved and
+    # version-checked against, even for numeric ids; otherwise the third argument may be absent.
     # @api private
     module Operations
       def ping(timeout: nil)
@@ -18,42 +20,42 @@ module Tarantool
       end
 
       def select(space, key = [], index: 0, limit: Protocol::Constants::MAX_LIMIT, offset: 0, iterator: :eq,
-                 after: nil, timeout: nil)
-        perform_on_space(space, index, timeout:) do |space_id, index_id|
+                 after: nil, as: :tuple, timeout: nil)
+        on_space(space, index, as:, timeout:) do |space_id, index_id|
           Protocol::Requests::Select.new(space_id:, index_id:, key: key_tuple(key), limit:, offset:, iterator:, after:)
-        end.data
+        end
       end
 
-      def insert(space, tuple, timeout: nil)
-        perform_on_space(space, 0, timeout:) do |space_id|
-          Protocol::Requests::Insert.new(space_id:, tuple:)
-        end.data.first
+      def insert(space, tuple, as: :tuple, timeout: nil)
+        on_space(space, 0, as:, timeout:, format: tuple.is_a?(Hash)) do |space_id, _index_id, space_info|
+          Protocol::Requests::Insert.new(space_id:, tuple: tuple_for(tuple, space_info))
+        end.first
       end
 
-      def replace(space, tuple, timeout: nil)
-        perform_on_space(space, 0, timeout:) do |space_id|
-          Protocol::Requests::Replace.new(space_id:, tuple:)
-        end.data.first
+      def replace(space, tuple, as: :tuple, timeout: nil)
+        on_space(space, 0, as:, timeout:, format: tuple.is_a?(Hash)) do |space_id, _index_id, space_info|
+          Protocol::Requests::Replace.new(space_id:, tuple: tuple_for(tuple, space_info))
+        end.first
       end
 
-      def update(space, key, operations, index: 0, timeout: nil)
-        perform_on_space(space, index, timeout:) do |space_id, index_id|
+      def update(space, key, operations, index: 0, as: :tuple, timeout: nil)
+        on_space(space, index, as:, timeout:) do |space_id, index_id|
           Protocol::Requests::Update.new(space_id:, index_id:, key: key_tuple(key), operations:)
-        end.data.first
+        end.first
       end
 
       def upsert(space, tuple, operations, timeout: nil)
-        perform_on_space(space, 0, timeout:) do |space_id|
-          Protocol::Requests::Upsert.new(space_id:, tuple:, operations:)
+        perform_on_space(space, 0, timeout:, format: tuple.is_a?(Hash)) do |space_id, _index_id, space_info|
+          Protocol::Requests::Upsert.new(space_id:, tuple: tuple_for(tuple, space_info), operations:)
         end
 
         nil
       end
 
-      def delete(space, key, index: 0, timeout: nil)
-        perform_on_space(space, index, timeout:) do |space_id, index_id|
+      def delete(space, key, index: 0, as: :tuple, timeout: nil)
+        on_space(space, index, as:, timeout:) do |space_id, index_id|
           Protocol::Requests::Delete.new(space_id:, index_id:, key: key_tuple(key))
-        end.data.first
+        end.first
       end
 
       # on_push runs in the calling thread for each box.session.push message; an exception
@@ -80,6 +82,21 @@ module Tarantool
       end
 
       private
+
+      # A retry after a schema change calls the block again, so the SpaceInfo kept is the one the response came from.
+      def on_space(space, index, as:, timeout:, format: false)
+        TupleShape.check(as)
+        space_info = nil
+        needs_format = format || as != :tuple
+        response = perform_on_space(space, index, timeout:, format: needs_format) do |space_id, index_id, info|
+          space_info = info
+          yield space_id, index_id, info
+        end
+
+        response.data.map { |tuple| TupleShape.apply(as, tuple, space_info) }
+      end
+
+      def tuple_for(tuple, space_info) = tuple.is_a?(Hash) ? space_info.to_tuple(tuple) : tuple
 
       def key_tuple(key)
         key.is_a?(Array) ? key : [key]
