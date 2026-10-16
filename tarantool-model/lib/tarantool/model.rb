@@ -20,6 +20,7 @@ require_relative 'model/relation'
 require_relative 'model/querying'
 require_relative 'model/storage/box/layout'
 require_relative 'model/storage/box'
+require_relative 'model/storage/crud'
 
 module Tarantool
   # ActiveModel-based model over a Tarantool space. Attribute names are the space format field names.
