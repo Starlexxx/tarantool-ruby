@@ -76,6 +76,17 @@ RSpec.describe Tarantool::Client, :integration do
     expect(client.select(:t2h_users, 1)).to eq([[1, nil, 'a', nil]])
   end
 
+  it 'inserts a Hash with a field added to the format after the schema was loaded' do
+    client.space_info(:t2h_users)
+    client.eval(<<~LUA)
+      box.space.t2h_users:format({{name = 'id', type = 'unsigned'}, {name = 'name', type = 'string'},
+        {name = 'age', type = 'unsigned', is_nullable = true}, {name = 'nick', type = 'string', is_nullable = true}})
+    LUA
+
+    expect(client.insert(:t2h_users, { id: 1, name: 'a', nick: 'n' }))
+      .to eq([1, 'a', nil, 'n'])
+  end
+
   it 'converts inside a transaction' do
     rows = client.transaction do |tx|
       tx.insert(:t2h_users, { id: 1, name: 'a' })

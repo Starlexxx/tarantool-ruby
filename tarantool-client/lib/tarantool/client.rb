@@ -202,8 +202,8 @@ module Tarantool
       schema, ids = @schema_cache.resolve(space, index, deadline)
 
       perform_resolved(schema, yield(*ids, schema.space_info(ids.first)), deadline)
-    rescue ServerError => e
-      raise unless e.code == Protocol::Constants::ER_WRONG_SCHEMA_VERSION
+    rescue ServerError, UnknownFieldError => e
+      raise if e.is_a?(ServerError) && e.code != Protocol::Constants::ER_WRONG_SCHEMA_VERSION
 
       fresh = @schema_cache.reload(schema, timeout: Transport::Deadline.remaining(deadline))
       schema, ids = @schema_cache.resolve(space, index, deadline, fresh)

@@ -25,7 +25,7 @@ module Tarantool
       def position_of(key, positions)
         case key
         when Symbol, String
-          positions.fetch(key.to_s) { raise ArgumentError, "space #{name} has no field '#{key}'" }
+          positions.fetch(key.to_s) { raise UnknownFieldError, "space #{name} has no field '#{key}'" }
         when Integer then position_beyond_format(key)
         else raise ArgumentError, "unsupported key #{key.inspect} for space #{name}"
         end

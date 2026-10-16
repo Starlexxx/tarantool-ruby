@@ -277,6 +277,43 @@ RSpec.describe Tarantool::Client do
     end
   end
 
+  context 'when a Hash tuple names a field unknown to the loaded schema' do
+    let!(:schema_state) { { format: [{ 'name' => 'id' }, { 'name' => 'name' }], vspace_requests: 0 } }
+    let(:server) { FakeTarantool.new(check_schema_version: true, &handler) }
+    let(:client) { described_class.new(server.uri, user: 'app', password: 'secret') }
+    let(:handler) do
+      lambda do |request, fake|
+        case request.body[0x10]
+        when 281
+          schema_state[:vspace_requests] += 1
+          fake.reply(request, [[512, 1, 'users', 'memtx', 0, {}, schema_state[:format]]])
+        when 289 then fake.reply(request, [[512, 0, 'primary']])
+        else fake.reply(request, [request.body[0x21]])
+        end
+      end
+    end
+
+    before { client }
+
+    after do
+      client.close
+      server.stop
+    end
+
+    it 'reloads once and inserts a field added to the format after it loaded' do
+      schema_state[:format] += [{ 'name' => 'nick' }]
+      before = schema_state[:vspace_requests]
+
+      expect(client.insert(:users, { id: 1, name: 'n', nick: 'x' }, as: :hash)).to eq(id: 1, name: 'n', nick: 'x')
+      expect(schema_state[:vspace_requests]).to eq(before + 1)
+    end
+
+    it 'raises UnknownFieldError when the field is still unknown after the reload' do
+      expect { client.insert(:users, { id: 1, phone: 'x' }) }
+        .to raise_error(Tarantool::UnknownFieldError, /phone/)
+    end
+  end
+
   context 'with watchers' do
     let!(:watch_requests) { Thread::Queue.new }
     let(:server) do
