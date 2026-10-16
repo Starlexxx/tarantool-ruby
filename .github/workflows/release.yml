@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'tarantool-client-v*'
+      - 'tarantool-crud-v*'
+      - 'tarantool-model-v*'
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      gem: ${{ steps.tag.outputs.gem }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - id: tag
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          gem="${tag%-v*}"
+          version="${tag##*-v}"
+          actual=$(ruby -e "puts Gem::Specification.load('${gem}/${gem}.gemspec').version")
+          if [ "$version" != "$actual" ]; then
+            echo "::error::tag $tag does not match ${gem} VERSION $actual"
+            exit 1
+          fi
+          echo "gem=$gem" >> "$GITHUB_OUTPUT"
+      - name: Check tagged commit is on master
+        run: |
+          git fetch --no-tags origin master
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/master
+      - name: Check tarantool-client dependency is published
+        if: steps.tag.outputs.gem != 'tarantool-client'
+        run: |
+          gem='${{ steps.tag.outputs.gem }}'
+          ruby -e '
+            dep = Gem::Specification.load(ARGV[0]).dependencies.find { |d| d.name == "tarantool-client" }
+            fetcher = Gem::SpecFetcher.fetcher
+            found, = fetcher.spec_for_dependency(Gem::Dependency.new(dep.name, dep.requirement))
+            abort "tarantool-client #{dep.requirement} is not on rubygems.org yet" if found.empty?
+          ' "${gem}/${gem}.gemspec"
+
+  ci:
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    needs: [prepare, ci]
+    runs-on: ubuntu-latest
+    environment: rubygems
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      - uses: rubygems/release-gem@v1
+        with:
+          working-directory: ${{ needs.prepare.outputs.gem }}
