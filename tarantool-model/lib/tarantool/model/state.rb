@@ -55,6 +55,8 @@ module Tarantool
 
       def space_storage = self.class.verified_storage
 
+      def writing_storage = self.class.writing_storage
+
       def space_name = self.class.space_name
     end
   end

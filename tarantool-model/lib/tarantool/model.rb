@@ -8,6 +8,7 @@ require_relative 'model/errors'
 require_relative 'model/row'
 require_relative 'model/key'
 require_relative 'model/transactions'
+require_relative 'model/transactional'
 require_relative 'model/types/uuid'
 require_relative 'model/types/interval'
 require_relative 'model/types/binary'
@@ -34,6 +35,7 @@ module Tarantool
     include State
     include Persistence
     include Counters
+    include Transactional
     include Querying
   end
 end
