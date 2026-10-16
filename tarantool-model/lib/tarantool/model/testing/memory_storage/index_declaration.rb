@@ -23,6 +23,7 @@ module Tarantool
               unique: entry.fetch(:unique, true), parts: parts(Keys.fetch!(entry, :parts, @owner))
             )
             check_unique!
+            check_nullable!
             @sequence = sequence?(entry.fetch(:sequence, false))
           end
 
@@ -55,6 +56,13 @@ module Tarantool
 
             raise ArgumentError, "#{@owner}: a primary index must be unique" if @info.id.zero?
             raise ArgumentError, "#{@owner}: a hash index must be unique" if @info.type == 'hash'
+          end
+
+          def check_nullable!
+            return unless @info.parts.any?(&:is_nullable)
+
+            raise ArgumentError, "#{@owner}: a primary index can not contain nullable parts" if @info.id.zero?
+            raise ArgumentError, "#{@owner}: a hash index does not support nullable parts" if @info.type == 'hash'
           end
 
           def sequence?(requested)

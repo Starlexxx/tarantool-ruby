@@ -52,6 +52,25 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
       .to raise_error(ArgumentError, /unique/)
   end
 
+  it 'rejects a nullable part in the primary index, from the part or its field' do
+    nullable_id = [{ name: :id, type: :unsigned, is_nullable: true }]
+    expect { build({ format: nullable_id, indexes: [{ name: :primary, parts: %i[id] }] }) }
+      .to raise_error(ArgumentError, /primary index can not contain nullable parts/)
+    nullable_part = [{ name: :primary, parts: [{ field: :id, is_nullable: true }] }]
+    expect { build({ format: [{ name: :id }], indexes: nullable_part }) }.to raise_error(ArgumentError, /nullable/)
+  end
+
+  it 'rejects a nullable part in a hash index unless the part overrides its field' do
+    nullable_code = { format: [{ name: :id, type: :unsigned }, { name: :code, is_nullable: true }],
+                      indexes: [{ name: :primary, parts: %i[id] }] }
+    hash_on = ->(parts) { nullable_code.merge(indexes: [*nullable_code[:indexes], { name: :c, parts:, type: :hash }]) }
+
+    expect { build(hash_on.call(%i[code])) }.to raise_error(ArgumentError, /hash index does not support nullable parts/)
+    expect { build(with_index(name: :c, parts: [{ field: :code, is_nullable: true }], type: :hash)) }
+      .to raise_error(ArgumentError, /nullable/)
+    expect { build(hash_on.call([{ field: :code, is_nullable: false }])) }.not_to raise_error
+  end
+
   it 'allows a sequence only on a primary index with one unsigned or integer part' do
     expect { build(with_index(name: :code, parts: %i[code], sequence: true)) }.to raise_error(ArgumentError, /sequence/)
     string_format = [{ name: :id, type: :string }]
