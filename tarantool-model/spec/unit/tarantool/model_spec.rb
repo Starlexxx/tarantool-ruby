@@ -76,5 +76,16 @@ RSpec.describe Tarantool::Model do
     it 'raises when no storage is set' do
       expect { User.verified_storage }.to raise_error(Tarantool::Model::Error, 'User.storage is not set')
     end
+
+    it 'verifies again when the storage is swapped for a different one' do
+      other = storage.class.new
+      User.storage = storage
+      User.verified_storage
+      User.storage = other
+
+      User.verified_storage
+
+      expect(other.calls).to eq([['users', { attributes: [:id], primary_key: [:id] }]])
+    end
   end
 end

@@ -70,6 +70,8 @@ RSpec.describe Tarantool::Model::Persistence do
       User.before_save { log << :before_save }
       User.before_create { log << :before_create }
       User.after_create { log << :after_create }
+      User.before_update { log << :before_update }
+      User.after_update { log << :after_update }
       User.after_save { log << :after_save }
     end
 
@@ -77,6 +79,15 @@ RSpec.describe Tarantool::Model::Persistence do
       User.create!(id: 1, email: 'a@x')
 
       expect(events).to eq(%i[before_validation before_save before_create after_create after_save])
+    end
+
+    it 'runs validation, save and update callbacks in order' do
+      user = User.create!(id: 1, email: 'a@x')
+      events.clear
+
+      user.update!(email: 'b@x')
+
+      expect(events).to eq(%i[before_validation before_save before_update after_update after_save])
     end
 
     it 'returns false from save and raises RecordNotSaved from save! when a before callback aborts' do
@@ -100,6 +111,14 @@ RSpec.describe Tarantool::Model::Persistence do
       storage.delete(:users, [1])
 
       expect(user.destroy.destroyed?).to be(true)
+    end
+
+    it 'returns false and leaves the record untouched when a before callback aborts' do
+      User.before_destroy { throw :abort }
+
+      expect(user.destroy).to be(false)
+      expect([user.destroyed?, user.persisted?, user.frozen?]).to eq([false, true, false])
+      expect(storage.get(:users, [1])).not_to be_nil
     end
   end
 
