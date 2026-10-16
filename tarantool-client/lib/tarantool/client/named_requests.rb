@@ -50,10 +50,9 @@ module Tarantool
 
       # The cache returns another schema only when resolving had to reload it.
       def resolve_name(space, index, deadline, payload, schema = @schema_cache.schema)
-        resolved, ids = @schema_cache.resolve(space, index, deadline, schema)
-        mark_schema_reloaded(payload) unless resolved.equal?(schema)
-
-        [resolved, ids]
+        @schema_cache.resolve(space, index, deadline, schema).tap do |resolved, _ids|
+          mark_schema_reloaded(payload) unless resolved.equal?(schema)
+        end
       end
 
       # Only the connection the schema came from: once it is lost, another instance may reuse the
