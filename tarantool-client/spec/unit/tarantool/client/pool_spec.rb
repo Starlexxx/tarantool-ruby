@@ -117,7 +117,7 @@ RSpec.describe Tarantool::Client::Pool do
 
     it 'keeps every select and delete of one delete_by call on a single member' do
       pool
-      wait_for { members.all? { |member| !member.read_only.nil? } }
+      wait_for { members.size == 2 && members.all? { |member| !member.read_only.nil? } }
 
       2.times do
         before_lengths = servers.to_h { |server| [server, records[server].length] }
