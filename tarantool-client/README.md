@@ -70,6 +70,23 @@ page = client.select(:users, [18], index: :age, iterator: :ge, limit: 50)
 next_page = client.select(:users, [18], index: :age, iterator: :ge, limit: 50, after: page.last)
 ```
 
+`delete_by` deletes every tuple a select finds, including by a non-unique index, which IPROTO `DELETE` can't do. It selects `batch_size` tuples at a time (default 1000), continues past the last one with `after:`, deletes each by primary key, and returns the number deleted. TREE indexes only, like `after:`.
+
+```ruby
+client.delete_by(:users, [18], index: :age)                                   # => 42
+client.delete_by(:users, [18], index: :age, iterator: :lt, batch_size: 500, timeout: 30)
+```
+
+Outside a transaction `delete_by` is **not atomic**: the batches are separate requests, and if one fails the tuples deleted so far stay deleted. The raised error is the original one (`TimeoutError`, `ConnectionError`, `ServerError`, ...) with `#deleted` set to the number of deletes confirmed before the failure (a delete cut off by a timeout or a lost connection may still have run, so treat it as a lower bound); `deleted` is filled only by `delete_by` and is `nil` on every other error. Tuples inserted while it runs are deleted if they land ahead of the cursor; tuples inserted **behind the cursor are not deleted**. `timeout:` bounds the whole operation; without it each request gets `request_timeout`.
+
+Inside a transaction it is atomic — a failure rolls back every delete:
+
+```ruby
+client.transaction { |tx| tx.delete_by(:users, [18], index: :age) }
+```
+
+This needs `memtx_use_mvcc_engine = true` on the server, like any transaction on memtx.
+
 `space_info` returns the format and indexes from the same schema cache; an unknown name costs one reload. Inside a transaction it reads the schema the transaction started with; on a `Pool` it accepts `mode:`.
 
 ```ruby
@@ -191,6 +208,8 @@ Tarantool::Error
 ├── TransactionError
 └── NoAvailableInstanceError
 ```
+
+`#deleted` is set only on errors raised by `delete_by` (see Data); it is `nil` otherwise.
 
 The error classes are flat under `Tarantool::`, e.g. `Tarantool::ServerError`, not `Tarantool::Client::ServerError`.
 tarantool-crud and tarantool-model errors also descend from `Tarantool::Error`.

@@ -3,7 +3,7 @@
 module Tarantool
   # Base class for every error raised by tarantool-ruby gems.
   class Error < StandardError
-    # Rows delete_by removed before it failed; nil for errors raised by any other operation.
+    # Rows delete_by confirmed deleted before it failed (a lower bound); nil for errors raised by any other operation.
     # Writer is @api private, for BatchDelete only.
     attr_accessor :deleted
   end
