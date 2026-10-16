@@ -83,10 +83,13 @@ An Array of `[operator, field, value]` or a Hash:
 
 Keyword options go to crud unchanged. `timeout:` is also used as the request timeout plus `timeout_margin`.
 
-`read:` defaults apply to `get select each count min max len storage_info`. `write:` defaults apply to the
+`read:` defaults apply to `get select each count min max len storage_info stats`. `write:` defaults apply to the
 other operations. crud rejects options a function does not know, so a default is sent only to functions that accept
 it: `prefer_replica`/`balance` skip `min`/`max`, and `truncate` gets only `timeout`/`vshard_router`. Options given
 to a call are never filtered. Use Symbol keys.
+
+`stats` takes only `timeout:` and sends crud no options: the given or default timeout, plus `timeout_margin`, only
+bounds the request.
 
 The `mode:` option here is the crud/vshard router option (`'read'` or `'write'` strings), not the `Pool` routing mode (which uses symbols like `:prefer_ro`).
 

@@ -29,6 +29,18 @@ RSpec.describe Tarantool::Crud::Client do
       expect(transport.last.arguments).to eq(['users'])
     end
 
+    it 'bounds the call by the given timeout plus the margin without sending options' do
+      crud.stats(:users, timeout: 2)
+
+      expect(transport.last).to have_attributes(arguments: ['users'], timeout: 2.5)
+    end
+
+    it 'falls back to the read timeout default' do
+      described_class.new(transport, read: { timeout: 3 }).stats
+
+      expect(transport.last).to have_attributes(arguments: [], timeout: 3.5)
+    end
+
     context 'when crud has no stats' do
       let(:response) { [[]] }
 
