@@ -70,6 +70,16 @@ RSpec.describe Tarantool::Client::BatchDelete do
     described_class.new(target, :users, [18], index: :age, iterator: :eq, batch_size: 2, timeout: nil, **options)
   end
 
+  # Fake clock support: the deadline's `now` reads a shared counter that only ticks when a request lands on
+  # the target, so a test's chosen tick size controls when the deadline passes without pinning `now` call counts.
+  def tick_clock_on_every_target_call(tick)
+    %i[space_info select delete].each do |method|
+      allow(target).to receive(method).and_wrap_original do |original, *args, **options|
+        original.call(*args, **options).tap { tick.call }
+      end
+    end
+  end
+
   it 'deletes every matching tuple and returns the count' do
     expect(batch_delete.call).to eq(3)
     expect(target.rows).to eq([[4, 19]])
@@ -133,15 +143,19 @@ RSpec.describe Tarantool::Client::BatchDelete do
     let(:deadline) { Tarantool::Client::Transport::Deadline }
 
     it 'gives every request the remaining time' do
-      allow(deadline).to receive(:now).and_return(0.0, 1.0, 2.0, 3.0, 3.0, 4.0, 4.0)
+      clock = 0.0
+      allow(deadline).to receive(:now) { clock }
+      tick_clock_on_every_target_call(-> { clock += 0.5 })
 
       build(timeout: 5).call
 
-      expect(target.calls.map(&:last)).to eq([4.0, 3.0, 2.0, 2.0, 1.0, 1.0])
+      expect(target.calls.map(&:last)).to eq([5.0, 4.5, 4.0, 3.5, 3.0, 2.5])
     end
 
     it 'raises TimeoutError carrying the count once the deadline passes' do
-      allow(deadline).to receive(:now).and_return(0.0, 1.0, 1.0, 1.0, 9.0)
+      clock = 0.0
+      allow(deadline).to receive(:now) { clock }
+      tick_clock_on_every_target_call(-> { clock += 2.0 })
       message = 'delete_by did not finish within 5s'
 
       expect { build(timeout: 5).call }.to raise_error(Tarantool::TimeoutError, message) do |error|
