@@ -20,11 +20,11 @@ module Tarantool
           end
 
           def to_tuple(space, attributes)
-            space.mapping.to_tuple(attributes)
+            space.info.to_tuple(attributes)
           end
 
           def row(space, tuple, **)
-            Row.new(attributes: space.mapping.to_hash(tuple), tuple:)
+            Row.new(attributes: space.info.to_hash(tuple), tuple:)
           end
 
           def count!

@@ -8,12 +8,11 @@ module Tarantool
         # in and out, and a stored tuple is never changed in place, so a snapshot is a shallow copy of the rows.
         # @api private
         class Space
-          attr_reader :info, :layout, :mapping
+          attr_reader :info, :layout
 
           def initialize(info, sequence:)
             @info = info
             @layout = Storage::Box::Layout.new(info)
-            @mapping = TupleMapping.new(info)
             @primary = info.primary_index
             @sequence = Sequence.new(@primary.parts.first.fieldno) if sequence
             @required = required_fieldnos

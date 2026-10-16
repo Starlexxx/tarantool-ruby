@@ -31,7 +31,7 @@ module Tarantool
           end
 
           def to_tuple(space, attributes)
-            tuple = space.mapping.to_tuple(attributes)
+            tuple = space.info.to_tuple(attributes)
             fieldno = space.info.fields.index { |field| field.name == BUCKET_ID }
             tuple[fieldno] ||= bucket(space, tuple) if fieldno
 
@@ -39,7 +39,7 @@ module Tarantool
           end
 
           def row(space, tuple, single:)
-            Row.new(attributes: space.mapping.to_hash(tuple), tuple: single ? nil : tuple)
+            Row.new(attributes: space.info.to_hash(tuple), tuple: single ? nil : tuple)
           end
 
           # Without a condition crud scans the primary index. With one, crud reads a name that is not an index as a

@@ -186,7 +186,12 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
     it 'takes String keys and rejects attributes missing from the format' do
       expect(storage.insert(:users, { 'id' => 2, 'email' => 'b@x', 'age' => 1 }).attributes).to include(id: 2)
       expect { storage.insert(:users, { id: 3, email: 'c@x', age: 1, phone: 'x' }) }
-        .to raise_error(ArgumentError, /no field 'phone'/)
+        .to raise_error(Tarantool::UnknownFieldError, "space users has no field 'phone'")
+    end
+
+    it 'rejects one field given as a Symbol and a String, like the client' do
+      expect { storage.insert(:users, { id: 2, email: 'b@x', 'email' => 'c@x', age: 1 }) }
+        .to raise_error(ArgumentError, /field 'email' given twice/)
     end
 
     it 'returns nil for a missing key' do
