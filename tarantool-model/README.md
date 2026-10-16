@@ -44,7 +44,10 @@ class User
 end
 ```
 
-For `Storage::Box`, `read:`/`write:` options are `Pool` routing modes (symbols like `:prefer_ro`, `:rw`; require a `Pool` as transport). For `Storage::Crud`, `read:`/`write:` options are passed verbatim to crud (use strings: `mode: 'read'`).
+`Storage::Box` passes its `read:`/`write:` options verbatim to the client's read and write requests. The `Pool`
+routing `mode:` (symbols like `:prefer_ro`, `:rw`; requires a `Pool` as transport) is one example; `timeout:` works
+too. `Storage::Crud` takes no `read:`/`write:`: crud defaults are set on `Tarantool::Crud::Client.new(..., read:,
+write:)` and use crud's own options (strings: `mode: 'read'`).
 
 Attribute names must match the space format field names exactly. `space_name` defaults to the plural model
 name; set it explicitly with `User.space_name = :members`. The primary key defaults to `:id`; set a composite
@@ -124,8 +127,8 @@ User.all                                             # Relation over the primary
 User.where(index: :age, key: 20, iterator: :ge)      # one index condition
      .limit(50)
      .after(last_record)                             # keyset pagination, continues after a tuple
-     .first                                          # limit(1).to_a.first
      .to_a                                           # Array of model instances
+User.where(index: :age, key: 20).first               # limit(1).to_a.first
 
 User.find_each(batch_size: 200) { |user| ... }       # walks in pages, returns Enumerator without block
 ```
@@ -195,8 +198,9 @@ appear in your model. Primary key values must be supplied by the caller; crud ca
 Supported iterators: `eq`, `ge`, `gt`, `le`, `lt`, `all`. Any other iterator raises `ArgumentError`. `count`
 on a relation works. Schema is not verified on the first operation.
 
-**A wrong `primary_index:` name is treated by crud as a field name and silently returns nothing.** Make sure
-the index name matches the space definition.
+**A wrong `primary_index:` name is treated by crud as a field name and silently returns nothing.** This affects
+queries that walk the primary index: `all`, `where`/`find_by` without an index name, and `find_each`. `find` reads
+by key with crud `get` and does not use it. Make sure the index name matches the space definition.
 
 Keyset pagination with `after` requires a tuple, which `select` returns but single-row operations (`find`,
 `find_by`) do not. Calling `after` on a record loaded with `find` raises `ArgumentError`.
@@ -215,6 +219,9 @@ User.storage = Tarantool::Model::Storage::Box.new(pool, read: { mode: :prefer_ro
 ```
 
 ## Errors
+
+`Tarantool::Model::Error` descends from `Tarantool::Error`, so one `rescue Tarantool::Error` also catches
+client and crud errors.
 
 ```
 Tarantool::Model::Error

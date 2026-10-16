@@ -28,7 +28,7 @@ users.insert([1, nil, 'a@b.c', 20])                  # crud.insert
 users.insert({ id: 1, email: 'a@b.c', age: 20 })     # crud.insert_object
 users.get(1)                                         # => { id: 1, bucket_id: 7, email: "a@b.c", age: 20 } or nil
 users.update(1, [['+', 'age', 1]])
-users.upsert({ id: 1, email: 'a@b.c', age: 20 }, [['+', 'age', 1]])
+users.upsert({ id: 1, email: 'a@b.c', age: 20 }, [['+', 'age', 1]])  # => nil
 users.delete(1)
 
 page = users.select({ age: 18.. }, first: 50)        # Result
@@ -60,9 +60,10 @@ Write Hash tuples and Hash conditions with braces. Bare `key: value` arguments a
 
 ## Results
 
-`select` and `each` return a `Result`: Enumerable of Hash rows (Symbol keys, taken from crud's metadata), plus
-`tuples` (raw Arrays), `metadata`, `first`, `last`, `size`, `empty?`. Single-row operations (`get`, `insert`,
-`update`, ...) return a Hash row or `nil`, not a `Result`.
+`select` returns a `Result`: Enumerable of Hash rows (Symbol keys, taken from crud's metadata), plus `tuples`
+(raw Arrays), `metadata`, `first`, `last`, `size`, `empty?`. `each` yields the same Hash rows page by page, and
+returns an Enumerator without a block. Single-row operations (`get`, `insert`, `update`, ...) return a Hash row or
+`nil`, not a `Result`; `upsert` always returns `nil`.
 
 `insert_many`/`replace_many`/`upsert_many` return a `ManyResult`, which adds `errors` and `success?`. If the whole
 call fails (missing space, empty row list, ...), crud reports it as `InsertManyError`/`ReplaceManyError`/
@@ -101,6 +102,10 @@ The `mode:` option here is the crud/vshard router option (`'read'` or `'write'` 
 `Tarantool::Crud::ManyError` is a separate `Tarantool::Error` subclass raised by the `*_many!` bang variants; it
 carries `result` (and `errors`), not the crud error fields. Transport and server errors from tarantool-client
 propagate unchanged.
+
+A crud `timeout:` that runs out on the router arrives as the function's `Crud::*Error` with "Timeout exceeded"
+in the message. Only a request that gets no answer within the transport timeout (`timeout:` plus
+`timeout_margin`) raises `Tarantool::TimeoutError`.
 
 ## Development
 

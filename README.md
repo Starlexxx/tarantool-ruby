@@ -33,6 +33,11 @@ gem 'tarantool-model'
 | [tarantool-crud](tarantool-crud) | Wrapper over tarantool/crud for sharded clusters |
 | [tarantool-model](tarantool-model) | ActiveModel-based models over Tarantool spaces |
 
+## Errors
+
+Every error raised by these gems descends from `Tarantool::Error`: the client's own classes such as
+`Tarantool::ConnectionError` and `Tarantool::ServerError`, `Tarantool::Crud::Error`, and `Tarantool::Model::Error`.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

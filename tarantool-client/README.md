@@ -87,6 +87,8 @@ client.eval('return ...', [1, 2])
 client.call('long_job', [], on_push: ->(message) { puts message }) # box.session.push messages
 ```
 
+`api.get_user` and `long_job` stand for Lua functions you define on the server; `call` needs `execute` on them.
+
 ## SQL
 
 ```ruby
@@ -174,10 +176,13 @@ Tarantool::Error
 ├── AuthenticationError        # #code
 ├── ProtocolError
 ├── SchemaError                # unknown space or index name
-├── ServerError                # #code, #error_stack
+├── ServerError                # #code, #error_stack, #schema_version
 ├── TransactionError
 └── NoAvailableInstanceError
 ```
+
+The error classes are flat under `Tarantool::`, e.g. `Tarantool::ServerError`, not `Tarantool::Client::ServerError`.
+tarantool-crud and tarantool-model errors also descend from `Tarantool::Error`.
 
 `box.error` objects inside returned data decode into `Tarantool::Client::BoxError`.
 
