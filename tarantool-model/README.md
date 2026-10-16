@@ -224,7 +224,7 @@ USERS_SPACE = {
 
 RSpec.configure do |config|
   config.before do
-    User.storage = Tarantool::Model::Testing::MemoryStorage.new(users: USERS_SPACE)
+    User.storage = Tarantool::Model::Testing::MemoryStorage.new({ users: USERS_SPACE })
   end
 end
 ```
@@ -234,10 +234,10 @@ Build a new storage for every example; separate instances share nothing.
 Spaces are declared like the `ensure_space` arguments of tarantool-schema: `format` entries are
 `{ name:, type:, is_nullable: }`; `indexes` is an Array of `{ name:, parts:, unique:, type:, sequence: }` and the
 first one is primary; `unique` defaults to true and `type` to `tree`. Parts are field names or
-`{ field:, type:, is_nullable: }`. Unknown keys and types raise `ArgumentError`. Spaces are passed as keywords,
-`MemoryStorage.new(users: SCHEMA, accounts: OTHER, behaves_like: :crud)`, or as a Hash,
-`MemoryStorage.new({ users: SCHEMA })`. A tarantool-schema definition can be passed as is:
-`MemoryStorage.from_definition(definition)` duck-types `definition.to_h`.
+`{ field:, type:, is_nullable: }`. Unknown keys and types raise `ArgumentError`. Spaces are passed as one Hash,
+`MemoryStorage.new({ users: SCHEMA, accounts: OTHER }, behaves_like: :crud)`; `behaves_like:` is the only keyword.
+A tarantool-schema definition can be passed as is: `MemoryStorage.from_definition(definition)` duck-types
+`definition.to_h`.
 
 `behaves_like: :box` (default) keeps the `Storage::Box` contract; `behaves_like: :crud` keeps the
 `Storage::Crud` one. What Tarantool would reject is raised with the class the application gets in production:

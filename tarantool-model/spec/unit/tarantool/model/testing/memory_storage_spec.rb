@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 RSpec.describe Tarantool::Model::Testing::MemoryStorage do
-  subject(:storage) { described_class.new(users: Schemas::USERS, accounts: Schemas::ACCOUNTS) }
+  subject(:storage) { described_class.new({ users: Schemas::USERS, accounts: Schemas::ACCOUNTS }) }
 
   def server_error(code)
     an_instance_of(Tarantool::ServerError).and(having_attributes(code:))
@@ -16,9 +16,9 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
 
   def nullable_codes
     described_class.new(
-      codes: { format: [{ name: :id, type: :unsigned }, { name: :code, type: :string, is_nullable: true },
-                        { name: :note }],
-               indexes: [{ name: :primary, parts: %i[id] }, { name: :code, parts: %i[code] }] }
+      { codes: { format: [{ name: :id, type: :unsigned }, { name: :code, type: :string, is_nullable: true },
+                          { name: :note }],
+                 indexes: [{ name: :primary, parts: %i[id] }, { name: :code, parts: %i[code] }] } }
     )
   end
 
@@ -58,8 +58,8 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
   describe 'Symbol values in caller keys' do
     def labels
       described_class.new(
-        labels: { format: [{ name: :code, type: :string }, { name: :note }],
-                  indexes: [{ name: :primary, parts: %i[code] }] }
+        { labels: { format: [{ name: :code, type: :string }, { name: :note }],
+                    indexes: [{ name: :primary, parts: %i[code] }] } }
       )
     end
 
@@ -129,8 +129,8 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
 
     it 'overwrites the original row when a numeric primary key changes type but not value' do
       numbers = described_class.new(
-        numbers: { format: [{ name: :id, type: :number }, { name: :note }],
-                   indexes: [{ name: :primary, parts: %i[id] }] }
+        { numbers: { format: [{ name: :id, type: :number }, { name: :note }],
+                     indexes: [{ name: :primary, parts: %i[id] }] } }
       )
       numbers.insert(:numbers, { id: 1, note: 'a' })
       numbers.update(:numbers, [1], [['=', 'id', 1.0]])
@@ -253,8 +253,8 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
 
     def hashed
       described_class.new(
-        tokens: { format: [{ name: :id, type: :unsigned }, { name: :token, type: :unsigned }],
-                  indexes: [{ name: :primary, parts: %i[id] }, { name: :token, parts: %i[token], type: :hash }] }
+        { tokens: { format: [{ name: :id, type: :unsigned }, { name: :token, type: :unsigned }],
+                    indexes: [{ name: :primary, parts: %i[id] }, { name: :token, parts: %i[token], type: :hash }] } }
       ).tap { |memory| [[1, 30], [2, 10], [3, 20]].each { |id, token| memory.insert(:tokens, { id:, token: }) } }
     end
 
@@ -264,8 +264,9 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
 
     def prefixed
       described_class.new(
-        pairs: { format: [{ name: :id, type: :unsigned }, { name: :a, type: :unsigned }, { name: :b, type: :unsigned }],
-                 indexes: [{ name: :primary, parts: %i[id] }, { name: :ab, parts: %i[a b], unique: false }] }
+        { pairs: { format: [{ name: :id, type: :unsigned }, { name: :a, type: :unsigned },
+                            { name: :b, type: :unsigned }],
+                   indexes: [{ name: :primary, parts: %i[id] }, { name: :ab, parts: %i[a b], unique: false }] } }
       ).tap do |memory|
         [[1, 1, 10], [2, 1, 20], [3, 2, 5], [4, 2, 15]].each { |id, a, b| memory.insert(:pairs, { id:, a:, b: }) }
       end
@@ -293,8 +294,9 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
 
     it 'raises ServerError 136 for a partial key on a multi-part hash index' do
       memory = described_class.new(
-        pairs: { format: [{ name: :id, type: :unsigned }, { name: :a, type: :unsigned }, { name: :b, type: :unsigned }],
-                 indexes: [{ name: :primary, parts: %i[id] }, { name: :ab, parts: %i[a b], type: :hash }] }
+        { pairs: { format: [{ name: :id, type: :unsigned }, { name: :a, type: :unsigned },
+                            { name: :b, type: :unsigned }],
+                   indexes: [{ name: :primary, parts: %i[id] }, { name: :ab, parts: %i[a b], type: :hash }] } }
       )
       message = 'HASH index  does not support selects via a partial key (expected 2 parts, got 1). ' \
                 'Please Consider changing index type to TREE.'
@@ -321,8 +323,8 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
 
     it 'orders a boolean field with false before true' do
       flags = described_class.new(
-        flags: { format: [{ name: :id, type: :unsigned }, { name: :flag, type: :boolean }],
-                 indexes: [{ name: :primary, parts: %i[id] }, { name: :flag, parts: %i[flag], unique: false }] }
+        { flags: { format: [{ name: :id, type: :unsigned }, { name: :flag, type: :boolean }],
+                   indexes: [{ name: :primary, parts: %i[id] }, { name: :flag, parts: %i[flag], unique: false }] } }
       )
       [[1, true], [2, false], [3, true]].each { |id, flag| flags.insert(:flags, { id:, flag: }) }
 

@@ -3,7 +3,7 @@
 RSpec.describe Tarantool::Model::Transactional do
   include_context 'with users'
 
-  let(:other_storage) { Tarantool::Model::Testing::MemoryStorage.new(users: Schemas::USERS) }
+  let(:other_storage) { Tarantool::Model::Testing::MemoryStorage.new({ users: Schemas::USERS }) }
 
   before do
     stub_const('Member', Class.new(User) { self.space_name = :users })

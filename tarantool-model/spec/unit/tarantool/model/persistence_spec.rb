@@ -17,7 +17,7 @@ RSpec.describe Tarantool::Model::Persistence do
     context 'with a storage that assigns ids from a sequence' do
       let(:storage) do
         indexes = [{ name: :primary, parts: %i[id], sequence: true }, *Schemas::USERS[:indexes].drop(1)]
-        Tarantool::Model::Testing::MemoryStorage.new(users: Schemas::USERS.merge(indexes:))
+        Tarantool::Model::Testing::MemoryStorage.new({ users: Schemas::USERS.merge(indexes:) })
       end
 
       it 'refreshes attributes from the stored row' do

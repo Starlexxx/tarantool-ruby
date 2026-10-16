@@ -11,9 +11,9 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
     expect { build(Schemas::USERS, behaves_like: :sql) }.to raise_error(ArgumentError, /behaves_like/)
   end
 
-  it 'takes spaces as keywords' do
-    expect(described_class.new(users: Schemas::USERS).insert(:users, { id: 1, email: 'a', age: 1 }).attributes)
-      .to include(id: 1)
+  it 'rejects space names that collide as String and Symbol' do
+    expect { described_class.new({ users: Schemas::USERS, 'users' => Schemas::USERS }) }
+      .to raise_error(ArgumentError, /duplicate names users/)
   end
 
   it 'rejects unknown keys at every level' do

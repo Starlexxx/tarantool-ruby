@@ -9,16 +9,18 @@ module Tarantool
       # in production. The README lists what it does not model.
       class MemoryStorage
         MODES = { box: BoxMode, crud: CrudMode }.freeze
+        private_constant :MODES
 
         def self.from_definition(definition, **)
           new(definition.to_h, **)
         end
 
-        def initialize(spaces = {}, behaves_like: :box, **named_spaces)
+        def initialize(spaces, behaves_like: :box)
           @mode = MODES.fetch(behaves_like) do
             raise ArgumentError, "behaves_like must be one of #{MODES.keys.join(', ')}, got #{behaves_like.inspect}"
           end.new
-          @spaces = spaces.merge(named_spaces).to_h { |name, schema| [name.to_s, build_space(name, schema)] }
+          Keys.distinct!(spaces.keys.map(&:to_s), 'MemoryStorage')
+          @spaces = spaces.to_h { |name, schema| [name.to_s, build_space(name, schema)] }
         end
 
         def verify(space, attributes:, primary_key:)
