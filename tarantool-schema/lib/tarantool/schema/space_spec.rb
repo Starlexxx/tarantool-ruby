@@ -10,6 +10,7 @@ module Tarantool
         context = "space #{name}"
         space = new(name: name.to_sym, engine: build_engine(engine, context), format: build_format(format, context),
                     indexes: [].freeze)
+
         build_indexes(space, indexes, context)
       end
 
@@ -41,7 +42,7 @@ module Tarantool
 
         [raw.fetch(:name) { raise ArgumentError, "#{context}: index without name" }, raw.except(:name)]
       end
-      private_class_method :build_format, :build_engine, :build_indexes, :index_arguments
+      private_class_method :build_engine, :build_indexes, :build_format, :index_arguments
 
       def add_index(index)
         raise ArgumentError, "space #{name}: duplicate index #{index.name}" if indexes.any? { |i| i.name == index.name }
@@ -57,15 +58,17 @@ module Tarantool
         with(indexes: indexes.map { |index| index.resolve(fields) }.freeze)
       end
 
+      def to_h = { engine:, format: format.map(&:to_h), indexes: indexes.map(&:to_h) }
+
+      def to_lua = { 'engine' => engine, 'format' => format.map(&:to_lua) }
+
+      private
+
       def unknown_field_errors(fields)
         indexes.flat_map do |index|
           index.unknown_fields(fields).map { |field| "index #{index.name}: unknown field #{field}" }
         end
       end
-
-      def to_h = { engine:, format: format.map(&:to_h), indexes: indexes.map(&:to_h) }
-
-      def to_lua = { 'engine' => engine, 'format' => format.map(&:to_lua) }
     end
 
     SpaceSpec::ENGINES = %w[memtx vinyl].freeze
