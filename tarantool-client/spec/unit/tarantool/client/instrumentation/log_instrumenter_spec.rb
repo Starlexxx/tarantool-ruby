@@ -15,15 +15,40 @@ RSpec.describe Tarantool::Client::Instrumentation::LogInstrumenter do
     expect(output.string).to match(/DEBUG -- : tarantool select space=users index=email \d+\.\d{2}ms db:3301$/)
   end
 
-  it 'logs the exception and the schema reload of a failed request' do
+  it 'logs the exception class and the schema reload of a failed request, without its message' do
     payload = { request: :call, function: 'f', address: 'db:3301', schema_reloaded: true }
+    error = RuntimeError.new('boom with secret data')
     failing = lambda do
-      payload[:exception] = %w[RuntimeError boom]
-      raise 'boom'
+      payload[:exception] = [error.class.name, error.message]
+      payload[:exception_object] = error
+      raise error
     end
 
-    expect { instrumenter.instrument('request.tarantool', payload, &failing) }.to raise_error('boom')
-    expect(output.string).to match(/tarantool call function=f \S+ms db:3301 error=RuntimeError: boom schema_reloaded$/)
+    expect { instrumenter.instrument('request.tarantool', payload, &failing) }.to raise_error(error)
+    expect(output.string).to match(/tarantool call function=f \S+ms db:3301 error=RuntimeError schema_reloaded$/)
+    expect(output.string).not_to include('boom with secret data')
+  end
+
+  it 'logs the code of a ServerError next to its class' do
+    payload = { request: :call, function: 'f', address: 'db:3301' }
+    error = Tarantool::ServerError.new('tuple found', code: 3)
+    failing = lambda do
+      payload[:exception] = [error.class.name, error.message]
+      payload[:exception_object] = error
+      raise error
+    end
+
+    expect { instrumenter.instrument('request.tarantool', payload, &failing) }.to raise_error(error)
+    expect(output.string).to include('error=Tarantool::ServerError(3)')
+    expect(output.string).not_to include('tuple found')
+  end
+
+  it 'falls back to the exception class from the payload when exception_object is absent' do
+    payload = { request: :call, function: 'f', address: 'db:3301', exception: %w[RuntimeError boom] }
+
+    instrumenter.instrument('request.tarantool', payload) { nil }
+
+    expect(output.string).to include('error=RuntimeError')
   end
 
   it 'builds no request line when the logger is above debug' do

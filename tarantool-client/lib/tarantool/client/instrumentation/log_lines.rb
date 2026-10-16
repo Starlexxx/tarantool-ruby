@@ -40,7 +40,7 @@ module Tarantool
           parts = ["tarantool #{payload[:request]}"]
           %i[space index function].each { |key| parts << "#{key}=#{payload[key]}" if payload.key?(key) }
           parts << format('%.2fms', duration * 1000) << payload[:address]
-          parts << "error=#{error(payload)}" if payload.key?(:exception)
+          parts << "error=#{request_error(payload)}" if payload.key?(:exception)
           parts << 'schema_reloaded' if payload[:schema_reloaded]
 
           parts.join(' ')
@@ -48,6 +48,16 @@ module Tarantool
 
         def attempts(count) = count == 1 ? '1 attempt' : "#{count} attempts"
         def error(payload) = payload[:exception].join(': ')
+
+        # The message may quote data (ER_TUPLE_FOUND repeats the tuple), so the request line keeps only the
+        # class and, when the exception has one, its code.
+        def request_error(payload)
+          exception = payload[:exception_object]
+          klass = exception ? exception.class.name : payload[:exception].first
+          code = exception.respond_to?(:code) ? exception.code : nil
+
+          code ? "#{klass}(#{code})" : klass
+        end
       end
     end
   end
