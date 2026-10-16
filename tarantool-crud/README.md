@@ -84,8 +84,10 @@ to a call are never filtered. Use Symbol keys.
 
 `Tarantool::Crud::Error` (`class_name`, `str`, `file`, `line`, `operation_data`) and its subclasses `InsertError`,
 `ReplaceError`, `UpsertError`, `GetError`, `UpdateError`, `DeleteError`, `SelectError`, `CountError`, `MinMaxError`,
-`LenError`, `TruncateError`, `CallError`, `InsertManyError`, `ReplaceManyError`, `UpsertManyError`, `ManyError`.
-Transport and server errors from tarantool-client propagate unchanged.
+`LenError`, `TruncateError`, `CallError`, `InsertManyError`, `ReplaceManyError`, `UpsertManyError`.
+`Tarantool::Crud::ManyError` is a separate `Tarantool::Error` subclass raised by the `*_many!` bang variants; it
+carries `result` (and `errors`), not the crud error fields. Transport and server errors from tarantool-client
+propagate unchanged.
 
 ## Development
 

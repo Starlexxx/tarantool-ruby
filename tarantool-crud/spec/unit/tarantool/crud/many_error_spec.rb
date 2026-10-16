@@ -10,4 +10,10 @@ RSpec.describe Tarantool::Crud::ManyError do
       result:, errors: result.errors, message: '2 crud operation(s) failed, first: dup'
     )
   end
+
+  it 'is a Tarantool::Error but not a Tarantool::Crud::Error' do
+    error = described_class.new(Tarantool::Crud::ManyResult.from_crud(nil, [crud_error('CallError', 'dup')]))
+
+    expect(error).to be_a(Tarantool::Error).and(satisfy { |e| !e.is_a?(Tarantool::Crud::Error) })
+  end
 end
