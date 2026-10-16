@@ -8,18 +8,21 @@ module Tarantool
       # States: connecting -> ready -> reconnecting -> closed.
       # @api private
       class Link
+        include LinkEvents
+
         attr_writer :event_handler
 
         # on_connect runs on each new connection before requests can use it and may raise to fail the
         # attempt; on_ready runs once the connection is current; on_lost runs when a reconnect starts,
         # before its first attempt.
-        def initialize(config, on_connect:, on_ready:, on_lost: nil, backoff: nil)
+        def initialize(config, on_connect:, on_ready:, on_lost: nil, backoff: nil, instrumentation: nil)
           @config = config
           @on_connect = on_connect
           @on_ready = on_ready
           @on_lost = on_lost
           @backoff = backoff || Backoff.new(base: config.reconnect_delay, max: config.reconnect_max_delay)
           @state = LinkState.new(config.address, reconnect: config.reconnect)
+          @instrumentation = instrumentation
         end
 
         def connect
@@ -93,25 +96,28 @@ module Tarantool
         end
 
         def lost(connection)
-          return unless @config.reconnect
+          return report_lost(connection) unless @config.reconnect
 
           @state.start_reconnect(connection) do |previous|
-            Thread.new { reconnect(previous) }.tap { |thread| thread.name = "tarantool-reconnect #{@config.address}" }
+            Thread.new { reconnect(previous, connection) }.tap do |thread|
+              thread.name = "tarantool-reconnect #{@config.address}"
+            end
           end
         rescue ThreadError => e
-          @state.give_up(ConnectionError.new("cannot reconnect to #{@config.address}: #{e.message}"))
+          fail_reconnect(ConnectionError.new("cannot reconnect to #{@config.address}: #{e.message}"))
         end
 
         # Joining the previous thread first lets close join only the newest one. Nothing may escape: a dead
         # thread would leave the link reconnecting forever, and its exception would resurface in every join.
-        def reconnect(previous)
+        def reconnect(previous, connection)
           ThreadJoin.join(previous)
+          emit('disconnect.tarantool', reason: connection.failure&.message)
           run_hook('on_lost') { @on_lost&.call }
 
           reconnect_with_backoff
         rescue StandardError => e
           Diagnostics.warn(@config.logger, e.full_message)
-          @state.give_up(ConnectionError.new("reconnect to #{@config.address} failed: #{e.class}: #{e.message}"))
+          fail_reconnect(ConnectionError.new("reconnect to #{@config.address} failed: #{e.class}: #{e.message}"))
         end
 
         def reconnect_with_backoff
@@ -119,7 +125,7 @@ module Tarantool
 
           while @state.pause(@backoff.delay(attempt))
             result = attempt_connect
-            return run_hook('on_ready') { install(result) } if result.is_a?(Connection)
+            return reconnected(result, attempt + 1) if result.is_a?(Connection)
 
             attempt += 1
             return give_up(attempt, result) if attempt >= @config.reconnect_attempts
@@ -137,12 +143,6 @@ module Tarantool
           yield
         rescue StandardError => e
           Diagnostics.warn(@config.logger, "#{name} failed for #{@config.address}: #{e.full_message}")
-        end
-
-        def give_up(attempts, error)
-          @state.give_up(
-            ConnectionError.new("cannot reconnect to #{@config.address} after #{attempts} attempts: #{error.message}")
-          )
         end
       end
     end

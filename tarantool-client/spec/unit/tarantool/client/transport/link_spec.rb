@@ -20,7 +20,8 @@ RSpec.describe Tarantool::Client::Transport::Link do
   end
 
   def build_link
-    described_class.new(config, on_connect:, on_ready:, on_lost:, backoff:)
+    described_class.new(config, on_connect:, on_ready:, on_lost:, backoff:,
+                                instrumentation: Tarantool::Client::Instrumentation.build(config))
   end
 
   def alive_threads(prefix) = Thread.list.select { |thread| thread.alive? && thread.name&.start_with?(prefix) }
@@ -174,6 +175,22 @@ RSpec.describe Tarantool::Client::Transport::Link do
       end
     end
 
+    context 'when the reconnect thread hits an unexpected error with an instrumenter' do
+      let(:backoff) { instance_double(Tarantool::Client::Backoff) }
+      let(:options) { { instrumenter: RecordingInstrumenter.new } }
+
+      before { allow(backoff).to receive(:delay).and_raise(RuntimeError, 'bug') }
+
+      it 'reports giving up without attempts' do
+        allow(Warning).to receive(:warn)
+        drop_connection
+        wait_for { options[:instrumenter].payloads('reconnect_failed.tarantool').any? }
+
+        expect(options[:instrumenter].payloads('reconnect_failed.tarantool').first.keys)
+          .to contain_exactly(:address, :exception, :exception_object)
+      end
+    end
+
     context 'when the reconnect thread dies with an exception that is not a StandardError' do
       let(:backoff) { instance_double(Tarantool::Client::Backoff) }
 
@@ -192,6 +209,7 @@ RSpec.describe Tarantool::Client::Transport::Link do
 
     context 'when Thread.new raises ThreadError on the reconnect' do
       let(:raise_flag) { [false] }
+      let(:options) { { instrumenter: RecordingInstrumenter.new } }
 
       before do
         allow(Thread).to receive(:new).and_wrap_original do |original, &block|
@@ -208,6 +226,12 @@ RSpec.describe Tarantool::Client::Transport::Link do
 
         expect { link.perform(ping, timeout: 5) }.to raise_error(Tarantool::ConnectionError, /cannot reconnect/)
         expect(link.connected?).to be(false)
+
+        wait_for { options[:instrumenter].payloads('reconnect_failed.tarantool').any? }
+        expect(options[:instrumenter].payloads('reconnect_failed.tarantool').first).to include(
+          address: server.path,
+          exception: ['Tarantool::ConnectionError', a_string_including("can't alloc thread")]
+        )
       end
     end
 
@@ -303,6 +327,53 @@ RSpec.describe Tarantool::Client::Transport::Link do
 
         expect { link.perform(ping, timeout: 1) }.to raise_error(Tarantool::ConnectionError, /lost/)
         expect(server.connections).to eq(1)
+      end
+    end
+
+    context 'with an instrumenter' do
+      let(:instrumenter) { RecordingInstrumenter.new }
+      let(:options) { { instrumenter: } }
+
+      it 'reports the loss and then the reconnect' do
+        drop_connection
+        wait_for { instrumenter.events.size == 2 }
+
+        expect(instrumenter.events.map(&:first)).to eq(%w[disconnect.tarantool reconnect.tarantool])
+        expect(instrumenter.payloads('disconnect.tarantool').first).to include(address: server.path, reason: /lost/)
+        expect(instrumenter.payloads('reconnect.tarantool')).to eq([{ attempts: 1, address: server.path }])
+      end
+
+      it 'reports nothing when the link is closed' do
+        link.close
+
+        expect(instrumenter.events).to be_empty
+      end
+    end
+
+    context 'with an instrumenter and a limited number of attempts' do
+      let(:instrumenter) { RecordingInstrumenter.new }
+      let(:options) { { instrumenter:, reconnect_attempts: 2 } }
+
+      it 'reports giving up with the attempts and the error' do
+        take_down
+        wait_for { instrumenter.payloads('reconnect_failed.tarantool').any? }
+
+        expect(instrumenter.payloads('reconnect_failed.tarantool').first).to include(
+          attempts: 2, address: server.path,
+          exception: ['Tarantool::ConnectionError', a_string_including('after 2 attempts')]
+        )
+      end
+    end
+
+    context 'with an instrumenter and reconnect off' do
+      let(:instrumenter) { RecordingInstrumenter.new }
+      let(:options) { { instrumenter:, reconnect: false } }
+
+      it 'reports the loss once' do
+        drop_connection
+        wait_for { instrumenter.events.any? }
+
+        expect(instrumenter.events.map(&:first)).to eq(%w[disconnect.tarantool])
       end
     end
   end

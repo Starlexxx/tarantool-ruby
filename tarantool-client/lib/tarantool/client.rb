@@ -55,6 +55,7 @@ require_relative 'client/transport/frame_writer'
 require_relative 'client/transport/handshake'
 require_relative 'client/transport/connection'
 require_relative 'client/transport/link_state'
+require_relative 'client/transport/link_events'
 require_relative 'client/transport/link'
 require_relative 'client/index_info'
 require_relative 'client/tuple_mapping'
@@ -94,6 +95,7 @@ module Tarantool
 
     def initialize(uri = nil, **)
       @config = Configuration.build(uri, **)
+      @instrumentation = Instrumentation.build(@config)
       @pid = Process.pid
       @reinit_lock = Mutex.new
       open_link
