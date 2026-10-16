@@ -91,6 +91,17 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       slow.stop
     end
 
+    it 'bounds a greeting dripped byte by byte by the connect timeout' do
+      dripping = DrippingTarantool.new(interval: 0.05)
+      config = Tarantool::Client::Configuration.build(dripping.uri, connect_timeout: 0.3)
+      started = Tarantool::Client::Transport::Deadline.now
+
+      expect { described_class.new(config).connect }.to raise_error(Tarantool::ConnectionError, /cannot connect/)
+      expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.6
+    ensure
+      dripping.stop
+    end
+
     it 'raises ConnectionError when nothing listens' do
       config = Tarantool::Client::Configuration.build('unix:/nonexistent/tarantool.sock')
 

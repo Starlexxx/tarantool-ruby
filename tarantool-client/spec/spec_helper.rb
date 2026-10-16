@@ -5,6 +5,7 @@ require 'tarantool/client'
 require_relative 'support/iproto_helpers'
 require_relative 'support/wait_helpers'
 require_relative 'support/fake_tarantool'
+require_relative 'support/dripping_tarantool'
 require_relative 'support/pool_helpers'
 require_relative 'support/fork_fake_tarantool'
 

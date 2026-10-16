@@ -81,11 +81,7 @@ module Tarantool
         end
 
         def read_greeting(deadline)
-          @socket.timeout = Deadline.remaining(deadline)
-
-          Protocol::Greeting.parse(Protocol::Codec.read_exactly(@socket, Protocol::Constants::GREETING_SIZE))
-        ensure
-          @socket.timeout = nil
+          Protocol::Greeting.parse(TimedRead.read_exactly(@socket, Protocol::Constants::GREETING_SIZE, deadline))
         end
 
         def start_reader
