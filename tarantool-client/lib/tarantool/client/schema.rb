@@ -52,13 +52,9 @@ module Tarantool
       end
 
       def space_id(space)
-        return space if space.is_a?(Integer) && @space_infos.key?(space)
-        return @space_ids.fetch(space.to_s) { space_not_found(space) } unless space.is_a?(Integer)
+        id = space.is_a?(Integer) ? space : @space_ids[space.to_s]
+        return id if @space_infos.key?(id)
 
-        space_not_found(space)
-      end
-
-      def space_not_found(space)
         raise SchemaError, "space '#{space}' not found"
       end
 
