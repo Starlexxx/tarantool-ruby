@@ -87,6 +87,10 @@ RSpec.describe Tarantool::Client::SpaceInfo do
       expect { info.to_tuple({ 1 => 30 }) }.to raise_error(ArgumentError, /position 1/)
     end
 
+    it 'rejects a field given twice under Symbol and String keys' do
+      expect { info.to_tuple({ age: 1, 'age' => 2 }) }.to raise_error(ArgumentError, /age/)
+    end
+
     it 'restores a tuple converted with to_hash' do
       tuple = [1, 2, 3, 'x']
 

@@ -14,9 +14,12 @@ module Tarantool
       # A missing field goes out as nil; on 3.x the server applies the field default to nil as well.
       def to_tuple(hash)
         positions = fields.each_with_index.to_h { |field, position| [field.name, position] }
+        named_positions = {}
 
         hash.each_with_object(Array.new(fields.size)) do |(key, value), tuple|
-          tuple[position_of(key, positions)] = value
+          position = position_of(key, positions)
+          check_not_duplicate(key, position, named_positions)
+          tuple[position] = value
         end
       end
 
@@ -29,6 +32,15 @@ module Tarantool
         when Integer then position_beyond_format(key)
         else raise ArgumentError, "unsupported key #{key.inspect} for space #{name}"
         end
+      end
+
+      # Symbol and String keys for the same field share one position; either both or just one of them given twice
+      # would otherwise overwrite silently.
+      def check_not_duplicate(key, position, named_positions)
+        return unless key.is_a?(Symbol) || key.is_a?(String)
+        raise ArgumentError, "space #{name} field '#{fields[position].name}' given twice" if named_positions[position]
+
+        named_positions[position] = true
       end
 
       def position_beyond_format(position)
