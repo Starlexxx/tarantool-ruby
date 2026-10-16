@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `Storage::Box` converts rows with tarantool-client (`as: :row`), by the format of the schema each request ran against, and no longer looks up `space_info` before every operation.
+
 ## 0.1.0 (unreleased)
 
 First release.

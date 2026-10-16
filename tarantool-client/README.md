@@ -79,6 +79,17 @@ info.primary_index.parts.map(&:name) # => ["id"]
 info.indexes['age'].unique           # => false
 ```
 
+`as: :hash` returns tuples as Hashes keyed by field name; fields beyond the format are keyed by their 0-based position. `as: :row` returns `Client::Row` with the raw `tuple` and its `attributes`. `insert`, `replace` and `upsert` take a Hash too: Symbol or String names, missing fields go out as nil, an unknown name raises `ArgumentError`. The format comes from the same schema the request carries the version of, so an alter in between makes the server reject the request and the client rebuilds it by the new format. This works the same in transactions and on a `Pool`.
+
+```ruby
+client.insert(:users, { id: 42, email: 'a@b.c', age: 0 })
+client.select(:users, [42], as: :hash) # => [{ id: 42, email: "a@b.c", age: 0 }]
+row = client.select(:users, [42], as: :row).first
+row.tuple                              # => [42, "a@b.c", 0]
+row.attributes                         # => { id: 42, email: "a@b.c", age: 0 }
+info.to_hash([42, 'a@b.c', 0])         # => { id: 42, email: "a@b.c", age: 0 }
+```
+
 ## Lua
 
 ```ruby
@@ -211,7 +222,7 @@ Using podman instead of docker: prefix the `bundle exec rspec --tag failover` co
 ## Public API
 
 `Tarantool::Client`, `Tarantool::Client::Pool`, `Tarantool::Client::Stream` (yielded by `transaction`),
-`Watcher` (returned by `watch`), `SqlResult`, `PreparedStatement`, `SpaceInfo`, `IndexInfo`, `Configuration`
+`Watcher` (returned by `watch`), `SqlResult`, `PreparedStatement`, `SpaceInfo`, `IndexInfo`, `Row`, `Configuration`
 (returned by `client.config`), `Tarantool::Client::UUID`, `Interval`, `BoxError`, and the error classes above.
 
 Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
