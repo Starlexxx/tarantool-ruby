@@ -3,7 +3,10 @@
 module Tarantool
   class Client
     # Tuple <-> Hash by the space format, for SpaceInfo. Fields beyond the format are keyed by their 0-based position.
+    # @api private
     module TupleMapping
+      # A position this far past the format would otherwise let a huge Integer key allocate a giant Array.
+      MAX_POSITIONS_BEYOND_FORMAT = 1024
       def to_hash(tuple)
         hash = fields.each_with_index.to_h { |field, position| [field.name.to_sym, tuple[position]] }
         (fields.size...tuple.size).each { |position| hash[position] = tuple[position] }
@@ -44,9 +47,18 @@ module Tarantool
       end
 
       def position_beyond_format(position)
-        return position if position >= fields.size
+        raise ArgumentError, "position #{position} is negative for space #{name}" if position.negative?
 
-        raise ArgumentError, "position #{position} is inside the format of space #{name}; use the field name"
+        if position < fields.size
+          raise ArgumentError, "position #{position} is inside the format of space #{name}; use the field name"
+        end
+
+        if position >= fields.size + MAX_POSITIONS_BEYOND_FORMAT
+          raise ArgumentError, "position #{position} is more than #{MAX_POSITIONS_BEYOND_FORMAT} past the format " \
+                               "of space #{name}"
+        end
+
+        position
       end
     end
   end

@@ -91,6 +91,22 @@ RSpec.describe Tarantool::Client::SpaceInfo do
       expect { info.to_tuple({ age: 1, 'age' => 2 }) }.to raise_error(ArgumentError, /age/)
     end
 
+    it 'rejects a negative position with its own message' do
+      expect { info.to_tuple({ -1 => 'x' }) }.to raise_error(ArgumentError, /-1/) do |error|
+        expect(error.message).not_to include('inside the format')
+      end
+    end
+
+    it 'rejects a position more than 1024 past the format' do
+      expect { info.to_tuple({ (info.fields.size + 1024) => 'x' }) }.to raise_error(ArgumentError, /1024/)
+    end
+
+    it 'accepts a position up to 1024 past the format' do
+      position = info.fields.size + 1023
+
+      expect(info.to_tuple({ position => 'x' })[position]).to eq('x')
+    end
+
     it 'restores a tuple converted with to_hash' do
       tuple = [1, 2, 3, 'x']
 

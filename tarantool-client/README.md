@@ -79,7 +79,7 @@ info.primary_index.parts.map(&:name) # => ["id"]
 info.indexes['age'].unique           # => false
 ```
 
-`as: :hash` returns tuples as Hashes keyed by field name; fields beyond the format are keyed by their 0-based position. `as: :row` returns `Client::Row` with the raw `tuple` and its `attributes`. `insert`, `replace` and `upsert` take a Hash too: Symbol or String names, missing fields go out as nil, an unknown name raises `ArgumentError`. The format comes from the same schema the request carries the version of, so an alter in between makes the server reject the request and the client rebuilds it by the new format. This works the same in transactions and on a `Pool`.
+`as: :hash` returns tuples as Hashes keyed by field name; fields beyond the format are keyed by their 0-based position. `as: :row` returns `Client::Row` with the raw `tuple` and its `attributes`. `insert`, `replace` and `upsert` take a Hash too: Symbol or String names, missing fields go out as nil, an unknown name raises `ArgumentError`. A key may also be an Integer position past the format, up to 1024 positions beyond it; a negative position or one further out also raises `ArgumentError`. The format comes from the same schema the request carries the version of, so an alter in between makes the server reject the request and the client rebuilds it by the new format. This works the same in transactions and on a `Pool`.
 
 ```ruby
 client.insert(:users, { id: 42, email: 'a@b.c', age: 0 })
