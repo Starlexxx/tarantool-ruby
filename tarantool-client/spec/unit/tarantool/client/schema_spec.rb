@@ -14,12 +14,16 @@ RSpec.describe Tarantool::Client::Schema do
       expect(schema.resolve(:users, 'email')).to eq([512, 1])
     end
 
-    it 'passes numeric ids through without lookup' do
-      expect(schema.resolve(999, 7)).to eq([999, 7])
+    it 'passes a numeric index through without lookup' do
+      expect(schema.resolve(512, 7)).to eq([512, 7])
     end
 
     it 'raises SchemaError for an unknown space' do
       expect { schema.resolve(:orders, 0) }.to raise_error(Tarantool::SchemaError, /space 'orders'/)
+    end
+
+    it 'raises SchemaError for an unknown numeric space id' do
+      expect { schema.resolve(999, 0) }.to raise_error(Tarantool::SchemaError, /space '999'/)
     end
 
     it 'raises SchemaError for an unknown index' do

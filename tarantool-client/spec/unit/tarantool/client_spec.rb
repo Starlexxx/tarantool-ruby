@@ -45,7 +45,9 @@ RSpec.describe Tarantool::Client do
           case space_id
           when 281
             rows = [[512, 1, 'users']]
-            rows << [600, 1, 'orders'] if schema_state[:orders]
+            if schema_state[:orders]
+              rows << [600, 1, 'orders', 'memtx', 0, {}, [{ 'name' => 'space' }, { 'name' => 'key' }]]
+            end
             fake.reply(request, rows)
           when 289 then fake.reply(request, [[512, 0, 'primary']])
           else fake.reply(request, [[space_id, request.body[0x20]]])
@@ -67,6 +69,14 @@ RSpec.describe Tarantool::Client do
         schema_state[:orders] = true
 
         expect(client.space_info(:orders)).to have_attributes(id: 600, name: 'orders')
+      end
+
+      it 'resolves a numeric id with the format once the schema is reloaded and includes the space' do
+        expect { client.select(600, 1, index: 0, as: :hash) }.to raise_error(Tarantool::SchemaError)
+
+        schema_state[:orders] = true
+
+        expect(client.select(600, 1, index: 0, as: :hash)).to eq([{ space: 600, key: [1] }])
       end
     end
 
