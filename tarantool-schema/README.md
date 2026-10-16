@@ -188,6 +188,17 @@ MyApp::SCHEMA.to_h
 #                           parts: [{ field: :id, type: 'unsigned', is_nullable: false, path: nil }] }, ...] } }
 ```
 
+tarantool-model's in-memory test storage accepts the definition as is, so tests run against the same declaration
+as the deploy:
+
+```ruby
+require 'tarantool/model/testing'
+
+storage = Tarantool::Model::Testing::MemoryStorage.from_definition(MyApp::SCHEMA)
+```
+
+MemoryStorage raises `ArgumentError` for JSON `path` parts and `rtree` or `bitset` indexes.
+
 ## Errors
 
 `Tarantool::Schema::MismatchError < Tarantool::Schema::Error < Tarantool::Error`. Server errors such as access
