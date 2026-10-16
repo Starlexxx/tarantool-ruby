@@ -22,7 +22,7 @@ module Tarantool
           end
 
           def get(key)
-            copy(@rows[key])
+            copy(@rows[copy(key)])
           end
 
           def insert(tuple)
@@ -33,6 +33,7 @@ module Tarantool
           end
 
           def update(key, operations)
+            key = copy(key)
             current = @rows[key]
             return unless current
 
@@ -43,11 +44,12 @@ module Tarantool
           end
 
           def delete(key)
-            copy(@rows.delete(key))
+            copy(@rows.delete(copy(key)))
           end
 
           def scan(index:, key:, iterator:, after:)
-            Scan.new(@info, index_info(index)).call(@rows.values, key:, iterator:, after:).map { |tuple| copy(tuple) }
+            Scan.new(@info, index_info(index)).call(@rows.values, key: copy(key), iterator:, after: copy(after))
+                .map { |tuple| copy(tuple) }
           end
 
           def index?(name)
@@ -78,7 +80,8 @@ module Tarantool
           def store(tuple, replacing:)
             check_nils(tuple)
             check_unique(tuple, replacing)
-            @rows[replacing || key_of(tuple, @primary)] = tuple
+            @rows.delete(replacing) if replacing
+            @rows[key_of(tuple, @primary)] = tuple
 
             copy(tuple)
           end

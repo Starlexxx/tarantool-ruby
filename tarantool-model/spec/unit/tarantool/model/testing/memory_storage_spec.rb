@@ -48,6 +48,53 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
     end
   end
 
+  describe 'Symbol values in caller keys' do
+    def labels
+      described_class.new(
+        labels: { format: [{ name: :code, type: :string }, { name: :note }],
+                  indexes: [{ name: :primary, parts: %i[code] }] }
+      )
+    end
+
+    def ids(rows) = rows.map { |row| row.attributes[:id] }
+
+    def by_email(key, iterator, after: nil)
+      ids(storage.select(:users, index: :email, key:, iterator:, limit: nil, after:))
+    end
+
+    before { %w[a b].each_with_index { |email, id| storage.insert(:users, { id:, email:, age: 1 }) } }
+
+    it 'matches and orders them as Strings in select and after' do
+      expect([by_email([:a], :eq), by_email([:a], :ge), by_email([:a], :ge, after: [0, :a, 1])])
+        .to eq([[0], [0, 1], [1]])
+    end
+
+    it 'gets, updates and deletes by a Symbol primary key' do
+      memory = labels
+      memory.insert(:labels, { code: :a, note: 1 })
+
+      results = [memory.get(:labels, [:a]), memory.update(:labels, [:a], [['=', 'note', 2]]),
+                 memory.delete(:labels, [:a])]
+
+      expect(results.map(&:attributes)).to eq([{ code: 'a', note: 1 }, { code: 'a', note: 2 }, { code: 'a', note: 2 }])
+      expect(memory.select(:labels, index: nil, key: [], iterator: :all, limit: nil, after: nil)).to be_empty
+    end
+
+    it 'finds through a model with an untyped primary key attribute' do
+      stub_const('Label', Class.new do
+        include Tarantool::Model
+
+        self.primary_key = :code
+        attribute :code
+        attribute :note
+      end)
+      Label.storage = labels
+      Label.create!(code: 'a', note: 1)
+
+      expect([Label.find(:a).code, Label.where(key: [:a]).map(&:code)]).to eq(['a', ['a']])
+    end
+  end
+
   describe 'writes' do
     before { storage.insert(:users, { id: 1, email: 'a@x', age: 1 }) }
 
