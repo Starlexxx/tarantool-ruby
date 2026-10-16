@@ -18,7 +18,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
 
   spec.add_dependency 'activemodel', '>= 7.1', '< 9'
-  spec.add_dependency 'tarantool-client', '~> 0.1.0'
+  spec.add_dependency 'tarantool-client', '~> 0.2.0'
 
   spec.metadata['source_code_uri'] = 'https://github.com/Starlexxx/tarantool-ruby/tree/master/tarantool-model'
   spec.metadata['changelog_uri'] = 'https://github.com/Starlexxx/tarantool-ruby/blob/master/tarantool-model/CHANGELOG.md'

@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 (2026-10-17)
 
 First release.
 
@@ -9,4 +9,4 @@ First release.
   diff when the live schema differs, before creating anything. Never alters or drops.
 - `Definition#to_h`: the normalized declaration, with defaults filled in and part types inherited; tarantool-model's
   `Testing::MemoryStorage.from_definition` accepts the definition.
-- Depends on `tarantool-client ~> 0.1.0`.
+- Depends on `tarantool-client ~> 0.2.0`.
