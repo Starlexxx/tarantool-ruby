@@ -16,6 +16,7 @@ require_relative 'schema/live_space'
 require_relative 'schema/inspector'
 require_relative 'schema/format_comparison'
 require_relative 'schema/index_comparison'
+require_relative 'schema/comparison'
 
 module Tarantool
   # Idempotent declaration of spaces, indexes and primary key sequences, applied over an admin connection.
