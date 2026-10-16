@@ -3,6 +3,8 @@
 ## Unreleased
 
 - `Storage::Box` converts rows with tarantool-client (`as: :row`), by the format of the schema each request ran against, and no longer looks up `space_info` before every operation.
+- `Testing::MemoryStorage` (`require 'tarantool/model/testing'`): in-memory storage for application tests that
+  keeps the `Storage::Box` or `Storage::Crud` contract, with spaces declared in tarantool-schema's format.
 
 ## 0.1.0 (unreleased)
 
