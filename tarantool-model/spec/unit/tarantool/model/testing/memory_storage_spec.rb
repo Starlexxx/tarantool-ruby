@@ -272,4 +272,42 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
         .to raise_error(Tarantool::Model::NotSupportedError, /Storage::Box/)
     end
   end
+
+  describe '#transaction' do
+    def user(id) = storage.insert(:users, { id:, email: "u#{id}", age: 1 })
+
+    it 'returns the block value and keeps the writes' do
+      expect([storage.transaction(isolation: :read_committed) { user(1) && :done }, storage.get(:users, [1])&.tuple])
+        .to eq([:done, [1, 'u1', 1]])
+    end
+
+    it 'rolls back and re-raises when the block raises' do
+      user(1)
+
+      expect { storage.transaction { user(2) && storage.delete(:users, [1]) && raise('boom') } }.to raise_error('boom')
+      expect([storage.get(:users, [1])&.tuple, storage.get(:users, [2])]).to eq([[1, 'u1', 1], nil])
+    end
+
+    it 'rolls back when the block leaves with throw' do
+      catch(:halt) { storage.transaction { user(1) && throw(:halt) } }
+
+      expect(storage.get(:users, [1])).to be_nil
+    end
+
+    it 'keeps the sequence moving after a rollback' do
+      expect { storage.transaction { storage.insert(:accounts, { id: nil, email: 'a' }) && raise('boom') } }
+        .to raise_error('boom')
+
+      expect(storage.insert(:accounts, { id: nil, email: 'a' }).attributes[:id]).to eq(2)
+    end
+
+    it 'rejects a nested transaction and keeps the outer one usable' do
+      result = storage.transaction do
+        expect { storage.transaction { nil } }.to raise_error(Tarantool::TransactionError)
+        user(1) && :done
+      end
+
+      expect([result, storage.get(:users, [1])&.tuple]).to eq([:done, [1, 'u1', 1]])
+    end
+  end
 end

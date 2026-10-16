@@ -55,6 +55,19 @@ module Tarantool
           perform(space, :count) { |table| @mode.scan(table, index:, key:, iterator:, after: nil).size }
         end
 
+        # Writes apply at once; the rows are restored unless the block finishes normally. `isolation:` and
+        # `timeout:` are accepted and ignored. Sequences are not restored, as in Tarantool.
+        def transaction(**, &)
+          @mode.transaction!
+          raise Tarantool::TransactionError, 'nested transactions are not supported' if Transactions.handle(self)
+
+          snapshots = @spaces.transform_values(&:snapshot)
+          committed = false
+          Transactions.open(self, :memory, &).tap { committed = true }
+        ensure
+          snapshots&.each { |name, rows| @spaces.fetch(name).restore(rows) } unless committed
+        end
+
         private
 
         def perform(space, operation)

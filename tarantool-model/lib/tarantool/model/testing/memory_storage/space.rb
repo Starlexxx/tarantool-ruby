@@ -54,6 +54,14 @@ module Tarantool
             name.nil? || name.is_a?(Integer) || @info.indexes.key?(name.to_s)
           end
 
+          def snapshot
+            @rows.dup
+          end
+
+          def restore(rows)
+            @rows = rows
+          end
+
           private
 
           def index_info(name)

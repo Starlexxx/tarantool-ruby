@@ -13,6 +13,8 @@ module Tarantool
 
           def sequences? = true
 
+          def transaction! = nil
+
           def to_tuple(space, attributes)
             space.mapping.to_tuple(attributes)
           end
