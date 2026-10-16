@@ -45,6 +45,8 @@ require_relative 'client/instrumentation'
 require_relative 'client/instrumentation/request_payload'
 require_relative 'client/instrumentation/log_lines'
 require_relative 'client/instrumentation/log_instrumenter'
+require_relative 'client/instrumented'
+require_relative 'client/named_requests'
 require_relative 'client/transport/future'
 require_relative 'client/transport/pending_requests'
 require_relative 'client/transport/stream_ids'
@@ -86,6 +88,8 @@ module Tarantool
   class Client
     include Operations
     include ForkSafety
+    include Instrumented
+    include NamedRequests
 
     attr_reader :config
 
@@ -151,7 +155,7 @@ module Tarantool
 
     def link_hooks = { on_connect: method(:load_schema), on_ready: method(:resubscribe), on_lost: method(:lost) }
 
-    def perform(request, timeout: nil, schema_version: nil, on_push: nil)
+    def transmit(request, timeout: nil, schema_version: nil, on_push: nil)
       ensure_fork_safe
       @link.perform(request, timeout: timeout || @config.request_timeout, schema_version:, on_push:)
     end
@@ -178,53 +182,10 @@ module Tarantool
     # server rejects them (ER_WRONG_SCHEMA_VERSION) instead of running them on a stale id.
     # A request that needs the space format is resolved the same way even by ids, so the
     # format and the version it carries come from one schema.
-    def perform_on_space(space, index, timeout: nil, format: false, &)
-      return perform(yield(space, index), timeout:) if !format && space.is_a?(Integer) && index.is_a?(Integer)
+    def transmit_on_space(space, index, timeout: nil, format: false, payload: nil, &)
+      return transmit(yield(space, index), timeout:) if !format && space.is_a?(Integer) && index.is_a?(Integer)
 
-      perform_by_name(space, index, timeout || @config.request_timeout, &)
-    end
-
-    # Every schema fetch and attempt draws on one deadline, so the whole call stays within timeout.
-    # Waiting for a connection first means the cache already holds its schema or a newer one.
-    def perform_by_name(space, index, timeout, &)
-      ensure_fork_safe
-      deadline = Transport::Deadline.after(timeout)
-      @link.connection(deadline)
-
-      perform_with_schema_check(space, index, deadline, &)
-    rescue TimeoutError
-      raise TimeoutError, "no response within #{timeout}s"
-    end
-
-    def lookup_space(space, timeout)
-      ensure_fork_safe
-      timeout ||= @config.request_timeout
-      deadline = Transport::Deadline.after(timeout)
-      @link.connection(deadline)
-
-      @schema_cache.space_info(space, deadline)
-    rescue TimeoutError
-      raise TimeoutError, "no response within #{timeout}s"
-    end
-
-    def perform_with_schema_check(space, index, deadline)
-      schema, ids = @schema_cache.resolve(space, index, deadline)
-
-      perform_resolved(schema, yield(*ids, schema.space_info(ids.first)), deadline)
-    rescue ServerError, UnknownFieldError => e
-      raise if e.is_a?(ServerError) && e.code != Protocol::Constants::ER_WRONG_SCHEMA_VERSION
-
-      fresh = @schema_cache.reload(schema, timeout: Transport::Deadline.remaining(deadline))
-      schema, ids = @schema_cache.resolve(space, index, deadline, fresh)
-      perform_resolved(schema, yield(*ids, schema.space_info(ids.first)), deadline)
-    end
-
-    # Only the connection the schema came from: once it is lost, another instance may reuse the
-    # schema version with other ids, so the request fails with it rather than wait for a reconnect.
-    def perform_resolved(schema, request, deadline)
-      timeout = Transport::Deadline.remaining(deadline)
-
-      schema.connection.perform(request, timeout:, schema_version: schema.version)
+      perform_by_name(space, index, timeout || @config.request_timeout, payload, &)
     end
   end
 end
