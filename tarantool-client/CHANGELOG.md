@@ -5,6 +5,8 @@
 - `as: :hash` and `as: :row` on `select`, `insert`, `replace`, `update` and `delete` return tuples as Hashes by the space format (`Client::Row` keeps the raw tuple too); `SpaceInfo#to_hash` and `#to_tuple` do the conversion.
 - `insert`, `replace` and `upsert` accept a Hash; missing fields go out as nil, an unknown key raises `ArgumentError`.
 - The format comes from the schema the request runs against; a schema change makes the server reject the request and the retry rebuilds it by the new format. A numeric space id unknown to the cache costs one reload too, like a name.
+- A Hash key naming a field added to the format after it was loaded also costs one reload before `insert`/`replace`/`upsert` raise `UnknownFieldError` (an `ArgumentError`) for a field still missing from it.
+- An unknown numeric space id paired with a named index now raises `SchemaError` with "space 'N' not found" instead of "index '...' not found in space N".
 
 ## 0.1.0 (unreleased)
 

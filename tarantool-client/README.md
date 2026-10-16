@@ -195,6 +195,8 @@ Tarantool::Error
 The error classes are flat under `Tarantool::`, e.g. `Tarantool::ServerError`, not `Tarantool::Client::ServerError`.
 tarantool-crud and tarantool-model errors also descend from `Tarantool::Error`.
 
+`Tarantool::UnknownFieldError` (an `ArgumentError`, not under `Tarantool::Error`) is raised for a Hash tuple key naming a field missing from the format.
+
 `box.error` objects inside returned data decode into `Tarantool::Client::BoxError`.
 
 ## Development
