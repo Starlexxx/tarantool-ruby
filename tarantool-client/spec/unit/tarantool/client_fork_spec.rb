@@ -4,7 +4,7 @@ RSpec.describe Tarantool::Client do
   before { skip 'fork not supported on this platform' unless Process.respond_to?(:fork) }
 
   let(:server) { ForkFakeTarantool.new }
-  let(:client) { described_class.new(server.uri, request_timeout: 2, connect_timeout: 2) }
+  let!(:client) { described_class.new(server.uri, request_timeout: 2, connect_timeout: 2) }
 
   after do
     client.close
