@@ -32,7 +32,7 @@ module Tarantool
         result = nil
         @instrumenter.instrument(REQUEST, payload) do
           result = yield
-        rescue StandardError => e
+        rescue Exception => e
           payload.merge!(self.class.exception_keys(e))
           raise
         end

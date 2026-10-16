@@ -64,6 +64,12 @@ RSpec.describe Tarantool::Client::Instrumentation do
       expect { build_with(notifications).request({ request: :ping }) { raise 'boom' } }.to raise_error('boom')
       expect(notifications.payload.keys).to eq(%i[request address exception exception_object])
     end
+
+    it 'adds the exception keys for a non-StandardError exception and re-raises it' do
+      expect { instrumentation.request({ request: :ping }) { raise Interrupt } }.to raise_error(Interrupt)
+      expect(instrumenter.payloads('request.tarantool').first)
+        .to include(exception: ['Interrupt', an_instance_of(String)], exception_object: an_instance_of(Interrupt))
+    end
   end
 
   describe '#notify' do
