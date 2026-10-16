@@ -7,8 +7,8 @@ module Tarantool
         # Storage::Box behaviour: schema checks, a tuple on every row, transactions, no count, server errors.
         # @api private
         class BoxMode
-          def verify(space, attributes:, primary_key:)
-            space.layout.verify!(attributes:, primary_key:)
+          def verify(attributes:, primary_key:)
+            yield.layout.verify!(attributes:, primary_key:)
           end
 
           def sequences? = true

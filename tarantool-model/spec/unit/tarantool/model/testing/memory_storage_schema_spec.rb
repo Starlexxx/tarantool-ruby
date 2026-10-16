@@ -77,5 +77,10 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
       expect { storage.verify(:nope, attributes: %i[id], primary_key: %i[id]) }
         .to raise_error(Tarantool::SchemaError, "space 'nope' not found")
     end
+
+    it 'does not look the space up when it behaves like Storage::Crud' do
+      expect(build(Schemas::USERS, behaves_like: :crud).verify(:nope, attributes: %i[id], primary_key: %i[id]))
+        .to be_nil
+    end
   end
 end

@@ -13,7 +13,7 @@ module Tarantool
           FLATTEN = 'Failed to flatten object: FlattenError: Object is specified in bad format: FlattenError: ' \
                     'Field "%s" isn\'t nullable (set skip_nullability_check_on_flatten option to true to skip check)'
 
-          def verify(*, **) = nil
+          def verify(**) = nil
 
           def count! = nil
 

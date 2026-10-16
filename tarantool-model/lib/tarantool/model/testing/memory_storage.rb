@@ -22,7 +22,7 @@ module Tarantool
         end
 
         def verify(space, attributes:, primary_key:)
-          perform(space, :get) { |table| @mode.verify(table, attributes:, primary_key:) }
+          @mode.verify(attributes:, primary_key:) { perform(space, :get, &:itself) }
         end
 
         def get(space, key)
