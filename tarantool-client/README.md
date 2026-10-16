@@ -70,7 +70,7 @@ page = client.select(:users, [18], index: :age, iterator: :ge, limit: 50)
 next_page = client.select(:users, [18], index: :age, iterator: :ge, limit: 50, after: page.last)
 ```
 
-`delete_by` deletes every tuple a select finds, including by a non-unique index, which IPROTO `DELETE` can't do. It selects `batch_size` tuples at a time (default 1000), continues past the last one with `after:`, deletes each by primary key, and returns the number deleted. TREE indexes only, like `after:`.
+`delete_by` deletes every tuple a select finds, including by a non-unique index, which IPROTO `DELETE` can't do. It selects `batch_size` tuples at a time (default 1000), continues past the last one with `after:`, deletes each by primary key, and returns the number deleted. TREE indexes only, like `after:`. Multikey and functional indexes are not supported either: tuple-based `after` raises `ServerError` there, before deleting anything.
 
 ```ruby
 client.delete_by(:users, [18], index: :age)                                   # => 42
@@ -239,6 +239,8 @@ bundle exec rspec --tag failover
 ```
 
 Using podman instead of docker: prefix the `bundle exec rspec --tag failover` command above with `CONTAINER_CLI=podman`; the reconnect spec uses it to restart containers (default `docker`).
+
+Don't create multikey indexes on these containers: with `memtx_use_mvcc_engine = true`, inserting into a space with a multikey index segfaults Tarantool 2.11, and 3.x refuses to create the index.
 
 ## Public API
 

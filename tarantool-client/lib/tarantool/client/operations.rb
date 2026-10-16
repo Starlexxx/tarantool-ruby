@@ -60,7 +60,9 @@ module Tarantool
 
       # Deletes every tuple `select(space, key, index:, iterator:)` finds, which IPROTO DELETE can't do on a
       # non-unique index: selects batch_size tuples at a time, continuing past the last one with `after:`, and
-      # deletes each by primary key. Returns the number of tuples deleted. TREE indexes only.
+      # deletes each by primary key. Returns the number of tuples deleted. TREE indexes only. Multikey and
+      # functional indexes are not supported either: tuple-based `after` raises ServerError there, before
+      # deleting anything.
       #
       # Outside a transaction it is not atomic: on failure the tuples deleted so far stay deleted, and the
       # raised Tarantool::Error carries the number confirmed deleted in #deleted (a lower bound). Tuples
