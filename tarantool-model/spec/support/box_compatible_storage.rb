@@ -37,6 +37,14 @@ RSpec.shared_examples 'a box-compatible storage' do
       .to raise_error(Tarantool::SchemaError)
   end
 
+  it 'reads iterator :all with a key on a tree index like :ge' do
+    [[2, 5], [3, 9]].each { |id, age| storage.insert(:users, { id:, email: "u#{id}", age: }) }
+
+    rows = storage.select(:users, index: :age, key: [5], iterator: :all, limit: nil, after: nil)
+
+    expect(rows.map { |row| row.attributes[:id] }).to eq([2, 3])
+  end
+
   it 'raises SchemaMismatchError from verify' do
     expect { storage.verify(:users, attributes: %i[id phone], primary_key: %i[id]) }
       .to raise_error(Tarantool::Model::SchemaMismatchError, /phone/)

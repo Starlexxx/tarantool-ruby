@@ -22,7 +22,7 @@ module Tarantool
           end
 
           def call(tuples, key:, iterator:, after:)
-            match = MATCHES.fetch(iterator) { raise ArgumentError, "unsupported iterator #{iterator.inspect}" }
+            match = matcher(iterator)
             raise Violation.key_part_count(@index.parts.size, key.size) if key.size > @index.parts.size
 
             check_hash!(key, iterator, after)
@@ -33,6 +33,13 @@ module Tarantool
           end
 
           private
+
+          # memtx starts a tree :all at the key, like :ge; a hash :all ignores the key.
+          def matcher(iterator)
+            return MATCHES[:ge] if iterator == :all && @index.type == 'tree'
+
+            MATCHES.fetch(iterator) { raise ArgumentError, "unsupported iterator #{iterator.inspect}" }
+          end
 
           def sign_for(iterator)
             DESCENDING.include?(iterator) ? -1 : 1
