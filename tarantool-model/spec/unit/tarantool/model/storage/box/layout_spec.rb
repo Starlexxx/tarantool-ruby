@@ -11,15 +11,6 @@ RSpec.describe Tarantool::Model::Storage::Box::Layout do
     client::SpaceInfo.new(id: 512, name: 'users', fields:, indexes: { 'primary' => primary })
   end
 
-  it 'builds a tuple in format order, nil for missing attributes' do
-    expect(layout.to_tuple({ age: 3, id: 1 })).to eq([1, nil, 3])
-  end
-
-  it 'builds a row with the raw tuple, nil for fields beyond it' do
-    expect(layout.to_row([1, 'a'])).to eq(Tarantool::Model::Row.new(attributes: { id: 1, email: 'a', age: nil },
-                                                                    tuple: [1, 'a']))
-  end
-
   it 'accepts a model matching the format' do
     expect { layout.verify!(attributes: %i[id age], primary_key: [:id]) }.not_to raise_error
   end

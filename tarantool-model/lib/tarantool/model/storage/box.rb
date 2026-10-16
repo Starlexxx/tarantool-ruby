@@ -4,9 +4,9 @@ module Tarantool
   module Model
     module Storage
       # Storage over a Tarantool::Client or Client::Pool. `read` options go to get and select, `write` options
-      # to insert, update and delete, verbatim. The format comes from the client's schema on every call, so
-      # alter and reconnect are picked up without a cache here. Inside Model.transaction operations, including
-      # space_info, go through the open stream.
+      # to insert, update and delete, verbatim. The client converts tuples by the format of the schema each request
+      # ran against, so alter and reconnect are picked up without a cache here. Inside Model.transaction operations,
+      # including space_info, go through the open stream.
       class Box
         ER_TUPLE_FOUND = 3
         private_constant :ER_TUPLE_FOUND
@@ -22,43 +22,30 @@ module Tarantool
         end
 
         def verify(space, attributes:, primary_key:)
-          layout(space, read).verify!(attributes:, primary_key:)
+          Layout.new(client.space_info(space, **read.slice(:mode, :timeout))).verify!(attributes:, primary_key:)
         end
 
         def get(space, key)
-          layout = layout(space, read)
-          tuple = client.select(space, key, limit: 1, **read).first
-
-          tuple && layout.to_row(tuple)
+          row(client.select(space, key, limit: 1, as: :row, **read).first)
         end
 
         def insert(space, attributes)
-          layout = layout(space, write)
-          tuple = unique { client.insert(space, layout.to_tuple(attributes), **write) }
-
-          layout.to_row(tuple)
+          row(unique { client.insert(space, attributes, as: :row, **write) })
         end
 
         def update(space, key, operations)
-          layout = layout(space, write)
-          tuple = unique { client.update(space, key, operations, **write) }
-
-          tuple && layout.to_row(tuple)
+          row(unique { client.update(space, key, operations, as: :row, **write) })
         end
 
         def delete(space, key)
-          layout = layout(space, write)
-          tuple = client.delete(space, key, **write)
-
-          tuple && layout.to_row(tuple)
+          row(client.delete(space, key, as: :row, **write))
         end
 
         def select(space, index:, key:, iterator:, limit:, after:)
-          layout = layout(space, read)
-          options = { index: index || 0, iterator:, after:, **read }
+          options = { index: index || 0, iterator:, after:, as: :row, **read }
           options[:limit] = limit if limit
 
-          client.select(space, key, **options).map { |tuple| layout.to_row(tuple) }
+          client.select(space, key, **options).map { |found| row(found) }
         end
 
         # IPROTO has no count request, and calling box.space.X.index.Y:count needs execute grants
@@ -91,8 +78,8 @@ module Tarantool
           Transactions.handle(self) ? options.except(:mode) : options
         end
 
-        def layout(space, options)
-          Layout.new(client.space_info(space, **options.slice(:mode, :timeout)))
+        def row(found)
+          found && Row.new(attributes: found.attributes, tuple: found.tuple)
         end
 
         def unique
