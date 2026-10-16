@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+SEMVER = /\A\d+\.\d+\.\d+\z/
+
 RSpec.describe Tarantool::Model do
   let(:base) do
     Class.new do
@@ -12,7 +14,7 @@ RSpec.describe Tarantool::Model do
   before { stub_const('User', Class.new(base)) }
 
   it 'has a version' do
-    expect(Tarantool::Model::VERSION).to eq('0.1.0')
+    expect(Tarantool::Model::VERSION).to match(SEMVER)
   end
 
   describe '.space_name' do
