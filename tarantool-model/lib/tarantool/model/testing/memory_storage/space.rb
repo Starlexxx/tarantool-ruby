@@ -15,8 +15,7 @@ module Tarantool
             @layout = Storage::Box::Layout.new(info)
             @mapping = TupleMapping.new(info)
             @primary = info.primary_index
-            @sequence_fieldno = sequence && @primary.parts.first.fieldno
-            @counter = 0
+            @sequence = Sequence.new(@primary.parts.first.fieldno) if sequence
             @required = required_fieldnos
             @rows = {}
           end
@@ -30,7 +29,7 @@ module Tarantool
 
           def insert(tuple)
             tuple = copy(tuple)
-            advance_sequence(tuple)
+            @sequence&.fill(tuple)
 
             store(tuple, replacing: nil)
           end
@@ -110,17 +109,6 @@ module Tarantool
           def duplicate_key_message(index, old, tuple)
             "Duplicate key exists in unique index \"#{index.name}\" in space \"#{@info.name}\" with old tuple - " \
               "#{old.inspect} and new tuple - #{tuple.inspect}"
-          end
-
-          def advance_sequence(tuple)
-            return unless @sequence_fieldno
-
-            value = tuple[@sequence_fieldno]
-            if value.nil?
-              tuple[@sequence_fieldno] = @counter += 1
-            elsif value.is_a?(Integer)
-              @counter = [@counter, value].max
-            end
           end
 
           def required_fieldnos
