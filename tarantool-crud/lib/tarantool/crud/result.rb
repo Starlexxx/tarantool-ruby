@@ -8,6 +8,7 @@ module Tarantool
 
       attr_reader :metadata, :tuples
 
+      # @api private
       def self.from_crud(response, **)
         response ||= {}
 
@@ -15,6 +16,7 @@ module Tarantool
             tuples: response.fetch('rows', []), **)
       end
 
+      # @api private
       def initialize(metadata:, tuples:)
         @metadata = metadata
         @tuples = tuples

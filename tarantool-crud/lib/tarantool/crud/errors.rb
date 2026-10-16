@@ -6,6 +6,7 @@ module Tarantool
     class Error < Tarantool::Error
       attr_reader :class_name, :str, :file, :line, :operation_data
 
+      # @api private
       def self.from(error)
         CLASSES.fetch(error['class_name'], Error).new(
           error['err'],
@@ -75,6 +76,7 @@ module Tarantool
         'ReplaceManyError' => ReplaceManyError,
         'UpsertManyError' => UpsertManyError
       }.freeze
+      private_constant :CLASSES
     end
   end
 end

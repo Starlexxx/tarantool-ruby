@@ -9,6 +9,7 @@ module Tarantool
       included do
         class_attribute :storage, instance_accessor: false
         class_attribute :primary_key, instance_accessor: false, default: :id
+        # @api private
         class_attribute :_space_name, instance_accessor: false
       end
 
@@ -26,6 +27,7 @@ module Tarantool
         end
 
         # The schema check runs once per class and storage, before the first operation.
+        # @api private
         def verified_storage
           current = storage
           raise Error, "#{name}.storage is not set" unless current
@@ -36,6 +38,7 @@ module Tarantool
           @verified_storage = current
         end
 
+        # @api private
         def writing_storage
           verified_storage.tap { |s| Transactions.check_write!(s) }
         end

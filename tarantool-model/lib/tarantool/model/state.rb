@@ -8,6 +8,7 @@ module Tarantool
       extend ActiveSupport::Concern
 
       class_methods do
+        # @api private
         def instantiate(row)
           new.tap { |record| record.send(:init_with_row, row) }
         end
