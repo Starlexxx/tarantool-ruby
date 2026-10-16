@@ -58,12 +58,8 @@ module Tarantool
         host.include?(':') ? "[#{host}]:#{port}" : "#{host}:#{port}"
       end
 
-      def to_h
-        super.merge(password: password && '[FILTERED]')
-      end
-
       def inspect
-        fields = to_h.map { |k, v| "#{k}=#{v.inspect}" }.join(', ')
+        fields = to_h.merge(password: password && '[FILTERED]').map { |k, v| "#{k}=#{v.inspect}" }.join(', ')
 
         "#<data #{self.class.name} #{fields}>"
       end

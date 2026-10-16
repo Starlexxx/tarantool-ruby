@@ -43,7 +43,7 @@ URIs: `tcp://user:password@host:port`, `host:port`, `unix:/path/to/socket`. Keyw
 | `reconnect_max_delay` | `5` | cap of the backoff delay |
 | `max_frame_size` | `67108864` (64 MB) | maximum allowed response frame size in bytes; larger frames raise `ProtocolError` and break the connection |
 
-Tarantool Community Edition has no TLS support. Authentication uses chap-sha1; the password is never sent in clear. `client.inspect` and `Configuration#to_h` replace the password with `[FILTERED]`.
+Tarantool Community Edition has no TLS support. Authentication uses chap-sha1; the password is never sent in clear. `client.inspect` leaves the password out, and `Configuration#inspect`, `#to_s` and `pp` replace it with `[FILTERED]`. `Configuration#to_h` keeps it, so `Tarantool::Client.new(**client.config.to_h)` connects with the same credentials; don't log it.
 
 ## Data
 
