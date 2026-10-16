@@ -19,9 +19,6 @@ RSpec/ExampleLength:
 RSpec/MultipleExpectations:
   Max: 3
 
-RSpec/SpecFilePathFormat:
-  IgnoreMethods: true
-
 Naming/PredicateMethod:
   AllowedMethods:
     - call
