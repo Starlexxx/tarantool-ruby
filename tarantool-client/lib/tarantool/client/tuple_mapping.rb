@@ -7,6 +7,7 @@ module Tarantool
     module TupleMapping
       # A position this far past the format would otherwise let a huge Integer key allocate a giant Array.
       MAX_POSITIONS_BEYOND_FORMAT = 1024
+
       def to_hash(tuple)
         hash = fields.each_with_index.to_h { |field, position| [field.name.to_sym, tuple[position]] }
         (fields.size...tuple.size).each { |position| hash[position] = tuple[position] }
@@ -37,8 +38,7 @@ module Tarantool
         end
       end
 
-      # Symbol and String keys for the same field share one position; either both or just one of them given twice
-      # would otherwise overwrite silently.
+      # `:a` and 'a' name the same field; the later one would otherwise win silently.
       def check_not_duplicate(key, position, named_positions)
         return unless key.is_a?(Symbol) || key.is_a?(String)
         raise ArgumentError, "space #{name} field '#{fields[position].name}' given twice" if named_positions[position]
