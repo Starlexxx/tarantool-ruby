@@ -19,6 +19,7 @@ class FakeClient
     return [@live[arguments.first]] if expression == Tarantool::Schema::Inspector::LUA
 
     @on_create&.call(self)
+
     []
   end
 
