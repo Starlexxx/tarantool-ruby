@@ -43,8 +43,11 @@ module Tarantool
       end
 
       # Every match of the index condition: limit and after are ignored.
-      def count
-        @model.verified_storage.count(@model.space_name, **@options.slice(*QUERY))
+      # With a block or argument, delegates to Enumerable#count (enumerates).
+      def count(*args, &block)
+        return @model.verified_storage.count(@model.space_name, **@options.slice(*QUERY)) if args.empty? && !block
+
+        super
       end
 
       def find_each(batch_size: 1000, &block)

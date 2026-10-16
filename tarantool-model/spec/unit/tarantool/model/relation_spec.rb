@@ -52,6 +52,18 @@ RSpec.describe Tarantool::Model::Relation do
     expect(User.where(index: :age, key: 20, iterator: :ge).limit(1).count).to eq(5)
   end
 
+  it 'enumerates with a block instead of counting in storage' do
+    expect(User.all.count { |user| user.age > 20 }).to eq(3)
+  end
+
+  it 'enumerates with an argument instead of counting in storage' do
+    allow(storage).to receive(:count).and_call_original
+
+    User.all.count(User.new)
+
+    expect(storage).not_to have_received(:count)
+  end
+
   it 'walks every record in batches with find_each' do
     allow(storage).to receive(:select).and_call_original
 
