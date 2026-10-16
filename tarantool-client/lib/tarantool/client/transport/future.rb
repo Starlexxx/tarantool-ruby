@@ -9,8 +9,12 @@ module Tarantool
         Push = Data.define(:message)
         private_constant :Push
 
+        MAX_UNREAD_PUSHES = 10_000
+        private_constant :MAX_UNREAD_PUSHES
+
         def initialize
           @queue = Thread::Queue.new
+          @overflow = false
         end
 
         def resolve(value)
@@ -22,6 +26,14 @@ module Tarantool
         end
 
         def push(message)
+          return if @overflow
+
+          if @queue.size >= MAX_UNREAD_PUSHES
+            @overflow = true
+            @queue.push(ProtocolError.new('too many unread push messages'))
+            return
+          end
+
           @queue.push(Push.new(message))
         end
 

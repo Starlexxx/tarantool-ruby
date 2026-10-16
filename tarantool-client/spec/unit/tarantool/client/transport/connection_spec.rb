@@ -246,6 +246,15 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       end
     end
 
+    context 'when the server sends a frame that exceeds max_frame_size' do
+      let(:config) { Tarantool::Client::Configuration.build(server.uri, user: 'app', password: 'secret', max_frame_size: 50) }
+      let(:handler) { ->(_request, fake) { fake.send_raw([0xce, 100].pack('CN')) } }
+
+      it 'raises ConnectionError' do
+        expect { connection.perform(eval_request('x'), timeout: 1) }.to raise_error(Tarantool::ConnectionError, /lost/)
+      end
+    end
+
     context 'when the server stops reading' do
       let(:handler) { ->(_request, _fake) { sleep } }
 

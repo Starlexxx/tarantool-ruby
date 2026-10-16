@@ -38,6 +38,7 @@ URIs: `tcp://user:password@host:port`, `host:port`, `unix:/path/to/socket`. Keyw
 | `reconnect_attempts` | `Float::INFINITY` | failed attempts before the client gives up |
 | `reconnect_delay` | `0.1` | base delay of the exponential backoff |
 | `reconnect_max_delay` | `5` | cap of the backoff delay |
+| `max_frame_size` | `67108864` (64 MB) | maximum allowed response frame size in bytes; larger frames raise `ProtocolError` and break the connection |
 
 ## Data
 

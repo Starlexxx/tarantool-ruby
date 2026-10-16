@@ -58,6 +58,13 @@ RSpec.describe Tarantool::Client::Protocol::Codec do
 
       expect { described_class.read_response(io) }.to raise_error(Tarantool::ProtocolError)
     end
+
+    it 'raises ProtocolError when the declared frame size exceeds max_frame_size' do
+      io = StringIO.new([0xce, 100].pack('CN'))
+
+      expect { described_class.read_response(io, max_frame_size: 50) }
+        .to raise_error(Tarantool::ProtocolError, 'frame of 100 bytes exceeds max_frame_size 50')
+    end
   end
 
   describe '.decode' do

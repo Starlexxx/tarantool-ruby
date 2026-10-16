@@ -12,3 +12,5 @@ First release.
 - `Pool` with `:rw`, `:ro`, `:prefer_ro`, `:prefer_rw` and `:any` modes driven by `box.status`.
 - `space_info`: space format and index parts from the schema cache.
 - `select(after:)` keyset pagination.
+- `max_frame_size` configuration option (default 64 MB) caps response frame size; frames exceeding it raise `ProtocolError` and break the connection.
+- Per-request unread push messages capped at 10 000; exceeding the cap fails the request with `ProtocolError` without breaking the connection.

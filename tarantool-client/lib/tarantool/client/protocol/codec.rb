@@ -22,9 +22,13 @@ module Tarantool
           [SIZE_MARKER, payload.bytesize].pack('CN') + payload
         end
 
-        def read_response(io)
+        def read_response(io, max_frame_size: nil)
           marker, size = read_exactly(io, PREFIX_SIZE).unpack('CN')
           raise ProtocolError, format('unexpected frame size marker 0x%02x', marker) unless marker == SIZE_MARKER
+
+          if max_frame_size && size > max_frame_size
+            raise ProtocolError, "frame of #{size} bytes exceeds max_frame_size #{max_frame_size}"
+          end
 
           decode(read_exactly(io, size))
         end

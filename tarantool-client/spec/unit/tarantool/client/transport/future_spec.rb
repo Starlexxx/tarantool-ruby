@@ -43,6 +43,26 @@ RSpec.describe Tarantool::Client::Transport::Future do
     expect(future.value(1)).to eq(:done)
   end
 
+  it 'raises ProtocolError when the unread push queue hits the cap' do
+    10_000.times { future.push(:tick) }
+    future.push(:overflow)
+
+    messages = []
+    expect { future.value(1) { |m| messages << m } }
+      .to raise_error(Tarantool::ProtocolError, 'too many unread push messages')
+    expect(messages.size).to eq(10_000)
+  end
+
+  it 'drops further pushes after the cap is hit' do
+    10_000.times { future.push(:tick) }
+    future.push(:overflow)
+    future.push(:dropped)
+
+    messages = []
+    expect { future.value(1) { |m| messages << m } }.to raise_error(Tarantool::ProtocolError)
+    expect(messages.size).to eq(10_000)
+  end
+
   it 'counts pushes against one timeout' do
     Thread.new do
       10.times do

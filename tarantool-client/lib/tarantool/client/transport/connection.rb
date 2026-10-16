@@ -94,7 +94,7 @@ module Tarantool
         end
 
         def read_loop
-          loop { route(Protocol::Codec.read_response(@socket)) }
+          loop { route(Protocol::Codec.read_response(@socket, max_frame_size: @config.max_frame_size)) }
         rescue IOError, SystemCallError, ProtocolError => e
           reason = e.message
         rescue StandardError => e

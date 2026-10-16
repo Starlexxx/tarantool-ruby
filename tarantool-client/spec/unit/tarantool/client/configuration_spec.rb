@@ -16,6 +16,14 @@ RSpec.describe Tarantool::Client::Configuration do
       )
     end
 
+    it 'defaults max_frame_size to 64 MB' do
+      expect(described_class.build.max_frame_size).to eq(64 * 1024 * 1024)
+    end
+
+    it 'accepts a custom max_frame_size' do
+      expect(described_class.build(max_frame_size: 1024).max_frame_size).to eq(1024)
+    end
+
     it 'takes reconnect options' do
       expect(described_class.build(reconnect: false, reconnect_attempts: 3)).to have_attributes(
         reconnect: false, reconnect_attempts: 3
