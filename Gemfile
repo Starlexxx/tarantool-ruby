@@ -4,6 +4,7 @@ source 'https://rubygems.org'
 
 gemspec path: 'tarantool-client'
 gemspec path: 'tarantool-crud'
+gemspec path: 'tarantool-model'
 
 gem 'rake', '~> 13.0'
 gem 'rspec', '~> 3.13'

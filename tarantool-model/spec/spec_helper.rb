@@ -1,0 +1,11 @@
+# frozen_string_literal: true
+
+require 'tarantool/model'
+
+Dir[File.join(__dir__, 'support', '*.rb')].each { |file| require file }
+
+RSpec.configure do |config|
+  config.disable_monkey_patching!
+  config.order = :random
+  config.filter_run_excluding :integration unless ENV['INTEGRATION']
+end
