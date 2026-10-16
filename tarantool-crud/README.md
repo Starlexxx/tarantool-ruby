@@ -5,6 +5,8 @@ clusters, built on [tarantool-client](../tarantool-client).
 
 ## Installation
 
+Requirements: Ruby >= 3.2, Tarantool 2.11+ or 3.x, tarantool/crud module installed on routers (tested with 1.8.0).
+
 ```ruby
 gem 'tarantool-crud'
 ```
@@ -30,8 +32,8 @@ users.upsert({ id: 1, email: 'a@b.c', age: 20 }, [['+', 'age', 1]])
 users.delete(1)
 
 page = users.select({ age: 18.. }, first: 50)        # Result
-users.select({ age: 18.. }, first: 50, after: page.last)
-users.each({ age: 18.. }, batch_size: 500) { |row| } # Enumerator without a block
+users.select({ age: 18.. }, first: 50, after: page.last)  # after: accepts a Hash row or a tuple Array
+users.each({ age: 18.. }, batch_size: 500) { |row| } # Enumerator without a block; batch_size is the page size of underlying selects
 users.count({ age: 18...65 })
 users.min(:age_index)
 users.len
@@ -40,6 +42,12 @@ users.truncate
 result = users.insert_many(rows)                     # ManyResult, never raises crud errors
 result.errors                                        # [Tarantool::Crud::CallError, ...] with #operation_data
 users.insert_many!(rows)                             # raises Tarantool::Crud::ManyError
+
+pairs = [
+  [{ id: 1, email: 'a@b.c', age: 20 }, [['+', 'age', 1]]],
+  [{ id: 2, email: 'b@c.d', age: 25 }, [['+', 'age', 1]]],
+]
+users.upsert_many(pairs)                             # each element is [tuple, operations]
 
 crud.storage_info
 crud.stats(:users)
@@ -80,9 +88,11 @@ other operations. crud rejects options a function does not know, so a default is
 it: `prefer_replica`/`balance` skip `min`/`max`, and `truncate` gets only `timeout`/`vshard_router`. Options given
 to a call are never filtered. Use Symbol keys.
 
+The `mode:` option here is the crud/vshard router option (`'read'` or `'write'` strings), not the `Pool` routing mode (which uses symbols like `:prefer_ro`).
+
 ## Errors
 
-`Tarantool::Crud::Error` (`class_name`, `str`, `file`, `line`, `operation_data`) and its subclasses `InsertError`,
+`Tarantool::Crud::Error` has `message` (the crud error message), `str` (crud's `tostring` of the full error, e.g. `"InsertError: ..."`), `class_name`, `file`, `line`, and `operation_data`. Subclasses: `InsertError`,
 `ReplaceError`, `UpsertError`, `GetError`, `UpdateError`, `DeleteError`, `SelectError`, `CountError`, `MinMaxError`,
 `LenError`, `TruncateError`, `CallError`, `InsertManyError`, `ReplaceManyError`, `UpsertManyError`.
 `Tarantool::Crud::ManyError` is a separate `Tarantool::Error` subclass raised by the `*_many!` bang variants; it
