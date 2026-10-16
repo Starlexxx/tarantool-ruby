@@ -11,6 +11,13 @@ RSpec.describe Tarantool::Model::Storage::Crud do
                                 tuples: [[1, 7, 'a', 3], [2, 9, 'b', 3]])
   end
 
+  it 'raises a clear error when tarantool-crud is not loaded' do
+    hide_const('Tarantool::Crud')
+
+    expect { described_class.new(Object.new) }
+      .to raise_error(Tarantool::Model::Error, "tarantool-crud is not loaded; require 'tarantool/crud'")
+  end
+
   it 'returns nil rows without a tuple for get, update, and nil-returning delete' do
     allow(users).to receive_messages(get: row, insert: row, update: nil, delete: row)
 

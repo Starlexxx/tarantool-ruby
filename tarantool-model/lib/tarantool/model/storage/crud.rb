@@ -11,7 +11,10 @@ module Tarantool
         OPERATORS = { eq: '==', ge: '>=', gt: '>', le: '<=', lt: '<' }.freeze
         DUPLICATE_KEY = /Duplicate key exists/
 
+        # tarantool-model doesn't depend on tarantool-crud, yet rescues its errors.
         def initialize(crud, primary_index: :primary)
+          raise Error, "tarantool-crud is not loaded; require 'tarantool/crud'" unless defined?(Tarantool::Crud)
+
           @crud = crud
           @primary_index = primary_index
         end
