@@ -26,6 +26,8 @@ module Tarantool
           level = LogLines.level(name)
 
           @logger.public_send(level) { LogLines.line(name, payload, duration) } if level
+        rescue StandardError => e
+          Kernel.warn("tarantool logger failed: #{e.class}: #{e.message}")
         end
       end
     end

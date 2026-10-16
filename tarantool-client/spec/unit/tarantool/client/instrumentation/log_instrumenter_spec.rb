@@ -64,4 +64,18 @@ RSpec.describe Tarantool::Client::Instrumentation::LogInstrumenter do
 
     expect(output.string).to be_empty
   end
+
+  it 'returns the block value and keeps the original error when the logger raises' do
+    broken = instance_double(Logger)
+    allow(broken).to receive(:debug).and_raise(IOError, 'closed stream')
+    broken_instrumenter = described_class.new(broken, nil)
+
+    expect(broken_instrumenter.instrument('request.tarantool', { request: :ping, address: 'db:3301' }) { :pong })
+      .to eq(:pong)
+
+    error = Tarantool::ConnectionError.new('down')
+    expect do
+      broken_instrumenter.instrument('request.tarantool', { request: :ping, address: 'db:3301' }) { raise error }
+    end.to raise_error(error)
+  end
 end
