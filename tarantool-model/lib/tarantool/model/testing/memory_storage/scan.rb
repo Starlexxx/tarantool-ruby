@@ -25,7 +25,7 @@ module Tarantool
             match = MATCHES.fetch(iterator) { raise ArgumentError, "unsupported iterator #{iterator.inspect}" }
             raise Violation.key_part_count(@index.parts.size, key.size) if key.size > @index.parts.size
 
-            check_hash!(iterator, after)
+            check_hash!(key, iterator, after)
             sign = sign_for(iterator)
             found = matching(sorted(tuples, sign), key, match)
 
@@ -58,10 +58,15 @@ module Tarantool
             (@index.parts + @primary.parts).map { |part| tuple[part.fieldno] }
           end
 
-          def check_hash!(iterator, after)
+          def check_hash!(key, iterator, after)
             return unless @index.type == 'hash'
+            raise Violation.partial_hash_key(@index.parts.size, key.size) if partial?(key)
             raise Violation.iterator(@index.name, @space_info.name) unless HASH_ITERATORS.include?(iterator)
             raise Violation.pagination(@index.name, @space_info.name) if after
+          end
+
+          def partial?(key)
+            !key.empty? && key.size != @index.parts.size
           end
         end
       end

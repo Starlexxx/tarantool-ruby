@@ -36,6 +36,11 @@ module Tarantool
             new("Invalid key part count in an exact match (expected #{expected}, got #{got})", code: 19)
           end
 
+          def self.partial_hash_key(expected, got)
+            new("HASH index  does not support selects via a partial key (expected #{expected} parts, got #{got}). " \
+                'Please Consider changing index type to TREE.', code: 136)
+          end
+
           def self.iterator(index, space)
             new("Index '#{index}' (HASH) of space '#{space}' (memtx) does not support requested iterator type",
                 code: 112)

@@ -291,6 +291,19 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
         .to raise_error(server_error(112).and(having_attributes(message: /pagination/)))
     end
 
+    it 'raises ServerError 136 for a partial key on a multi-part hash index' do
+      memory = described_class.new(
+        pairs: { format: [{ name: :id, type: :unsigned }, { name: :a, type: :unsigned }, { name: :b, type: :unsigned }],
+                 indexes: [{ name: :primary, parts: %i[id] }, { name: :ab, parts: %i[a b], type: :hash }] }
+      )
+      message = 'HASH index  does not support selects via a partial key (expected 2 parts, got 1). ' \
+                'Please Consider changing index type to TREE.'
+
+      expect { scan(memory, :pairs, index: :ab, key: [1], iterator: :gt) }
+        .to raise_error(server_error(136).and(having_attributes(message:)))
+      expect(scan(memory, :pairs, index: :ab, key: [1, 2], iterator: :eq)).to eq([])
+    end
+
     it 'takes an index by id, and raises SchemaError for an unknown index' do
       storage.insert(:users, { id: 1, email: 'a', age: 1 })
 
