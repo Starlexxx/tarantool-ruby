@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require 'tarantool/client'
+require 'logger'
+require 'stringio'
 
 require_relative 'support/iproto_helpers'
 require_relative 'support/wait_helpers'
