@@ -2,7 +2,11 @@
 
 module Tarantool
   # Base class for every error raised by tarantool-ruby gems.
-  class Error < StandardError; end
+  class Error < StandardError
+    # Rows delete_by removed before it failed; nil for errors raised by any other operation.
+    # Writer is @api private, for BatchDelete only.
+    attr_accessor :deleted
+  end
 
   # Socket-level failure: refused, lost or broken connection.
   class ConnectionError < Error; end
