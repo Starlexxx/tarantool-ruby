@@ -2,6 +2,8 @@
 
 ## 0.1.0 (unreleased)
 
+First release.
+
 - `Tarantool::Model` mixin on ActiveModel: attributes, validations, callbacks, dirty tracking, JSON.
 - `Types::UUID`, `Types::Interval`, `Types::Binary`.
 - `Storage::Box` over `Tarantool::Client` and `Pool` with read/write options.
