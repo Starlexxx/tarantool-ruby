@@ -120,3 +120,25 @@ jobs:
         working-directory: tarantool-model
         env:
           TARANTOOL_MODEL_CRUD_URI: tcp://app:secret@localhost:${{ matrix.tarantool.port }}
+
+  schema:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ['3.2', '3.3', '3.4']
+        tarantool:
+          - { service: tarantool-2.11, port: 3301 }
+          - { service: tarantool-3, port: 3302 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - run: docker compose -f tarantool-client/docker-compose.yml up -d --wait ${{ matrix.tarantool.service }}
+      - run: bundle exec rspec
+        working-directory: tarantool-schema
+        env:
+          INTEGRATION: '1'
+          TARANTOOL_URI: tcp://app:secret@localhost:${{ matrix.tarantool.port }}
