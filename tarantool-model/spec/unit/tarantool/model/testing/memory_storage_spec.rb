@@ -181,6 +181,7 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
   end
 
   it_behaves_like 'a model storage', count: false
+  it_behaves_like 'a box-compatible storage'
 
   describe 'reads' do
     def ids(rows) = rows.map { |row| row.attributes[:id] }
@@ -317,6 +318,14 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
     def user(id, age = 1) = crud.insert(:users, { id:, email: "u#{id}", age: })
 
     def ids(rows) = rows.map { |row| row.attributes[:id] }
+
+    it_behaves_like 'a model storage' do
+      let(:storage) { described_class.new({ users: Schemas::USERS }, behaves_like: :crud) }
+    end
+
+    it_behaves_like 'a crud-compatible storage' do
+      let(:storage) { crud }
+    end
 
     it 'skips verify, counts, and refuses transactions' do
       user(1)
