@@ -18,14 +18,22 @@ RSpec.describe Tarantool::Schema::Definition, :integration do
       LUA
     end
 
-    before { admin.eval(grant_lua, %w[schema_deployer schema_pw]) }
-
-    after do
-      admin.eval(<<~LUA)
+    let(:cleanup_lua) do
+      <<~LUA
         if box.space.schema_codes then box.space.schema_codes:drop() end
         if box.sequence.schema_codes_seq then box.sequence.schema_codes_seq:drop() end
-        box.schema.user.drop('schema_deployer')
+        if box.schema.user.exists('schema_deployer') then box.schema.user.drop('schema_deployer') end
       LUA
+    end
+
+    before do
+      admin.eval(cleanup_lua)
+      admin.eval(grant_lua, %w[schema_deployer schema_pw])
+    end
+
+    after do
+      admin.eval(cleanup_lua)
+    ensure
       admin.close
     end
 
