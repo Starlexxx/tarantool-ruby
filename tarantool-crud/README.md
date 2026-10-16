@@ -58,6 +58,10 @@ Any object responding to `call(function, arguments, timeout:)` can serve as the 
 
 Write Hash tuples and Hash conditions with braces. Bare `key: value` arguments are crud options.
 
+Requests go through the `Tarantool::Client` you pass in, so its `instrumenter:` and `logger:` see every crud call
+as `request.tarantool` with `request: :call` and `function: 'crud.select'` (or the other crud function), without
+arguments.
+
 ## Results
 
 `select` returns a `Result`: Enumerable of Hash rows (Symbol keys, taken from crud's metadata), plus `tuples`

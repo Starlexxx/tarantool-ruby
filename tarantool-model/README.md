@@ -105,6 +105,9 @@ Callbacks: `before_validation`, `after_validation`, `before_save`, `around_save`
 `before_create`, `around_create`, `after_create`, `before_update`, `around_update`, `after_update`,
 `before_destroy`, `around_destroy`, `after_destroy`.
 
+Models talk to Tarantool through the client given to their storage, so the client's `instrumenter:` and
+`logger:` report every read and write; see the tarantool-client README.
+
 ### Counters
 
 ```ruby
