@@ -71,6 +71,65 @@ RSpec.describe Tarantool::Client::Pool do
     end
   end
 
+  context 'with two writable members for delete_by' do
+    let(:vtables) do
+      {
+        281 => [[512, 1, 'users', 'memtx', 0, {},
+                 [{ 'name' => 'id', 'type' => 'unsigned' }, { 'name' => 'age', 'type' => 'unsigned' }]]],
+        289 => [[512, 0, 'primary', 'tree', { 'unique' => true }, [[0, 'unsigned']]],
+                [512, 1, 'age', 'tree', { 'unique' => false }, [[1, 'unsigned']]]]
+      }
+    end
+    let(:records) { Hash.new { |hash, key| hash[key] = [] } }
+    let(:servers) { Array.new(2) { delete_by_server(vtables, records) } }
+    let(:pool) { described_class.new(servers.map(&:uri), reconnect_delay: 0.01) }
+    let(:members) { [] }
+
+    before do
+      allow(Tarantool::Client::Pool::Member).to receive(:new).and_wrap_original do |original, *args|
+        original.call(*args).tap { |member| members << member }
+      end
+    end
+
+    after do
+      pool.close
+      servers.each(&:stop)
+    end
+
+    def delete_by_server(vtables, records)
+      announced = {}
+
+      FakeTarantool.new do |request, fake|
+        next announce(fake, announced, false) if request.type == 0x4a
+
+        reply_to(request, fake, vtables, records)
+      end
+    end
+
+    def reply_to(request, fake, vtables, records)
+      space_id = request.body[0x10]
+      return fake.reply(request, vtables[space_id]) if vtables.key?(space_id)
+      return fake.reply(request, []) unless space_id == 512
+
+      records[fake] << request.type
+      fake.reply(request, [[1, 18]])
+    end
+
+    it 'keeps every select and delete of one delete_by call on a single member' do
+      pool
+      wait_for { members.size == 2 && members.all? { |member| !member.read_only.nil? } }
+
+      2.times do
+        before_lengths = servers.to_h { |server| [server, records[server].length] }
+
+        expect(pool.delete_by(:users, [18], index: :age)).to eq(1)
+
+        gained = servers.map { |server| records[server][before_lengths[server]..] }
+        expect(gained).to contain_exactly([0x01, 0x05], [])
+      end
+    end
+  end
+
   describe 'routing' do
     let(:roles) { { 'rw' => false, 'ro1' => true, 'ro2' => true } }
     let(:servers) { roles.keys.to_h { |name| [name, status_server(name, roles)] } }

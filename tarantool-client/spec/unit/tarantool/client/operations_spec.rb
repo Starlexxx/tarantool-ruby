@@ -94,6 +94,21 @@ RSpec.describe Tarantool::Client::Operations do
     expect(last_request).to eq(requests::Delete.new(space_id: 512, index_id: 1, key: ['a@b.c']))
   end
 
+  it 'deletes by any index through BatchDelete' do
+    batch_delete = instance_double(Tarantool::Client::BatchDelete, call: 3)
+    allow(Tarantool::Client::BatchDelete).to receive(:new).and_return(batch_delete)
+
+    expect(target.delete_by(:users, 18, index: :age)).to eq(3)
+    expect(Tarantool::Client::BatchDelete).to have_received(:new)
+      .with(target, :users, 18, index: :age, iterator: :eq, batch_size: 1000, timeout: nil)
+  end
+
+  it 'offers delete_by on Client, Stream and Pool' do
+    [Tarantool::Client, Tarantool::Client::Stream, Tarantool::Client::Pool].each do |klass|
+      expect(klass.public_method_defined?(:delete_by)).to be(true)
+    end
+  end
+
   it 'returns nil for upsert' do
     expect(target.upsert(:users, [1, 'a@b.c'], [['+', 2, 1]])).to be_nil
     expect(last_request).to eq(requests::Upsert.new(space_id: 512, tuple: [1, 'a@b.c'], operations: [['+', 2, 1]]))

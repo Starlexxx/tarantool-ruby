@@ -7,6 +7,7 @@
 - The format comes from the schema the request runs against; a schema change makes the server reject the request and the retry rebuilds it by the new format. A numeric space id unknown to the cache costs one reload too, like a name.
 - A Hash key unknown to the cached format costs one schema reload; a field still missing after it raises `UnknownFieldError` (an `ArgumentError`). Inside a transaction there is no reload.
 - An unknown numeric space id paired with a named index now raises `SchemaError` with "space 'N' not found" instead of "index '...' not found in space N".
+- `delete_by`: delete every tuple matching a key on any TREE index, including non-unique ones, in keyset batches; not atomic outside a transaction, the error carries `#deleted`.
 
 ## 0.1.0 (unreleased)
 

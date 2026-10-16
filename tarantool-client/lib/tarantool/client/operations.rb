@@ -58,6 +58,21 @@ module Tarantool
         end.first
       end
 
+      # Deletes every tuple `select(space, key, index:, iterator:)` finds, which IPROTO DELETE can't do on a
+      # non-unique index: selects batch_size tuples at a time, continuing past the last one with `after:`, and
+      # deletes each by primary key. Returns the number of tuples deleted. TREE indexes only. Multikey and
+      # functional indexes are not supported either: tuple-based `after` raises ServerError there, before
+      # deleting anything.
+      #
+      # Outside a transaction it is not atomic: on failure the tuples deleted so far stay deleted, and the
+      # raised Tarantool::Error carries the number confirmed deleted in #deleted (a lower bound). Tuples
+      # inserted meanwhile behind the cursor are not deleted. Inside `transaction { |tx| tx.delete_by(...) }`
+      # it is atomic (memtx needs memtx_use_mvcc_engine). `timeout:` bounds the whole operation; nil gives
+      # each request request_timeout.
+      def delete_by(space, key, index:, iterator: :eq, batch_size: 1000, timeout: nil)
+        BatchDelete.new(self, space, key, index:, iterator:, batch_size:, timeout:).call
+      end
+
       # on_push runs in the calling thread for each box.session.push message; an exception
       # raised by it abandons the call.
       def call(function_name, arguments = [], timeout: nil, on_push: nil)
