@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Requests
         # IPROTO_PREPARE: prepare SQL text, or deallocate a prepared statement given its id.
+        # @api private
         Prepare = Data.define(:statement) do
           def type = Constants::PREPARE
           def body = { (statement.is_a?(Integer) ? Constants::STMT_ID : Constants::SQL_TEXT) => statement }

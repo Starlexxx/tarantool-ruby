@@ -4,6 +4,7 @@ module Tarantool
   class Client
     # Latest known schema, installed by #replace for each new connection. Concurrent reloads of the same
     # stale schema collapse into one fetch.
+    # @api private
     class SchemaCache
       attr_reader :schema
 

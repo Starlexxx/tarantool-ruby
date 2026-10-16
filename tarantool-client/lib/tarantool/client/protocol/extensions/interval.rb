@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Extensions
         # MP_EXT interval: uint8 count, then (uint8 field id, msgpack int) pairs for non-zero values.
+        # @api private
         module Interval
           FIELD_NAMES = %i[year month week day hour min sec nsec adjust].freeze
           FIELDS = FIELD_NAMES.each_with_index.to_h { |name, id| [id, name] }.freeze

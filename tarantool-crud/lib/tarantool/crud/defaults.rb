@@ -4,6 +4,7 @@ module Tarantool
   module Crud
     # Client-wide read and write options. crud rejects options a function does not know, so defaults are
     # narrowed to what each function accepts (crud 1.8.0); options given to a call are sent as is.
+    # @api private
     class Defaults
       READ_FUNCTIONS = %w[get select count min max len storage_info].freeze
 

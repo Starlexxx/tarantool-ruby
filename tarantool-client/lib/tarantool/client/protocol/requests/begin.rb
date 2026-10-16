@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Requests
         # IPROTO_BEGIN: open a transaction in a stream. The server rolls it back once the timeout (seconds) expires.
+        # @api private
         Begin = Data.define(:isolation, :timeout) do
           def initialize(isolation:, **)
             unless Constants::ISOLATION_LEVELS.key?(isolation)

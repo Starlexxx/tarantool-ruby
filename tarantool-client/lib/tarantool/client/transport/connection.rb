@@ -7,6 +7,7 @@ module Tarantool
     module Transport
       # One multiplexed IPROTO connection. Any number of threads or fibers may
       # perform requests concurrently; a reader thread routes responses by sync.
+      # @api private
       class Connection
         attr_reader :greeting, :server_features
         attr_writer :event_handler, :disconnect_handler

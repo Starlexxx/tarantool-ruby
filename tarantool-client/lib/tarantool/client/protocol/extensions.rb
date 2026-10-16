@@ -4,6 +4,7 @@ module Tarantool
   class Client
     module Protocol
       # MP_EXT types the codec knows; every file under extensions/ registers itself here.
+      # @api private
       module Extensions
         Entry = Data.define(:type, :klass, :options)
 

@@ -5,6 +5,7 @@ module Tarantool
     class Pool
       # One pool address: its client once connected and the role from the instance's latest box.status.
       # An address that is down at start keeps being retried in the background.
+      # @api private
       class Member
         include Pool::MemberForkSafety
 

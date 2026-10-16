@@ -2,9 +2,11 @@
 
 module Tarantool
   class Client
+    # @api private
     module Transport
       # Result slot for one in-flight request, also carrying its pushed messages. Thread::Queue#pop
       # yields to the Fiber Scheduler when one is active, so waiting never blocks other fibers.
+      # @api private
       class Future
         Push = Data.define(:message)
         private_constant :Push

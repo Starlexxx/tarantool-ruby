@@ -5,6 +5,7 @@ module Tarantool
     # Data operations, call, eval and SQL. Includers implement `perform(request, timeout:, on_push: nil)`,
     # `perform_on_space(space, index, timeout:) { |space_id, index_id| request }`, which returns the response to
     # the request built by the block, and `lookup_space(space, timeout)`, which returns its SpaceInfo.
+    # @api private
     module Operations
       def ping(timeout: nil)
         perform(Protocol::Requests::Ping.new, timeout:)

@@ -2,8 +2,10 @@
 
 module Tarantool
   class Client
+    # @api private
     module Protocol
       # IPROTO keys and codes: https://www.tarantool.io/en/doc/latest/reference/internals/iproto/keys/
+      # @api private
       module Constants
         REQUEST_TYPE = 0x00
         SYNC = 0x01

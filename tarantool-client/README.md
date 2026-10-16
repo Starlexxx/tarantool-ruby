@@ -194,6 +194,15 @@ bundle exec rspec --tag failover
 
 Using podman instead of docker: prefix the `bundle exec rspec --tag failover` command above with `CONTAINER_CLI=podman`; the reconnect spec uses it to restart containers (default `docker`).
 
+## Public API
+
+`Tarantool::Client`, `Tarantool::Client::Pool`, `Tarantool::Client::Stream` (yielded by `transaction`),
+`Watcher` (returned by `watch`), `SqlResult`, `PreparedStatement`, `SpaceInfo`, `IndexInfo`, `Configuration`
+(returned by `client.config`), `Tarantool::Client::UUID`, `Interval`, `BoxError`, and the error classes above.
+
+Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
+and may change in any release.
+
 ## License
 
 MIT

@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Extensions
         # MP_EXT uuid: 16 raw bytes in RFC 4122 order.
+        # @api private
         module Uuid
           SIZE = 16
 

@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Requests
         # IPROTO_ROLLBACK: roll back the stream's transaction.
+        # @api private
         Rollback = Data.define do
           def type = Constants::ROLLBACK
           def body = {}

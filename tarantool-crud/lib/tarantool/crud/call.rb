@@ -3,6 +3,7 @@
 module Tarantool
   module Crud
     # One crud.<function> invocation: merges defaults, sets the transport timeout, unpacks errors.
+    # @api private
     class Call
       def initialize(caller, defaults:, timeout_margin:)
         @caller = caller

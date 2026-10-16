@@ -6,6 +6,7 @@ module Tarantool
       # Keeps one instance connected. Owns the current Connection; once it is lost, a background thread
       # opens new ones with backoff while requests wait for one to become ready.
       # States: connecting -> ready -> reconnecting -> closed.
+      # @api private
       class Link
         attr_writer :event_handler
 

@@ -4,6 +4,7 @@ module Tarantool
   class Client
     module Transport
       # The current connection of a Link and its state under one lock. Waiters wake on every state change.
+      # @api private
       class LinkState
         attr_reader :connection
 

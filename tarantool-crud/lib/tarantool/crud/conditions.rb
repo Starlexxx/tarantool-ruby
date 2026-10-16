@@ -3,6 +3,7 @@
 module Tarantool
   module Crud
     # Converts Array or Hash conditions into crud's [[operator, field, value]] form.
+    # @api private
     module Conditions
       OPERATORS = %w[< <= == = >= >].freeze
 

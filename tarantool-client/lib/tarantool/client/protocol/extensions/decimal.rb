@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Extensions
         # MP_EXT decimal: msgpack int scale, then BCD digits with a trailing sign nibble.
+        # @api private
         module Decimal
           MAX_DIGITS = 38
           NEGATIVE_SIGNS = %w[b d].freeze

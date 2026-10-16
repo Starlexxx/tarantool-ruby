@@ -4,6 +4,7 @@ module Tarantool
   class Client
     module Protocol
       # Greeting sent by the server on connect: a 64-byte banner and a 64-byte base64 salt line.
+      # @api private
       Greeting = Data.define(:version, :salt) do
         self::BANNER_VERSION = /\ATarantool (\S+)/
 

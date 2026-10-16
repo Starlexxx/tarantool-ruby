@@ -7,6 +7,7 @@ module Tarantool
     # dispatcher thread so they never stall the reader; the ack (WATCH again) follows them, letting
     # the server coalesce changes made meanwhile. Watched keys outlive the socket so a reconnect
     # can subscribe to them again.
+    # @api private
     class Watchers
       def initialize(link, timeout:)
         @link = link

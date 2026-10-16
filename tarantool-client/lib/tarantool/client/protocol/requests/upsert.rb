@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Requests
         # IPROTO_UPSERT: insert the tuple or apply operations to the existing one.
+        # @api private
         Upsert = Data.define(:space_id, :tuple, :operations) do
           def type = Constants::UPSERT
 

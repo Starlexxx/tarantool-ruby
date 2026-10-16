@@ -96,3 +96,10 @@ podman compose -f tarantool-crud/docker-compose.yml up -d --wait --build
 cd tarantool-crud
 INTEGRATION=1 TARANTOOL_CRUD_URI=tcp://app:secret@localhost:3311 bundle exec rspec
 ```
+
+## Public API
+
+`Tarantool::Crud::Client`, `Space`, `Result`, `ManyResult`, and the error classes above.
+
+Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
+and may change in any release.

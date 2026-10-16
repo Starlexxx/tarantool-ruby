@@ -4,6 +4,7 @@ module Tarantool
   class Client
     class Pool
       # Per-process reinit for forked children. Included in Member.
+      # @api private
       module MemberForkSafety
         # Called by Pool#ensure_fork_safe before start_members re-runs Pool.new startup in the
         # child. Closes the inherited client (safe: only closes the child's fd copy, and joins

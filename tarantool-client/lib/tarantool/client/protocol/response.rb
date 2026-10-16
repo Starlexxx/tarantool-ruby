@@ -4,6 +4,7 @@ module Tarantool
   class Client
     module Protocol
       # Decoded IPROTO response frame.
+      # @api private
       class Response
         attr_reader :header, :body
 

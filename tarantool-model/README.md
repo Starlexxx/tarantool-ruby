@@ -247,6 +247,14 @@ TARANTOOL_MODEL_CRUD_URI=tcp://app:secret@localhost:3331 bundle exec rspec --tag
 TARANTOOL_MODEL_CRUD_URI=tcp://app:secret@localhost:3332 bundle exec rspec --tag crud  # 3.x
 ```
 
+## Public API
+
+`Tarantool::Model`, `Storage::Box`, `Storage::Crud`, `Types::UUID`, `Types::Interval`, `Types::Binary`,
+`Relation`, and the error classes above.
+
+Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
+and may change in any release.
+
 ## License
 
 MIT

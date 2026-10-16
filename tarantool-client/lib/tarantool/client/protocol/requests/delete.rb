@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Requests
         # IPROTO_DELETE: remove the tuple found by key.
+        # @api private
         Delete = Data.define(:space_id, :index_id, :key) do
           def type = Constants::DELETE
 

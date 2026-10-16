@@ -4,6 +4,7 @@ module Tarantool
   class Client
     module Transport
       # Thread-safe allocator of unique, non-zero IPROTO stream ids.
+      # @api private
       class StreamIds
         def initialize
           @lock = Mutex.new

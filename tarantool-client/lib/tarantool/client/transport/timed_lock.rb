@@ -4,6 +4,7 @@ module Tarantool
   class Client
     module Transport
       # Mutual exclusion whose wait is bounded by a deadline, which Mutex#synchronize can't do. Not reentrant.
+      # @api private
       class TimedLock
         def initialize
           @mutex = Mutex.new

@@ -3,6 +3,7 @@
 module Tarantool
   class Client
     # Per-process reinit for forked children. Included in Client.
+    # @api private
     module ForkSafety
       private
 

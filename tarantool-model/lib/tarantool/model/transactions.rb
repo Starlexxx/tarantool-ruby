@@ -4,6 +4,7 @@ module Tarantool
   module Model
     # Open transactions of the current fiber, keyed by storage instance (Thread#[] is fiber-local). A model
     # whose storage has no open transaction would write outside the one that is open, and commit on its own.
+    # @api private
     module Transactions
       KEY = :tarantool_model_transactions
       MISMATCH = 'a write through another storage inside a transaction would commit outside it; ' \

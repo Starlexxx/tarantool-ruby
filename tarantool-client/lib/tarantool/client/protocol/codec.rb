@@ -4,6 +4,7 @@ module Tarantool
   class Client
     module Protocol
       # IPROTO framing: MP_UINT32 size prefix, header map, body map.
+      # @api private
       module Codec
         SIZE_MARKER = 0xce
         PREFIX_SIZE = 5
