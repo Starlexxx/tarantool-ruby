@@ -42,6 +42,8 @@ URIs: `tcp://user:password@host:port`, `host:port`, `unix:/path/to/socket`. Keyw
 | `reconnect_delay` | `0.1` | base delay of the exponential backoff |
 | `reconnect_max_delay` | `5` | cap of the backoff delay |
 | `max_frame_size` | `67108864` (64 MB) | maximum allowed response frame size in bytes; larger frames raise `ProtocolError` and break the connection |
+| `instrumenter` | `nil` | receives request and lifecycle events; see [Instrumentation](#instrumentation) |
+| `logger` | `nil` | `Logger`-compatible; one debug line per request, lifecycle lines, background warnings |
 
 Tarantool Community Edition has no TLS support. Authentication uses chap-sha1; the password is never sent in clear. `client.inspect` leaves the password out, and `Configuration#inspect`, `#to_s` and `pp` replace it with `[FILTERED]`. `Configuration#to_h` keeps it, so `Tarantool::Client.new(**client.config.to_h)` connects with the same credentials; don't log it.
 
@@ -194,6 +196,40 @@ Streams (interactive transactions) cannot cross a fork boundary. Using a stream 
 
 No configuration is needed; the detection is a single PID comparison on every request.
 
+## Instrumentation
+
+```ruby
+client = Tarantool::Client.new(uri, instrumenter: ActiveSupport::Notifications, logger: Rails.logger)
+```
+
+`instrumenter:` takes any object with `instrument(name, payload) { }`, so `ActiveSupport::Notifications` works as is. `logger:` takes any `Logger`-compatible object. `Pool` accepts both and passes them to every member. Without either the request path does no extra work. `benchmark/request_overhead.rb` measures this.
+
+Every call emits `request.tarantool`, transactions included (`begin`, each operation, `commit` or `rollback`). A retry after a schema change is part of the same event. `delete_by` emits one `request.tarantool` per select or delete batch; there is no separate event for it. A key appears only when it has a value:
+
+| Key | Value |
+|---|---|
+| `request` | absent only when a space, index or field name failed to resolve, so the request was never built; otherwise `:select`, `:insert`, `:replace`, `:update`, `:upsert`, `:delete`, `:call`, `:eval`, `:execute`, `:prepare`, `:ping`, `:begin`, `:commit`, `:rollback` |
+| `space`, `index` | as passed (name or id); `index` only for select, update, delete |
+| `function` | function name of a call |
+| `sql` / `statement_id` | SQL text, or the id of a prepared statement |
+| `address` | `host:port` or socket path of the instance |
+| `schema_reloaded` | `true` when the call reloaded the schema |
+| `exception`, `exception_object` | `[class name, message]` and the exception, as ActiveSupport sets them |
+
+Keys, tuples, update operations, call and eval arguments, SQL bindings, the eval expression and credentials are never included.
+
+Lifecycle events have the instance `address` too:
+
+| Event | Payload | Log level |
+|---|---|---|
+| `disconnect.tarantool` | `reason` | warn |
+| `reconnect.tarantool` | `attempts` | info |
+| `reconnect_failed.tarantool` | `attempts` (when known), `exception`, `exception_object` | error |
+| `fork.tarantool` | | info |
+| `role_change.tarantool` | `read_only` (pool members) | info |
+
+The logger writes requests at debug, one line each: `tarantool select space=users index=email 1.24ms 127.0.0.1:3301`. Background warnings (a failing callback hook, a pool member that gave up) go to the logger as well, or to stderr without one.
+
 ## Errors
 
 ```
@@ -227,6 +263,12 @@ bundle exec rspec                       # unit specs
 docker compose -f docker-compose.yml up -d --wait
 INTEGRATION=1 TARANTOOL_URI=tcp://app:secret@localhost:3301 bundle exec rspec   # 2.11; 3302 for 3.x
 bundle exec rubocop
+```
+
+Instrumentation overhead against the container on 3301:
+
+```sh
+bundle exec ruby -Ilib benchmark/request_overhead.rb
 ```
 
 Reconnect and pool specs restart their own pair of instances:

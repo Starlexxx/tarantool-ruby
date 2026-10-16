@@ -8,6 +8,8 @@
 - A Hash key unknown to the cached format costs one schema reload; a field still missing after it raises `UnknownFieldError` (an `ArgumentError`). Inside a transaction there is no reload.
 - An unknown numeric space id paired with a named index now raises `SchemaError` with "space 'N' not found" instead of "index '...' not found in space N".
 - `delete_by`: delete every tuple matching a key on any TREE index, including non-unique ones, in keyset batches; not atomic outside a transaction, the error carries `#deleted`.
+- `instrumenter:` option on `Client` and `Pool`: `request.tarantool` for every call and transaction step, plus `disconnect`, `reconnect`, `reconnect_failed`, `fork` and `role_change` events. Payloads carry no keys, tuples, arguments, bindings or credentials; exceptions use ActiveSupport's `exception` and `exception_object` keys.
+- `logger:` option: a debug line per request, lifecycle lines, and background warnings that used to go to stderr.
 
 ## 0.1.0 (unreleased)
 
