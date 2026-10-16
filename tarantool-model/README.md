@@ -273,6 +273,8 @@ Not modelled:
 - Strings compare bytewise like Tarantool's default collation; values of different classes in one index raise
   `ArgumentError`;
 - a `hash` index walks in key order, Tarantool's order is unspecified;
+- `get`, `update` and `delete` match primary keys by Ruby equality, so `[1.0]` does not find a row stored as `[1]`,
+  while Tarantool does;
 - in `:crud` mode, a condition through a name that is a field but not an index: crud filters by that field,
   MemoryStorage returns nothing;
 - JSON path parts, `rtree` and `bitset` indexes (`ArgumentError`);
