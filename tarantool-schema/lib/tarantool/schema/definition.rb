@@ -40,7 +40,21 @@ module Tarantool
 
       def to_h = @spaces.transform_values(&:to_h)
 
+      def plan(client) = build_plan(client).verify.creations.map(&:to_s)
+
+      # The second plan re-reads everything, so a space another deploy created differently in the meantime fails
+      # here instead of being reported as created.
+      def apply(client)
+        creations = build_plan(client).verify.creations
+        creations.each { |creation| creation.apply(client) }
+        build_plan(client).verify(complete: true)
+
+        creations.map(&:to_s)
+      end
+
       private
+
+      def build_plan(client) = Plan.new(spaces: @spaces, external: @external, client:)
 
       # A space declared elsewhere already has its primary key, so an index added here never gets a sequence.
       def add_external(space, index)
