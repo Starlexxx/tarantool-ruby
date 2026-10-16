@@ -5,7 +5,8 @@ module Tarantool
     # Base class for errors raised by tarantool-schema.
     class Error < Tarantool::Error; end
 
-    # The live schema differs from the declaration. Raised before apply creates anything.
+    # The live schema differs from the declaration. apply raises it before creating anything, and again if what
+    # it created does not verify afterwards.
     class MismatchError < Error
       attr_reader :mismatches
 
