@@ -90,10 +90,10 @@ RSpec.describe Tarantool::Client do
     expect(requests.map { |payload| payload[:request] }).to eq(%i[begin rollback])
   end
 
-  it 'reports the space and the exception when a name never resolves, with no request key' do
+  it 'reports the space and the exception when a name never resolves, with no request or index key' do
     expect { client.select(:ghost, 1) }.to raise_error(Tarantool::SchemaError, /ghost/)
 
-    expect(requests.last).not_to have_key(:request)
+    expect(requests.last.keys).not_to include(:request, :index)
     expect(requests.last).to include(space: :ghost, exception: ['Tarantool::SchemaError', a_string_including('ghost')])
   end
 end

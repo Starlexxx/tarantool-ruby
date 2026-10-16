@@ -21,10 +21,10 @@ module Tarantool
 
         def build(request) = describe({}, request)
 
-        # Space operations put space and index in first; only requests that have an index keep it.
-        def describe(payload, request)
+        # Space operations pass the resolved index in; only requests that have one keep it.
+        def describe(payload, request, index = nil)
           payload[:request] = NAMES.fetch(request.class)
-          payload.delete(:index) unless request.respond_to?(:index_id)
+          payload[:index] = index if request.respond_to?(:index_id)
           case request
           when Protocol::Requests::Call then payload[:function] = request.function_name
           when Protocol::Requests::Execute, Protocol::Requests::Prepare then add_statement(payload, request.statement)

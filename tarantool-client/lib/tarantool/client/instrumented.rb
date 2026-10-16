@@ -26,12 +26,12 @@ module Tarantool
         @instrumentation.request(Instrumentation::RequestPayload.build(request), &)
       end
 
-      # The request is built only once names resolve to ids, so its type joins the payload then.
+      # The request is built only once names resolve to ids, so its type and index join the payload then.
       def perform_on_space_instrumented(space, index, timeout, format, &)
-        payload = { space:, index: }
+        payload = { space: }
         @instrumentation.request(payload) do
           transmit_on_space(space, index, timeout:, format:, payload:) do |*resolved|
-            yield(*resolved).tap { |request| Instrumentation::RequestPayload.describe(payload, request) }
+            yield(*resolved).tap { |request| Instrumentation::RequestPayload.describe(payload, request, index) }
           end
         end
       end

@@ -84,6 +84,14 @@ RSpec.describe Tarantool::Client::Instrumentation::LogInstrumenter do
     expect(output.string).to include('INFO -- : tarantool db:3301 is now writable')
   end
 
+  it 'logs a request line with no name when the name never resolved' do
+    payload = { space: :ghost, address: 'db:3301' }
+
+    instrumenter.instrument('request.tarantool', payload) { nil }
+
+    expect(output.string).to match(/DEBUG -- : tarantool space=ghost \d+\.\d{2}ms db:3301$/)
+  end
+
   it 'ignores events it does not know' do
     notify('other.tarantool', {})
 

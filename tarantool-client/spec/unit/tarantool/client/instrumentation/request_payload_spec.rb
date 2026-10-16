@@ -30,13 +30,13 @@ RSpec.describe Tarantool::Client::Instrumentation::RequestPayload do
   it 'keeps space and index of a select' do
     select = requests::Select.new(space_id: 512, index_id: 1, key: ['secret'], limit: 1, offset: 0, iterator: :eq)
 
-    expect(described_class.describe({ space: :users, index: :email }, select))
+    expect(described_class.describe({ space: :users }, select, :email))
       .to eq(space: :users, index: :email, request: :select)
   end
 
-  it 'drops the index of a request that has none' do
+  it 'leaves the index out of a request that has none' do
     insert = requests::Insert.new(space_id: 512, tuple: [1, 'secret'])
 
-    expect(described_class.describe({ space: :users, index: 0 }, insert)).to eq(space: :users, request: :insert)
+    expect(described_class.describe({ space: :users }, insert, 0)).to eq(space: :users, request: :insert)
   end
 end

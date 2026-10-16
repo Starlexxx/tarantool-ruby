@@ -37,7 +37,7 @@ module Tarantool
         def line(name, payload, duration) = LINES[name]&.call(payload, duration)
 
         def request(payload, duration)
-          parts = ["tarantool #{payload[:request]}"]
+          parts = [request_name(payload)]
           %i[space index function].each { |key| parts << "#{key}=#{payload[key]}" if payload.key?(key) }
           parts << format('%.2fms', duration * 1000) << payload[:address]
           parts << "error=#{request_error(payload)}" if payload.key?(:exception)
@@ -45,6 +45,8 @@ module Tarantool
 
           parts.join(' ')
         end
+
+        def request_name(payload) = payload[:request] ? "tarantool #{payload[:request]}" : 'tarantool'
 
         def attempts(count) = count == 1 ? '1 attempt' : "#{count} attempts"
         def error(payload) = payload[:exception].join(': ')
