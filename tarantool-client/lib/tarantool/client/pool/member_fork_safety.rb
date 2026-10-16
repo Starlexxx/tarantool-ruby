@@ -6,10 +6,8 @@ module Tarantool
       # Per-process reinit for forked children. Included in Member.
       # @api private
       module MemberForkSafety
-        # Called by Pool#ensure_fork_safe before start_members re-runs Pool.new startup in the
-        # child. Closes the inherited client (safe: only closes the child's fd copy, and joins
-        # parent threads which are dead so they return immediately), then clears per-connection
-        # state so start_members can connect fresh.
+        # Pool re-runs its startup in a forked child after this. The inherited client and retry thread belong
+        # to the parent: closing the client in the child only drops its socket copy, dead threads join at once.
         def reset_for_fork
           old_retrier, old_client = @lock.synchronize do
             retrier = @retrier

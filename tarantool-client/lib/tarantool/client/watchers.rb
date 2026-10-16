@@ -72,9 +72,7 @@ module Tarantool
         end
       end
 
-      # Preserve registrations; restart per-process state so callbacks re-fire after resubscribe.
-      # The parent's dispatcher thread is dead after fork. Start a new one immediately when
-      # pre-fork watchers exist so events queued by resubscribe get delivered.
+      # Registrations survive a fork; values and the dispatcher are per process and come back after resubscribe.
       def restart_after_fork(new_link)
         @link = new_link
         @values = {}

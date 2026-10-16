@@ -2,52 +2,40 @@
 
 module Tarantool
   class Client
-    # Per-process reinit for forked children. Included in Client.
+    # A client created before fork reopens its link in the child on first use: the parent's reader, reconnect
+    # and dispatcher threads don't exist there. Closing the inherited socket in the child sends nothing.
     # @api private
     module ForkSafety
       private
 
-      # Hot path: one integer comparison. Reinitializes once in a forked child.
-      # Parent threads are dead after fork so their joins in close return immediately.
-      # Double-checked locking ensures only one reinit even with concurrent child threads.
       def ensure_fork_safe
         return if @pid == Process.pid
 
-        @reinit_lock.synchronize { fork_reinit unless @pid == Process.pid }
-      rescue StandardError
-        @link&.close
-        raise
+        @reinit_lock.synchronize { reopen_after_fork unless @pid == Process.pid }
       end
 
-      # Replaces per-process resources (link, schema cache, stream IDs). Watcher registrations
-      # are preserved via restart_after_fork: the new link's on_ready resubscribes all keys so
-      # callbacks receive the current value again. open_link builds a brand-new Watchers at init;
-      # fork_reinit reuses the existing one so pre-fork watchers survive the child.
-      def fork_reinit
-        try_close(@link)
-        @schema_cache = SchemaCache.new
-        @stream_ids = Transport::StreamIds.new
-        @link = Transport::Link.new(@config, **link_hooks)
-        @link.event_handler = @watchers.method(:dispatch)
-        @watchers.restart_after_fork(@link)
-        @link.connect
-        @pid = Process.pid
+      def reopen_after_fork
+        close_inherited_link
+        open_link
       end
 
-      def open_link
-        @link = Transport::Link.new(@config, **link_hooks)
-        @watchers = Watchers.new(@link, timeout: @config.request_timeout)
-        @link.event_handler = @watchers.method(:dispatch)
-        @schema_cache = SchemaCache.new
-        @stream_ids = Transport::StreamIds.new
-        @link.connect
-        @pid = Process.pid
-      end
-
-      def try_close(obj)
-        obj.close
+      # Joining a thread that died with an exception re-raises it; nothing from the parent may stop the reopen.
+      def close_inherited_link
+        @link.close
       rescue StandardError
         nil
+      end
+
+      # Watcher registrations outlive a fork; on_ready resubscribes them on the new link.
+      def open_link
+        @link = Transport::Link.new(@config, **link_hooks)
+        @watchers&.restart_after_fork(@link)
+        @watchers ||= Watchers.new(@link, timeout: @config.request_timeout)
+        @link.event_handler = @watchers.method(:dispatch)
+        @schema_cache = SchemaCache.new
+        @stream_ids = Transport::StreamIds.new
+        @link.connect
+        @pid = Process.pid
       end
     end
   end
