@@ -3,6 +3,7 @@
 module Tarantool
   module Schema
     # The live state of everything a definition declares, compared with it, and what is left to create.
+    # @api private
     class Plan
       def initialize(spaces:, external:, client:)
         @comparisons = spaces.values.map { |space| compare(client, space.name, space.indexes, space) } +

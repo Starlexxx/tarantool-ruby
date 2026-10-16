@@ -3,6 +3,7 @@
 module Tarantool
   module Schema
     # One entry of a space format with Tarantool's defaults filled in. Also used for live format entries.
+    # @api private
     FieldSpec = Data.define(:name, :type, :is_nullable) do
       def self.build(raw)
         raise ArgumentError, "format entry must be a Hash, got #{raw.inspect}" unless raw.is_a?(Hash)

@@ -5,6 +5,7 @@ module Tarantool
     # Key part rules Tarantool enforces on tree and hash indexes, verified live on 2.11 and 3.x. Checked before
     # resolution, on what IndexSpec.build already knows, and again after, on a resolved SpaceSpec where parts
     # have inherited their type and nullability from the format.
+    # @api private
     module KeyRules
       UNSUPPORTED_PART_TYPES = %w[any interval array map].freeze
 

@@ -4,6 +4,7 @@ module Tarantool
   module Schema
     # What apply creates. Names and options are eval arguments, never part of the Lua source. if_not_exists keeps
     # a deploy racing another one from failing; the re-verification after apply catches what the other one made.
+    # @api private
     module Creation
       SPACE_LUA = <<~LUA
         local name, options = ...

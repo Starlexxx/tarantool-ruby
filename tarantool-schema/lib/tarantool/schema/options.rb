@@ -4,6 +4,7 @@ module Tarantool
   module Schema
     # Declaration keys are checked against a closed list, so an unsupported Tarantool option such as is_sync
     # fails loudly instead of looking applied.
+    # @api private
     module Options
       module_function
 

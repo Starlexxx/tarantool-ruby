@@ -4,6 +4,7 @@ module Tarantool
   module Schema
     # Rules Tarantool enforces on a whole space, checked on a resolved SpaceSpec before anything reaches the
     # server.
+    # @api private
     class SpaceRules
       SEQUENCE_TYPES = %w[unsigned integer].freeze
 

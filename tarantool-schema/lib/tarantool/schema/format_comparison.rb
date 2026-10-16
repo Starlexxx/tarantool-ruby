@@ -3,6 +3,7 @@
 module Tarantool
   module Schema
     # Differences between a declared format and the live one, field by field in order.
+    # @api private
     class FormatComparison
       ATTRIBUTES = %i[name type is_nullable].freeze
 

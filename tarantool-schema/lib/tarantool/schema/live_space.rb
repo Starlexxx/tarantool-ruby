@@ -4,6 +4,7 @@ module Tarantool
   module Schema
     # A space as the server has it, normalized to compare with a declaration: type aliases mapped, index types
     # downcased, missing nullability read as false. An empty Lua table may arrive as a map, hence Array().
+    # @api private
     LiveSpace = Data.define(:engine, :format, :indexes) do
       def self.from_eval(raw)
         format = Array(raw['format']).map do |field|

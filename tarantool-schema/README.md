@@ -209,7 +209,8 @@ INTEGRATION=1 TARANTOOL_URI=tcp://app:secret@localhost:3302 bundle exec rspec
 
 `Tarantool::Schema::Definition` and the error classes above.
 
-Everything else is an implementation detail and may change in any release.
+Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
+and may change in any release.
 
 ## License
 

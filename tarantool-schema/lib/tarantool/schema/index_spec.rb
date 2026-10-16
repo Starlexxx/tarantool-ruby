@@ -4,6 +4,7 @@ module Tarantool
   module Schema
     # A declared index with create_index defaults filled in. Rules that depend on the space (primary key,
     # engine, sequence) live in SpaceRules.
+    # @api private
     IndexSpec = Data.define(:name, :type, :unique, :parts, :sequence) do
       def self.build(name, raw)
         raise ArgumentError, 'index without name' if name.nil?

@@ -5,6 +5,7 @@ module Tarantool
     # Differences between one space as declared and as it is live. For a space declared elsewhere (only its
     # indexes are declared here) there is no spec: engine and format are not compared and index parts inherit
     # from the live format.
+    # @api private
     class Comparison
       attr_reader :name, :space, :mismatches, :missing_indexes
 

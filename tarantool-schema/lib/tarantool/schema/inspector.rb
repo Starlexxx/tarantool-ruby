@@ -3,6 +3,7 @@
 module Tarantool
   module Schema
     # Reads one space from box.space. The name travels as an eval argument, never inside the Lua source.
+    # @api private
     module Inspector
       LUA = <<~LUA
         local space = box.space[...]

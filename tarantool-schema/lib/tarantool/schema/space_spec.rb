@@ -3,6 +3,7 @@
 module Tarantool
   module Schema
     # A declared space. Its index parts get the field types and nullability once #resolve runs.
+    # @api private
     SpaceSpec = Data.define(:name, :engine, :format, :indexes) do
       def self.build(name, engine:, format:, indexes:)
         raise ArgumentError, 'space without name' if name.nil?

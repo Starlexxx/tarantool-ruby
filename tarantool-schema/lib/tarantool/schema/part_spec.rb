@@ -5,6 +5,7 @@ module Tarantool
     # One part of an index key. Type and nullability left out stay nil until #inherit copies them from the
     # field, as Tarantool does (verified for JSON path parts too). A path points inside the field, so its type
     # cannot come from the field and must be declared.
+    # @api private
     PartSpec = Data.define(:field, :type, :is_nullable, :path) do
       def self.build(raw)
         raw = { field: raw } unless raw.is_a?(Hash)

@@ -5,6 +5,7 @@ module Tarantool
     # Field type names. The server keeps a space format type verbatim (str stays str) but normalizes index part
     # types (str becomes string), so declarations accept only canonical names and live format types are mapped
     # onto them before comparing.
+    # @api private
     module Types
       CANONICAL = %w[
         any unsigned string integer number double boolean decimal uuid datetime interval varbinary scalar array map

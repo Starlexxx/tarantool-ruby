@@ -3,6 +3,7 @@
 module Tarantool
   module Schema
     # Differences between a declared index, its parts resolved, and the live index of the same name.
+    # @api private
     class IndexComparison
       ATTRIBUTES = %i[type unique sequence].freeze
 
