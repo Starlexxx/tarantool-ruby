@@ -14,6 +14,7 @@ module Tarantool
                     unique: Options.boolean(raw.fetch(:unique, true), "#{context} unique"),
                     sequence: Options.boolean(raw.fetch(:sequence, false), "#{context} sequence"))
         check_unique(index, context)
+        KeyRules.check(index, nil)
 
         index
       end

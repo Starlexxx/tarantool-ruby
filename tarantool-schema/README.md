@@ -62,7 +62,9 @@ These raise `ArgumentError` while the definition is built, before anything reach
 - a part that refers to a field missing from the format;
 - vinyl spaces with anything but `tree` indexes;
 - unique `rtree`/`bitset` indexes, and `rtree`/`bitset`, non-unique or nullable primary keys;
-- `sequence: true` anywhere except a primary key with exactly one `unsigned` or `integer` part.
+- `sequence: true` anywhere except a primary key with exactly one `unsigned` or `integer` part;
+- `tree` or `hash` index parts of type `any`, `interval`, `array` or `map`; a `hash` index that is not unique, or
+  that has a nullable part (`tree` allows nullable parts).
 
 ### Not supported
 

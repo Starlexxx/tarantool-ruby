@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 RSpec.describe Tarantool::Schema::SpaceRules do
-  def check(engine: :memtx, indexes: codes_declaration[:indexes])
-    space = Tarantool::Schema::SpaceSpec.build(:codes, format: codes_declaration[:format], indexes:, engine:)
+  def check(engine: :memtx, format: codes_declaration[:format], indexes: codes_declaration[:indexes])
+    space = Tarantool::Schema::SpaceSpec.build(:codes, format:, indexes:, engine:)
 
     described_class.check(space.resolve)
   end
@@ -47,5 +47,20 @@ RSpec.describe Tarantool::Schema::SpaceRules do
 
     expect { check(engine: :vinyl, indexes:) }
       .to raise_error(ArgumentError, 'space codes: vinyl supports only tree indexes, got by_code')
+  end
+
+  it 'rejects a hash index on a field whose type defaults to any' do
+    format = codes_declaration[:format] + [{ name: :meta }]
+    indexes = [{ name: :pk, parts: [:id] }, { name: :by_meta, parts: [:meta], type: :hash }]
+
+    expect { check(format:, indexes:) }
+      .to raise_error(ArgumentError, 'space codes: index by_meta: part meta of type any can not be indexed by hash')
+  end
+
+  it 'rejects a hash index on a field nullable by its format' do
+    indexes = [{ name: :pk, parts: [:id] }, { name: :by_note, parts: [:note], type: :hash }]
+
+    expect { check(indexes:) }
+      .to raise_error(ArgumentError, 'space codes: index by_note: hash index can not have nullable part note')
   end
 end

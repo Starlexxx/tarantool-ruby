@@ -19,6 +19,7 @@ module Tarantool
         check_primary(@space.indexes.first)
         check_no_secondary_sequence
         check_engine
+        @space.indexes.each { |index| KeyRules.check(index, "space #{@space.name}") }
 
         @space
       end

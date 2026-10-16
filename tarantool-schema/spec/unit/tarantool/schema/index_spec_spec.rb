@@ -23,6 +23,29 @@ RSpec.describe Tarantool::Schema::IndexSpec do
       .to raise_error(ArgumentError, 'index area: rtree index can not be unique, set unique: false')
   end
 
+  it 'rejects an explicitly non-unique hash index' do
+    expect { described_class.build(:by_x, { parts: [:id], type: :hash, unique: false }) }
+      .to raise_error(ArgumentError, 'index by_x: hash index must be unique')
+  end
+
+  it 'rejects a hash index on an explicitly unsupported part type' do
+    expect { described_class.build(:by_x, { parts: [{ field: :meta, type: :map }], type: :hash }) }
+      .to raise_error(ArgumentError, 'index by_x: part meta of type map can not be indexed by hash')
+  end
+
+  it 'rejects an explicitly nullable hash part' do
+    part = { field: :note, type: :string, is_nullable: true }
+
+    expect { described_class.build(:by_x, { parts: [part], type: :hash }) }
+      .to raise_error(ArgumentError, 'index by_x: hash index can not have nullable part note')
+  end
+
+  it 'allows an explicitly nullable tree part' do
+    index = described_class.build(:by_x, { parts: [{ field: :note, type: :string, is_nullable: true }] })
+
+    expect(index.parts.first.is_nullable).to be(true)
+  end
+
   it 'requires parts to be a non-empty Array' do
     expect { described_class.build(:pk, { parts: { field: :id } }) }
       .to raise_error(ArgumentError, 'index pk: parts must be a non-empty Array')
