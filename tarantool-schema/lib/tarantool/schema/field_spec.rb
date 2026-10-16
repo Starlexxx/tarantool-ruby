@@ -9,9 +9,9 @@ module Tarantool
 
         context = "field #{raw[:name]}"
         Options.check(raw, %i[name type is_nullable], context)
-        name = raw.fetch(:name) { raise ArgumentError, 'format entry without name' }
+        raise ArgumentError, 'format entry without name' if raw[:name].nil?
 
-        new(name: name.to_sym, type: Types.declared(raw.fetch(:type, 'any'), context),
+        new(name: raw[:name].to_sym, type: Types.declared(raw.fetch(:type, 'any'), context),
             is_nullable: Options.boolean(raw.fetch(:is_nullable, false), "#{context} is_nullable"))
       end
 

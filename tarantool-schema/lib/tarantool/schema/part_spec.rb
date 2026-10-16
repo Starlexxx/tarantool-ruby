@@ -11,12 +11,13 @@ module Tarantool
         context = "index part #{raw[:field]}"
         Options.check(raw, %i[field type is_nullable path], context)
         raise ArgumentError, "#{context}: a part with path needs a type" if raw[:path] && !raw[:type]
+        raise ArgumentError, 'index part without field' if raw[:field].nil?
 
         new(**attributes(raw, context))
       end
 
       def self.attributes(raw, context)
-        { field: raw.fetch(:field) { raise ArgumentError, 'index part without field' }.to_sym,
+        { field: raw[:field].to_sym,
           type: raw[:type] && Types.declared(raw[:type], context),
           is_nullable: raw[:is_nullable].nil? ? nil : Options.boolean(raw[:is_nullable], "#{context} is_nullable"),
           path: raw[:path] && -raw[:path].to_s }

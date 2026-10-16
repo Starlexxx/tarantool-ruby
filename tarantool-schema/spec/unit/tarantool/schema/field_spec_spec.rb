@@ -30,6 +30,10 @@ RSpec.describe Tarantool::Schema::FieldSpec do
     expect { described_class.build({ type: :unsigned }) }.to raise_error(ArgumentError, 'format entry without name')
   end
 
+  it 'rejects an entry with a nil name' do
+    expect { described_class.build({ name: nil }) }.to raise_error(ArgumentError, 'format entry without name')
+  end
+
   it 'builds Lua format entries with String keys' do
     expect(described_class.build({ name: :id, type: :unsigned }).to_lua)
       .to eq('name' => 'id', 'type' => 'unsigned', 'is_nullable' => false)

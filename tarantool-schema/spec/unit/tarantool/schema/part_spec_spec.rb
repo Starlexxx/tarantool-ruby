@@ -29,6 +29,14 @@ RSpec.describe Tarantool::Schema::PartSpec do
       .to raise_error(ArgumentError, 'index part note: unsupported :collation')
   end
 
+  it 'rejects a nil field' do
+    expect { described_class.build(nil) }.to raise_error(ArgumentError, 'index part without field')
+  end
+
+  it 'rejects an entry with an explicit nil field' do
+    expect { described_class.build({ field: nil }) }.to raise_error(ArgumentError, 'index part without field')
+  end
+
   it 'leaves undeclared options out of the Lua part' do
     expect(described_class.build(:note).to_lua).to eq('field' => 'note')
   end
