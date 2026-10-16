@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0 (2026-10-17)
 
 - `as: :hash` and `as: :row` on `select`, `insert`, `replace`, `update` and `delete` return tuples as Hashes by the space format (`Client::Row` keeps the raw tuple too); `SpaceInfo#to_hash` and `#to_tuple` do the conversion.
 - `insert`, `replace` and `upsert` accept a Hash; missing fields go out as nil, an unknown key raises `ArgumentError`.
@@ -11,7 +11,7 @@
 - `instrumenter:` option on `Client` and `Pool`: `request.tarantool` for every call and transaction step, plus `disconnect`, `reconnect`, `reconnect_failed`, `fork` and `role_change` events. Payloads carry no keys, tuples, arguments, bindings or credentials; exceptions use ActiveSupport's `exception` and `exception_object` keys.
 - `logger:` option: a debug line per request, lifecycle lines, and background warnings that used to go to stderr.
 
-## 0.1.0 (unreleased)
+## 0.1.0 (2026-10-16)
 
 First release.
 

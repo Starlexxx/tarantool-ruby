@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.1 (2026-10-17)
+
+- Depends on `tarantool-client ~> 0.2.0`.
+
+## 0.1.0 (2026-10-16)
 
 First release.
 

@@ -17,7 +17,7 @@ Gem::Specification.new do |spec|
   spec.files = Dir.chdir(__dir__) { Dir['lib/**/*.rb', 'LICENSE', 'README.md', 'CHANGELOG.md'] }
   spec.require_paths = ['lib']
 
-  spec.add_dependency 'tarantool-client', '~> 0.1.0'
+  spec.add_dependency 'tarantool-client', '~> 0.2.0'
 
   spec.metadata['source_code_uri'] = 'https://github.com/Starlexxx/tarantool-ruby/tree/master/tarantool-crud'
   spec.metadata['changelog_uri'] = 'https://github.com/Starlexxx/tarantool-ruby/blob/master/tarantool-crud/CHANGELOG.md'
