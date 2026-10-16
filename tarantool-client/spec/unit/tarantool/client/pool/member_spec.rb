@@ -31,15 +31,31 @@ RSpec.describe Tarantool::Client::Pool::Member do
 
     def roles_reported = instrumenter.payloads('role_change.tarantool')
 
-    it 'reports the first role and every change, not a repeated one' do
+    it 'reports nothing for the first role' do
+      member.start
+      wait_for { member.read_only == true }
+
+      expect(roles_reported).to eq([])
+    end
+
+    it 'reports a change, not the repeated value reported alongside it' do
       member.start
       change_role(server, roles, 'a', true)
       change_role(server, roles, 'a', false)
-      wait_for { roles_reported.last&.fetch(:read_only) == false }
+      wait_for { roles_reported.any? }
 
-      expect(roles_reported).to eq(
-        [{ read_only: true, address: server.path }, { read_only: false, address: server.path }]
-      )
+      expect(roles_reported).to eq([{ read_only: false, address: server.path }])
+    end
+
+    it 'reports nothing for a reconnect that brings back the same role' do
+      member.start
+      server.refusing = true
+      server.disconnect
+      wait_for { member.read_only.nil? }
+      server.refusing = false
+
+      wait_for { member.read_only == true }
+      expect(roles_reported).to eq([])
     end
   end
 

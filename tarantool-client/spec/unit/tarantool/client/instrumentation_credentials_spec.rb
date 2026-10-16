@@ -3,7 +3,8 @@
 RSpec.describe Tarantool::Client::Instrumentation do
   let(:instrumenter) { RecordingInstrumenter.new }
   let(:log) { StringIO.new }
-  let(:server) { status_server('a', { 'a' => true }) }
+  let(:roles) { { 'a' => true } }
+  let(:server) { status_server('a', roles) }
   let(:pool) do
     Tarantool::Client::Pool.new(
       [server.uri], user: 'app', password: 'secret', instrumenter:, logger: Logger.new(log, level: :debug),
@@ -21,6 +22,14 @@ RSpec.describe Tarantool::Client::Instrumentation do
     expect { pool.select(:missing, 1) }.to raise_error(Tarantool::SchemaError)
   end
 
+  # Pool#start has already connected the member and received its first role report before this runs,
+  # so this is a real change, the kind that gets an event.
+  def drive_role_change
+    pool
+    change_role(server, roles, 'a', false)
+    wait_for { instrumenter.payloads('role_change.tarantool').any? }
+  end
+
   def drive_reconnects
     server.disconnect
     wait_for { instrumenter.payloads('reconnect.tarantool').any? }
@@ -31,6 +40,7 @@ RSpec.describe Tarantool::Client::Instrumentation do
 
   it 'keeps the password out of every payload and log line' do
     drive_requests
+    drive_role_change
     drive_reconnects
     pool.close
 
