@@ -8,7 +8,8 @@ module Tarantool
       # alter and reconnect are picked up without a cache here. Inside Model.transaction operations, including
       # space_info, go through the open stream.
       class Box
-        DUPLICATE_KEY = 3
+        ER_TUPLE_FOUND = 3
+        private_constant :ER_TUPLE_FOUND
 
         def initialize(caller, read: {}, write: {})
           if [read, write].any? { |options| options.key?(:mode) } && !caller.is_a?(Tarantool::Client::Pool)
@@ -97,7 +98,7 @@ module Tarantool
         def unique
           yield
         rescue Tarantool::ServerError => e
-          raise RecordNotUnique, e.message if e.code == DUPLICATE_KEY
+          raise RecordNotUnique, e.message if e.code == ER_TUPLE_FOUND
 
           raise
         end
