@@ -6,7 +6,8 @@ module Tarantool
     # out for the first watcher of a key and UNWATCH after the last. Callbacks run on one
     # dispatcher thread so they never stall the reader; the ack (WATCH again) follows them, letting
     # the server coalesce changes made meanwhile. Watched keys outlive the socket so a reconnect
-    # can subscribe to them again.
+    # can subscribe to them again. A key has at most one event queued: a newer value replaces the
+    # pending one, as the server itself only promises the latest.
     # @api private
     class Watchers
       def initialize(link, timeout:)
@@ -15,17 +16,17 @@ module Tarantool
         @lock = Mutex.new
         @watchers = {}
         @values = {}
-        @jobs = Thread::Queue.new
+        @pending = {}
+        @dispatcher = Dispatcher.new
       end
 
       def add(key, callback)
         watcher = Watcher.new(key, self, callback)
         @lock.synchronize do
-          @dispatcher ||= start_dispatcher
           send_request(Protocol::Requests::Watch.new(key:)) unless @watchers.key?(key)
           (@watchers[key] ||= []) << watcher
         end
-        @jobs.push(-> { catch_up(watcher) })
+        @dispatcher.push { catch_up(watcher) }
 
         watcher
       end
@@ -39,6 +40,7 @@ module Tarantool
 
           @watchers.delete(watcher.key)
           @values.delete(watcher.key)
+          @pending.delete(watcher.key)
           send_request(Protocol::Requests::Unwatch.new(key: watcher.key))
         end
       rescue Error
@@ -46,18 +48,22 @@ module Tarantool
       end
 
       def dispatch(key, value)
-        @jobs.push(-> { deliver(key, value) })
+        @lock.synchronize do
+          next unless @watchers.key?(key)
+
+          queued = @pending.key?(key)
+          @pending[key] = value
+          @dispatcher.push { deliver(key) } unless queued
+        end
       end
 
       # Runs the block on the dispatcher after the events queued so far.
       def defer
-        @lock.synchronize { @dispatcher ||= start_dispatcher }
-
-        @jobs.push(lambda do
+        @dispatcher.push do
           yield
         rescue StandardError => e
           warn("tarantool watchers: deferred job failed: #{e.class}: #{e.message}")
-        end)
+        end
       end
 
       # A new session has no subscriptions. WATCH also makes the server send each key's current value,
@@ -76,43 +82,38 @@ module Tarantool
       def restart_after_fork(new_link)
         @link = new_link
         @values = {}
-        @jobs = Thread::Queue.new
-        @dispatcher = @watchers.empty? ? nil : start_dispatcher
+        @pending = {}
+        @dispatcher = Dispatcher.new
       end
 
       def close
-        @jobs.clear
-        @jobs.close
+        @dispatcher.close
         @lock.synchronize do
           @watchers.clear
           @values.clear
+          @pending.clear
         end
-
-        ThreadJoin.join(@dispatcher)
       end
 
       private
 
-      def start_dispatcher = Thread.new { run }.tap { |thread| thread.name = 'tarantool-watchers' }
+      def deliver(key)
+        watchers, value = take_pending(key)
+        return unless watchers
 
-      def run
-        while (job = @jobs.pop)
-          job.call
-        end
-      end
-
-      def deliver(key, value)
-        watchers = @lock.synchronize do
-          next [] unless @watchers.key?(key)
-
-          @values[key] = value
-          @watchers[key].dup
-        end
-        return if watchers.empty?
-
-        watchers.each { |watcher| run_callback(watcher, value) }
+        watchers.each { |watcher| watcher.notify(value) }
 
         acknowledge(key)
+      end
+
+      # A job can outlive its event: the key may have been unwatched, and watched again, since it was queued.
+      def take_pending(key)
+        @lock.synchronize do
+          next unless @pending.key?(key)
+
+          value = @values[key] = @pending.delete(key)
+          [@watchers[key].dup, value]
+        end
       end
 
       # The server sends a key's value once per WATCH, so a watcher joining a watched key
@@ -120,13 +121,7 @@ module Tarantool
       def catch_up(watcher)
         known, value = @lock.synchronize { [@values.key?(watcher.key), @values[watcher.key]] }
 
-        run_callback(watcher, value) if known && !watcher.notified?
-      end
-
-      def run_callback(watcher, value)
-        watcher.notify(value)
-      rescue StandardError => e
-        warn("tarantool watcher #{watcher.key.inspect} failed: #{e.class}: #{e.message}")
+        watcher.notify(value) if known && !watcher.notified?
       end
 
       # Failure means the connection is gone, and the subscription with it.

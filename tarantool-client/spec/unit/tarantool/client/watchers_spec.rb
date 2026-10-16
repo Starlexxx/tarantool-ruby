@@ -160,9 +160,66 @@ RSpec.describe Tarantool::Client::Watchers do
     collect('k')
     allow(connection).to receive(:notify).and_raise(Tarantool::ClientClosedError, 'closed')
     watchers.dispatch('k', 1)
+    first = events.pop(timeout: 1)
     watchers.dispatch('k', 2)
 
-    expect(Array.new(2) { events.pop(timeout: 1) }).to eq([['k', 1], ['k', 2]])
+    expect([first, events.pop(timeout: 1)]).to eq([['k', 1], ['k', 2]])
+  end
+
+  describe 'a flood of events' do
+    let(:hold) { Thread::Queue.new }
+    let(:dispatcher) { Tarantool::Client::Watchers::Dispatcher.new }
+
+    before do
+      allow(Tarantool::Client::Watchers::Dispatcher).to receive(:new).and_return(dispatcher)
+      collect_and_hold('k', 0, hold)
+      watchers.dispatch('k', 0)
+      events.pop(timeout: 1)
+      allow(dispatcher).to receive(:push).and_call_original
+    end
+
+    it 'keeps one pending event per key and delivers the latest value' do
+      10_000.times { |value| watchers.dispatch('k', value + 1) }
+
+      expect(dispatcher).to have_received(:push).once
+      hold << :go
+      expect([events.pop(timeout: 1), events.pop(timeout: 0.1)]).to eq([['k', 10_000], nil])
+    end
+
+    it 'queues nothing for keys nobody watches' do
+      10_000.times { |value| watchers.dispatch('other', value) }
+
+      expect(dispatcher).not_to have_received(:push)
+    end
+  end
+
+  context 'when a callback raises an Exception that is not a StandardError' do
+    before do
+      watchers.add('bad', ->(_key, _value) { raise NotImplementedError, 'boom' })
+      collect('good')
+    end
+
+    it 'reports it and keeps delivering events of other keys' do
+      expect do
+        watchers.dispatch('bad', 1)
+        watchers.dispatch('good', 2)
+        events.pop(timeout: 1)
+      end.to output(/tarantool watcher "bad" failed: NotImplementedError: boom/).to_stderr
+    end
+  end
+
+  context 'when a callback raises Interrupt' do
+    before do
+      allow($stderr).to receive(:write)
+      watchers.add('k', ->(_key, _value) { raise Interrupt })
+    end
+
+    it 'stops the dispatcher and closes normally' do
+      watchers.dispatch('k', 1)
+      wait_for { Thread.list.none? { |thread| thread.name == 'tarantool-watchers' && thread.alive? } }
+
+      expect { watchers.close }.not_to raise_error
+    end
   end
 
   it 'stops the dispatcher thread on close' do

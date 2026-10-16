@@ -24,7 +24,8 @@ Naming/PredicateMethod:
     - call
     - ping
 
-# Joining an internal thread must swallow whatever exception it died with.
+# Internal threads must survive, or be joined despite, whatever exception user code or a crash raised.
 Lint/RescueException:
   Exclude:
     - 'tarantool-client/lib/tarantool/client/thread_join.rb'
+    - 'tarantool-client/lib/tarantool/client/watcher.rb'
