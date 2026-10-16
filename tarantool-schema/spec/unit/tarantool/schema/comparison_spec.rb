@@ -24,8 +24,10 @@ RSpec.describe Tarantool::Schema::Comparison do
 
   it 'finds nothing when the space matches and ignores undeclared indexes' do
     raw = codes_live.merge('indexes' => codes_live['indexes'] + [live_index(2, 'extra', [[3, 'string', true]])])
+    comparison = declared(raw)
 
-    expect(declared(raw).mismatches).to eq([])
+    expect(comparison.mismatches).to eq([])
+    expect(comparison.missing_indexes).to eq([])
   end
 
   it 'reports a changed engine' do

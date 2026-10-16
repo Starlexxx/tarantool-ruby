@@ -62,6 +62,7 @@ module Tarantool
         return index.resolve(fields) if unknown.empty?
 
         @mismatches << "index #{index.name}: unknown field #{unknown.join(', ')}"
+
         nil
       end
     end
