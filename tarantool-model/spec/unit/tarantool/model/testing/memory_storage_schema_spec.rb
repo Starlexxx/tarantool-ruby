@@ -1,11 +1,7 @@
 # frozen_string_literal: true
 
 RSpec.describe Tarantool::Model::Testing::MemoryStorage do
-  def build(schema = nil, **options)
-    return described_class.new({ users: schema }, **options) if schema
-
-    described_class.new({ users: options })
-  end
+  def build(schema, **) = described_class.new({ users: schema }, **)
 
   def with_index(**index)
     { format: [{ name: :id, type: :unsigned }, { name: :code }], indexes: [{ name: :primary, parts: %i[id] }, index] }
@@ -24,20 +20,20 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
   end
 
   it 'rejects a space without format or indexes' do
-    expect { build(format: [{ name: :id }]) }.to raise_error(ArgumentError, /indexes/)
-    expect { build(format: [{ name: :id }], indexes: []) }.to raise_error(ArgumentError, /indexes/)
-    expect { build(indexes: [{ name: :primary, parts: %i[id] }]) }.to raise_error(ArgumentError, /format/)
+    expect { build({ format: [{ name: :id }] }) }.to raise_error(ArgumentError, /indexes/)
+    expect { build({ format: [{ name: :id }], indexes: [] }) }.to raise_error(ArgumentError, /indexes/)
+    expect { build({ indexes: [{ name: :primary, parts: %i[id] }] }) }.to raise_error(ArgumentError, /format/)
   end
 
   it 'rejects non-canonical field and index types' do
-    expect { build(format: [{ name: :id, type: :str }], indexes: [{ name: :primary, parts: %i[id] }]) }
+    expect { build({ format: [{ name: :id, type: :str }], indexes: [{ name: :primary, parts: %i[id] }] }) }
       .to raise_error(ArgumentError, /str/)
     expect { build(with_index(name: :code, parts: %i[code], type: :rtree)) }.to raise_error(ArgumentError, /rtree/)
   end
 
   it 'rejects bare field names in format, duplicate names and unknown part fields' do
-    expect { build(format: [:id], indexes: [{ name: :primary, parts: %i[id] }]) }.to raise_error(ArgumentError)
-    expect { build(format: [{ name: :id }, { name: :id }], indexes: [{ name: :primary, parts: %i[id] }]) }
+    expect { build({ format: [:id], indexes: [{ name: :primary, parts: %i[id] }] }) }.to raise_error(ArgumentError)
+    expect { build({ format: [{ name: :id }, { name: :id }], indexes: [{ name: :primary, parts: %i[id] }] }) }
       .to raise_error(ArgumentError, /duplicate/)
     expect { build(with_index(name: :code, parts: %i[nope])) }.to raise_error(ArgumentError, /nope/)
   end
@@ -45,7 +41,7 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
   it 'rejects path parts, a non-unique primary and a non-unique hash index' do
     expect { build(with_index(name: :code, parts: [{ field: :code, path: 'a.b' }])) }
       .to raise_error(ArgumentError, /path/)
-    expect { build(format: [{ name: :id }], indexes: [{ name: :primary, parts: %i[id], unique: false }]) }
+    expect { build({ format: [{ name: :id }], indexes: [{ name: :primary, parts: %i[id], unique: false }] }) }
       .to raise_error(ArgumentError, /unique/)
     expect { build(with_index(name: :code, parts: %i[code], type: :hash, unique: false)) }
       .to raise_error(ArgumentError, /unique/)
@@ -55,7 +51,7 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
     expect { build(with_index(name: :code, parts: %i[code], sequence: true)) }.to raise_error(ArgumentError, /sequence/)
     string_format = [{ name: :id, type: :string }]
     string_indexes = [{ name: :primary, parts: %i[id], sequence: true }]
-    expect { build(format: string_format, indexes: string_indexes) }.to raise_error(ArgumentError, /sequence/)
+    expect { build({ format: string_format, indexes: string_indexes }) }.to raise_error(ArgumentError, /sequence/)
   end
 
   describe '#verify' do

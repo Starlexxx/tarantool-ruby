@@ -19,14 +19,19 @@ module Tarantool
             owner = "space #{name}"
             Keys.check!(schema, SPACE_KEYS, owner)
             fields = Keys.fetch!(schema, :format, owner).map { |entry| field(entry, owner) }
+            Keys.distinct!(fields.map(&:name), owner)
             indexes = index_declarations(Keys.fetch!(schema, :indexes, owner), fields, owner)
-            @space_info = Tarantool::Client::SpaceInfo.new(
-              id: 0, name: name.to_s, fields:, indexes: indexes.to_h { |index| [index.info.name, index.info] }
-            )
+            @space_info = build_space_info(name, fields, indexes)
             @sequence = indexes.first.sequence
           end
 
           private
+
+          def build_space_info(name, fields, indexes)
+            Tarantool::Client::SpaceInfo.new(
+              id: 0, name: name.to_s, fields:, indexes: indexes.to_h { |index| [index.info.name, index.info] }
+            )
+          end
 
           def field(entry, owner)
             Keys.check!(entry, FIELD_KEYS, "#{owner} field")
@@ -37,7 +42,6 @@ module Tarantool
           end
 
           def index_declarations(entries, fields, owner)
-            Keys.distinct!(fields.map(&:name), owner)
             raise ArgumentError, "#{owner} has no indexes" if entries.empty?
 
             entries.each_with_index.map { |entry, id| IndexDeclaration.new(entry, id:, fields:, owner:) }
