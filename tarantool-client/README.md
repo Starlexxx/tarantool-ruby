@@ -202,23 +202,23 @@ No configuration is needed; the detection is a single PID comparison on every re
 client = Tarantool::Client.new(uri, instrumenter: ActiveSupport::Notifications, logger: Rails.logger)
 ```
 
-`instrumenter:` takes any object with `instrument(name, payload) { }`, so `ActiveSupport::Notifications` works as is. `logger:` takes any `Logger`-compatible object. `Pool` accepts both and passes them to every member. Without either the request path does no extra work. `benchmark/request_overhead.rb` measures this.
+`instrumenter:` takes any object with `instrument(name, payload) { }`, so `ActiveSupport::Notifications` works as is. `logger:` takes any `Logger`-compatible object. `Pool` accepts both and passes them to every member. Without either, no payload is built and nothing is timed; the request path only goes through a few extra method calls. `benchmark/request_overhead.rb` measures this.
 
 Every call emits `request.tarantool`, transactions included (`begin`, each operation, `commit` or `rollback`). A retry after a schema change is part of the same event. `delete_by` emits one `request.tarantool` per select or delete batch; there is no separate event for it. A key appears only when it has a value:
 
 | Key | Value |
 |---|---|
-| `request` | absent only when a space, index or field name failed to resolve, so the request was never built; otherwise `:select`, `:insert`, `:replace`, `:update`, `:upsert`, `:delete`, `:call`, `:eval`, `:execute`, `:prepare`, `:ping`, `:begin`, `:commit`, `:rollback` |
-| `space`, `index` | as passed (name or id); `index` only for select, update, delete |
+| `request` | absent when a space, index or field name failed to resolve, so the request was never built; otherwise `:select`, `:insert`, `:replace`, `:update`, `:upsert`, `:delete`, `:call`, `:eval`, `:execute`, `:prepare`, `:ping`, `:begin`, `:commit`, `:rollback` |
+| `space`, `index` | as passed (name or id); `index` only for select, update, delete, and only once the request is built |
 | `function` | function name of a call |
 | `sql` / `statement_id` | SQL text, or the id of a prepared statement |
 | `address` | `host:port` or socket path of the instance |
 | `schema_reloaded` | `true` when the call reloaded the schema |
 | `exception`, `exception_object` | `[class name, message]` and the exception, as ActiveSupport sets them |
 
-Keys, tuples, update operations, call and eval arguments, SQL bindings, the eval expression and credentials are never included.
+Keys, tuples, update operations, call and eval arguments, SQL bindings, the eval expression and credentials are never included. The exception message and the SQL text can still carry data: a duplicate-key `ServerError` quotes the tuple, and `sql` is the statement as passed.
 
-Lifecycle events have the instance `address` too:
+Lifecycle events have the instance `address` too. Subscribers should be fast: `disconnect.tarantool` is emitted on the reconnect thread before it backs off and retries, and `Client#close` waits for that thread to finish.
 
 | Event | Payload | Log level |
 |---|---|---|
@@ -228,7 +228,9 @@ Lifecycle events have the instance `address` too:
 | `fork.tarantool` | | info |
 | `role_change.tarantool` | `read_only` (pool members) | info |
 
-The logger writes requests at debug, one line each: `tarantool select space=users index=email 1.24ms 127.0.0.1:3301`. Background warnings (a failing callback hook, a pool member that gave up) go to the logger as well, or to stderr without one.
+`role_change.tarantool` fires only when the role actually changes, not on the first report after connecting.
+
+The logger writes requests at debug, one line each: `tarantool select space=users index=email 1.24ms 127.0.0.1:3301`. A failed request's line shows the exception class and, when it has one, its code, e.g. `error=Tarantool::ServerError(3)`, never the message. Background warnings (a failing callback hook, a pool member that gave up) go to the logger as well, or to stderr without one.
 
 ## Errors
 
