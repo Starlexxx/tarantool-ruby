@@ -18,7 +18,7 @@ module Tarantool
         engine = engine.to_s
         raise ArgumentError, "#{context}: unknown engine #{engine.inspect}" unless SpaceSpec::ENGINES.include?(engine)
 
-        engine
+        -engine
       end
 
       def self.build_indexes(space, indexes, context)

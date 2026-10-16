@@ -22,6 +22,10 @@ RSpec.describe Tarantool::Schema::SpaceSpec do
     expect { build(engine: :sophia) }.to raise_error(ArgumentError, 'space codes: unknown engine "sophia"')
   end
 
+  it 'freezes the returned engine even when given an unfrozen String' do
+    expect(build(engine: +'memtx').engine).to be_frozen
+  end
+
   it 'rejects duplicate fields' do
     format = [{ name: :id, type: :unsigned }, { name: :id, type: :string }]
 

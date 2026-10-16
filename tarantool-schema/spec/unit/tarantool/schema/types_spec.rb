@@ -19,6 +19,10 @@ RSpec.describe Tarantool::Schema::Types do
     it 'rejects an unknown type' do
       expect { described_class.declared(:uint, 'f') }.to raise_error(ArgumentError, 'f: unknown type "uint"')
     end
+
+    it 'freezes the returned name even when given an unfrozen String' do
+      expect(described_class.declared(+'unsigned', 'f')).to be_frozen
+    end
   end
 
   describe '.live' do

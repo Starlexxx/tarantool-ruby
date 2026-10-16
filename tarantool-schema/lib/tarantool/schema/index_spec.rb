@@ -23,7 +23,7 @@ module Tarantool
         type = raw.fetch(:type, :tree).to_s
         raise ArgumentError, "#{context}: unknown type #{type.inspect}" unless IndexSpec::TYPES.include?(type)
 
-        type
+        -type
       end
 
       def self.parts(raw, context)

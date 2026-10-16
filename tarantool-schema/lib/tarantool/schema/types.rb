@@ -15,7 +15,7 @@ module Tarantool
 
       def declared(type, context)
         name = type.to_s
-        return name if CANONICAL.include?(name)
+        return -name if CANONICAL.include?(name)
 
         hint = canonical(name)
         raise ArgumentError, "#{context}: unknown type #{name.inspect}#{", use #{hint}" if hint}"

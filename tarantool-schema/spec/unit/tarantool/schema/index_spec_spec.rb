@@ -13,6 +13,10 @@ RSpec.describe Tarantool::Schema::IndexSpec do
     expect([index.type, index.unique, index.sequence]).to eq(['tree', true, false])
   end
 
+  it 'freezes the returned type even when given an unfrozen String' do
+    expect(described_class.build(:primary, { parts: [:id], type: +'tree' }).type).to be_frozen
+  end
+
   it 'rejects an unknown index type' do
     expect { described_class.build(:pk, { parts: [:id], type: :btree }) }
       .to raise_error(ArgumentError, 'index pk: unknown type "btree"')
