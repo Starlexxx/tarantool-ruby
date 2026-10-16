@@ -10,8 +10,8 @@ RSpec.describe Tarantool::Model::Persistence do
       expect([user.persisted?, user.changed?, storage.get(:users, [1]).attributes[:email]]).to eq([true, false, 'a@x'])
     end
 
-    it 'refreshes attributes from the stored row' do
-      expect(User.create!(id: nil, email: 'a@x').id).to eq(1)
+    it 'propagates the storage error for a primary key that cannot be nil' do
+      expect { User.create!(id: nil, email: 'a@x') }.to raise_error(Tarantool::ServerError)
     end
 
     it 'keeps the tuple of the written row' do

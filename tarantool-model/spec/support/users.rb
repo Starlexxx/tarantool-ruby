@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 RSpec.shared_context 'with users' do
-  let(:storage) { MemoryStorage.new(users: MemoryStorage::USERS) }
+  let(:storage) { Tarantool::Model::Testing::MemoryStorage.new(users: Schemas::USERS) }
   let(:events) { [] }
 
   before do
