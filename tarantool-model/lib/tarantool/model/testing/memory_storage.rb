@@ -41,6 +41,20 @@ module Tarantool
           single(space, :delete) { |table| table.delete(key) }
         end
 
+        def select(space, index:, key:, iterator:, limit:, after:)
+          perform(space, :select) do |table|
+            tuples = @mode.scan(table, index:, key:, iterator:, after:)
+
+            (limit ? tuples.first(limit) : tuples).map { |tuple| @mode.row(table, tuple, single: false) }
+          end
+        end
+
+        def count(space, index:, key:, iterator:)
+          @mode.count!
+
+          perform(space, :count) { |table| @mode.scan(table, index:, key:, iterator:, after: nil).size }
+        end
+
         private
 
         def perform(space, operation)

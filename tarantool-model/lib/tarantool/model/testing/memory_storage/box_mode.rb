@@ -21,6 +21,14 @@ module Tarantool
             Row.new(attributes: space.mapping.to_hash(tuple), tuple:)
           end
 
+          def count!
+            raise NotSupportedError, 'MemoryStorage behaves like Storage::Box, which does not count'
+          end
+
+          def scan(space, **)
+            space.scan(**)
+          end
+
           def error(violation, _operation)
             return Tarantool::SchemaError.new(violation.message) if %i[space index].include?(violation.kind)
 

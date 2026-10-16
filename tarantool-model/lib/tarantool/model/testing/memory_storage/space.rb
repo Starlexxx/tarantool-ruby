@@ -46,7 +46,26 @@ module Tarantool
             copy(@rows.delete(key))
           end
 
+          def scan(index:, key:, iterator:, after:)
+            Scan.new(@info, index_info(index)).call(@rows.values, key:, iterator:, after:).map { |tuple| copy(tuple) }
+          end
+
+          def index?(name)
+            name.nil? || name.is_a?(Integer) || @info.indexes.key?(name.to_s)
+          end
+
           private
+
+          def index_info(name)
+            return @primary if name.nil?
+
+            found = name.is_a?(Integer) ? @info.indexes.each_value.find { |index| index.id == name } : by_name(name)
+            found || raise(Violation.unknown_index(name, @info.name))
+          end
+
+          def by_name(name)
+            @info.indexes[name.to_s]
+          end
 
           def store(tuple, replacing:)
             check_nils(tuple)

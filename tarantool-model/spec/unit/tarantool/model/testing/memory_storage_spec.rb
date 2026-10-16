@@ -44,6 +44,7 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
       row = storage.insert(:accounts, { id: 1, email: 'a@x', balance:, token:, created_at:, period: })
 
       expect(row.attributes).to include(balance:, token:, created_at:, period:)
+      expect(row.attributes[:created_at].utc_offset).to eq(3 * 3600)
     end
   end
 
@@ -73,9 +74,16 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
     end
 
     it 'overwrites the original row when a numeric primary key changes type but not value' do
-      storage.update(:users, [1], [['=', 'id', 1.0]])
+      numbers = described_class.new(
+        numbers: { format: [{ name: :id, type: :number }, { name: :note }],
+                   indexes: [{ name: :primary, parts: %i[id] }] }
+      )
+      numbers.insert(:numbers, { id: 1, note: 'a' })
+      numbers.update(:numbers, [1], [['=', 'id', 1.0]])
+      rows = numbers.select(:numbers, index: nil, key: [], iterator: :all, limit: nil, after: nil)
 
-      expect(storage.get(:users, [1]).attributes[:id]).to be_a(Float)
+      expect(rows.map { |row| row.attributes[:id] }).to eq([1.0])
+      expect(rows.first.attributes[:id]).to be_a(Float)
     end
 
     it 'lets an update keep its own unique keys' do
@@ -169,6 +177,59 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
       storage.insert(:accounts, { id: 2.5, email: 'a' })
 
       expect(account).to eq(1)
+    end
+  end
+
+  it_behaves_like 'a model storage', count: false
+
+  describe 'reads' do
+    def ids(rows) = rows.map { |row| row.attributes[:id] }
+
+    def hashed
+      described_class.new(
+        tokens: { format: [{ name: :id, type: :unsigned }, { name: :token, type: :unsigned }],
+                  indexes: [{ name: :primary, parts: %i[id] }, { name: :token, parts: %i[token], type: :hash }] }
+      ).tap { |memory| [[1, 30], [2, 10], [3, 20]].each { |id, token| memory.insert(:tokens, { id:, token: }) } }
+    end
+
+    def scan(memory, space, **options)
+      memory.select(space, index: nil, key: [], iterator: :all, limit: nil, after: nil, **options)
+    end
+
+    it 'sorts nil first and matches nil with eq' do
+      codes = nullable_codes
+      [[1, nil], [2, nil], [3, 'b'], [4, 'a']].each { |id, code| codes.insert(:codes, { id:, code: }) }
+
+      expect(ids(scan(codes, :codes, index: :code))).to eq([1, 2, 4, 3])
+      expect(ids(scan(codes, :codes, index: :code, key: ['b'], iterator: :lt))).to eq([4, 2, 1])
+      expect(ids(scan(codes, :codes, index: :code, key: [nil], iterator: :eq))).to eq([1, 2])
+    end
+
+    it 'reads a hash index with eq, gt and all in key order' do
+      expect(ids(scan(hashed, :tokens, index: :token, key: [20], iterator: :gt))).to eq([1])
+      expect(ids(scan(hashed, :tokens, index: :token))).to eq([2, 3, 1])
+    end
+
+    it 'raises ServerError 112 for other iterators and after on a hash index' do
+      expect { scan(hashed, :tokens, index: :token, key: [20], iterator: :ge) }.to raise_error(server_error(112))
+      expect { scan(hashed, :tokens, index: :token, after: [1, 30]) }
+        .to raise_error(server_error(112).and(having_attributes(message: /pagination/)))
+    end
+
+    it 'takes an index by id, and raises SchemaError for an unknown index' do
+      storage.insert(:users, { id: 1, email: 'a', age: 1 })
+
+      expect(ids(scan(storage, :users, index: 0))).to eq([1])
+      expect { scan(storage, :users, index: :nope) }.to raise_error(Tarantool::SchemaError, /index 'nope'/)
+    end
+
+    it 'raises ArgumentError for an unknown iterator' do
+      expect { scan(storage, :users, iterator: :req, key: [1]) }.to raise_error(ArgumentError, /req/)
+    end
+
+    it 'does not count, like Storage::Box' do
+      expect { storage.count(:users, index: nil, key: [], iterator: :all) }
+        .to raise_error(Tarantool::Model::NotSupportedError, /Storage::Box/)
     end
   end
 end
