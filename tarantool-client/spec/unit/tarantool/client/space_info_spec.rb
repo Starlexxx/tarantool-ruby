@@ -56,12 +56,75 @@ RSpec.describe Tarantool::Client::SpaceInfo do
     expect(info.primary_index.name).to eq('primary')
   end
 
+  describe '#to_hash' do
+    it 'keys the fields of the format by Symbol name' do
+      expect(info.to_hash([1, 30, { 'x' => 1 }])).to eq(id: 1, age: 30, meta: { 'x' => 1 })
+    end
+
+    it 'leaves fields missing from a short tuple nil' do
+      expect(info.to_hash([1])).to eq(id: 1, age: nil, meta: nil)
+    end
+
+    it 'keys fields beyond the format by their position' do
+      expect(info.to_hash([1, 2, 3, 'x', 5])).to eq(id: 1, age: 2, meta: 3, 3 => 'x', 4 => 5)
+    end
+  end
+
+  describe '#to_tuple' do
+    it 'orders Symbol and String keys by the format and leaves missing fields nil' do
+      expect(info.to_tuple({ age: 30, 'id' => 1 })).to eq([1, 30, nil])
+    end
+
+    it 'places positions beyond the format after it' do
+      expect(info.to_tuple({ id: 1, 4 => 'x' })).to eq([1, nil, nil, nil, 'x'])
+    end
+
+    it 'rejects a name missing from the format' do
+      expect { info.to_tuple({ id: 1, phone: 'x' }) }.to raise_error(ArgumentError, /no field 'phone'/)
+    end
+
+    it 'rejects a position inside the format' do
+      expect { info.to_tuple({ 1 => 30 }) }.to raise_error(ArgumentError, /position 1/)
+    end
+
+    it 'rejects a field given twice under Symbol and String keys' do
+      expect { info.to_tuple({ age: 1, 'age' => 2 }) }.to raise_error(ArgumentError, /age/)
+    end
+
+    it 'rejects a negative position with its own message' do
+      expect { info.to_tuple({ -1 => 'x' }) }.to raise_error(ArgumentError, /-1/) do |error|
+        expect(error.message).not_to include('inside the format')
+      end
+    end
+
+    it 'rejects a position more than 1024 past the format' do
+      expect { info.to_tuple({ (info.fields.size + 1024) => 'x' }) }.to raise_error(ArgumentError, /1024/)
+    end
+
+    it 'accepts a position up to 1024 past the format' do
+      position = info.fields.size + 1023
+
+      expect(info.to_tuple({ position => 'x' })[position]).to eq('x')
+    end
+
+    it 'restores a tuple converted with to_hash' do
+      tuple = [1, 2, 3, 'x']
+
+      expect(info.to_tuple(info.to_hash(tuple))).to eq(tuple)
+    end
+  end
+
   context 'with a space without format and indexes' do
     let(:space) { [600, 1, 'raw'] }
     let(:indexes) { [] }
 
     it 'has no fields, no indexes and no primary index' do
       expect([info.fields, info.indexes, info.primary_index]).to eq([[], {}, nil])
+    end
+
+    it 'keys every field by position' do
+      expect(info.to_hash([1, 'a'])).to eq(0 => 1, 1 => 'a')
+      expect(info.to_tuple({ 1 => 'a' })).to eq([nil, 'a'])
     end
   end
 end

@@ -11,6 +11,7 @@ RSpec.describe Tarantool::Model::Storage::Box do
     primary = client::IndexInfo.new(id: 0, name: 'primary', type: 'tree', unique: true, parts: [part])
     client::SpaceInfo.new(id: 512, name: 'users', fields:, indexes: { 'primary' => primary })
   end
+  let(:found) { client::Row.new(tuple: [1, 'a', 3], attributes: { id: 1, email: 'a', age: 3 }) }
 
   it 'rejects mode: for a caller that is not a Pool' do
     expect { described_class.new(caller, read: { mode: :ro }) }.to raise_error(ArgumentError, /Pool/)
@@ -21,17 +22,17 @@ RSpec.describe Tarantool::Model::Storage::Box do
   end
 
   it 'gets a row with the read options' do
-    allow(caller).to receive(:select).and_return([[1, 'a', 3]])
+    allow(caller).to receive(:select).and_return([found])
 
-    expect(storage.get(:users, [1]).attributes).to eq(id: 1, email: 'a', age: 3)
-    expect(caller).to have_received(:select).with(:users, [1], limit: 1, timeout: 1)
+    expect(storage.get(:users, [1])).to eq(Tarantool::Model::Row.new(attributes: found.attributes, tuple: [1, 'a', 3]))
+    expect(caller).to have_received(:select).with(:users, [1], limit: 1, as: :row, timeout: 1)
   end
 
-  it 'inserts a tuple in format order with the write options' do
-    allow(caller).to receive(:insert).and_return([1, 'a', nil])
+  it 'inserts the attributes Hash with the write options' do
+    allow(caller).to receive(:insert).and_return(found)
 
-    expect(storage.insert(:users, { email: 'a', id: 1 }).tuple).to eq([1, 'a', nil])
-    expect(caller).to have_received(:insert).with(:users, [1, 'a', nil], timeout: 2)
+    expect(storage.insert(:users, { email: 'a', id: 1 }).tuple).to eq([1, 'a', 3])
+    expect(caller).to have_received(:insert).with(:users, { email: 'a', id: 1 }, as: :row, timeout: 2)
   end
 
   it 'raises RecordNotUnique for a duplicate key and keeps the server error as cause' do
@@ -57,22 +58,22 @@ RSpec.describe Tarantool::Model::Storage::Box do
     allow(caller).to receive(:select).and_return([])
     storage.select(:users, index: nil, key: [], iterator: :all, limit: nil, after: nil)
 
-    expect(caller).to have_received(:select).with(:users, [], index: 0, iterator: :all, after: nil, timeout: 1)
+    expect(caller).to have_received(:select)
+      .with(:users, [], index: 0, iterator: :all, after: nil, as: :row, timeout: 1)
   end
 
   it 'selects with a limit and the tuple to continue after' do
-    allow(caller).to receive(:select).and_return([[2, 'b', 3]])
+    allow(caller).to receive(:select).and_return([found])
 
     expect(storage.select(:users, index: :age, key: [3], iterator: :ge, limit: 5, after: [1, 'a', 3]).size).to eq(1)
     expect(caller).to have_received(:select)
-      .with(:users, [3], index: :age, iterator: :ge, after: [1, 'a', 3], timeout: 1, limit: 5)
+      .with(:users, [3], index: :age, iterator: :ge, after: [1, 'a', 3], as: :row, timeout: 1, limit: 5)
   end
 
-  it 'looks up the format with the options of the operation' do
-    allow(caller).to receive(:delete).and_return(nil)
-    storage.delete(:users, [1])
+  it 'looks up the format for verify with the read options' do
+    storage.verify(:users, attributes: %i[id email], primary_key: [:id])
 
-    expect(caller).to have_received(:space_info).with(:users, timeout: 2)
+    expect(caller).to have_received(:space_info).with(:users, timeout: 1)
   end
 
   it 'does not count' do
@@ -86,7 +87,7 @@ RSpec.describe Tarantool::Model::Storage::Box do
   end
 
   describe '#transaction' do
-    let(:stream) { instance_double(Tarantool::Client::Stream, space_info: info, select: [[1, 'a', 3]]) }
+    let(:stream) { instance_double(Tarantool::Client::Stream, space_info: info, select: [found]) }
 
     before { allow(caller).to receive(:transaction).and_yield(stream).and_return(:done) }
 
@@ -99,7 +100,7 @@ RSpec.describe Tarantool::Model::Storage::Box do
       allow(caller).to receive(:select)
       storage.transaction { storage.get(:users, [1]) }
 
-      expect(stream).to have_received(:select).with(:users, [1], limit: 1, timeout: 1)
+      expect(stream).to have_received(:select).with(:users, [1], limit: 1, as: :row, timeout: 1)
       expect(caller).not_to have_received(:select)
     end
 
@@ -109,7 +110,7 @@ RSpec.describe Tarantool::Model::Storage::Box do
       box = described_class.new(pool, read: { mode: :ro, timeout: 1 })
       box.transaction { box.get(:users, [1]) }
 
-      expect(stream).to have_received(:select).with(:users, [1], limit: 1, timeout: 1)
+      expect(stream).to have_received(:select).with(:users, [1], limit: 1, as: :row, timeout: 1)
     end
 
     it 'uses the caller again after the transaction' do

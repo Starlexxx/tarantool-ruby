@@ -4,21 +4,12 @@ module Tarantool
   module Model
     module Storage
       class Box
-        # Field order of a space: converts attribute Hashes to tuples and back, and checks a model against the
-        # format. Fields the model does not declare go out as nil and are ignored on read.
+        # Checks a model against the space format.
         # @api private
         class Layout
           def initialize(space_info)
             @space_info = space_info
             @names = space_info.fields.map { |field| field.name.to_sym }
-          end
-
-          def to_tuple(attributes)
-            @names.map { |name| attributes[name] }
-          end
-
-          def to_row(tuple)
-            Row.new(attributes: @names.zip(tuple).to_h, tuple:)
           end
 
           def verify!(attributes:, primary_key:)

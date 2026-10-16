@@ -57,8 +57,8 @@ module Tarantool
         send_request(request, timeout: timeout || @request_timeout, schema_version:, on_push:)
       end
 
-      def perform_on_space(space, index, timeout: nil, &)
-        return perform(yield(space, index), timeout:) if space.is_a?(Integer) && index.is_a?(Integer)
+      def perform_on_space(space, index, timeout: nil, format: false, &)
+        return perform(yield(space, index), timeout:) if !format && space.is_a?(Integer) && index.is_a?(Integer)
 
         perform_by_name(space, index, timeout || @request_timeout, &)
       end
@@ -68,7 +68,8 @@ module Tarantool
       def perform_by_name(space, index, timeout)
         check_connection
         deadline = Transport::Deadline.after(timeout)
-        request = yield(*@schema.resolve(space, index, deadline))
+        space_id, index_id = @schema.resolve(space, index, deadline)
+        request = yield(space_id, index_id, @schema.space_info(space_id, deadline))
 
         perform(request, timeout: remaining(deadline), schema_version: @schema.version)
       rescue ServerError => e

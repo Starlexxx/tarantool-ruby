@@ -39,7 +39,7 @@ module Tarantool
       end
 
       def space_info(space)
-        @space_infos.fetch(space_id(space)) { raise SchemaError, "space '#{space}' not found" }
+        @space_infos.fetch(space_id(space))
       end
 
       private
@@ -52,9 +52,10 @@ module Tarantool
       end
 
       def space_id(space)
-        return space if space.is_a?(Integer)
+        id = space.is_a?(Integer) ? space : @space_ids[space.to_s]
+        return id if @space_infos.key?(id)
 
-        @space_ids.fetch(space.to_s) { raise SchemaError, "space '#{space}' not found" }
+        raise SchemaError, "space '#{space}' not found"
       end
 
       def index_id(space_id, index)

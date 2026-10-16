@@ -52,12 +52,15 @@ require_relative 'client/transport/connection'
 require_relative 'client/transport/link_state'
 require_relative 'client/transport/link'
 require_relative 'client/index_info'
+require_relative 'client/tuple_mapping'
 require_relative 'client/space_info'
 require_relative 'client/schema'
 require_relative 'client/schema_cache'
 require_relative 'client/sql_result'
 require_relative 'client/prepared_statement'
 require_relative 'client/transaction_schema'
+require_relative 'client/row'
+require_relative 'client/tuple_shape'
 require_relative 'client/operations'
 require_relative 'client/transaction_scope'
 require_relative 'client/stream'
@@ -164,8 +167,10 @@ module Tarantool
 
     # Name-resolved requests carry the schema version they were resolved against, so the
     # server rejects them (ER_WRONG_SCHEMA_VERSION) instead of running them on a stale id.
-    def perform_on_space(space, index, timeout: nil, &)
-      return perform(yield(space, index), timeout:) if space.is_a?(Integer) && index.is_a?(Integer)
+    # A request that needs the space format is resolved the same way even by ids, so the
+    # format and the version it carries come from one schema.
+    def perform_on_space(space, index, timeout: nil, format: false, &)
+      return perform(yield(space, index), timeout:) if !format && space.is_a?(Integer) && index.is_a?(Integer)
 
       perform_by_name(space, index, timeout || @config.request_timeout, &)
     end
@@ -196,13 +201,13 @@ module Tarantool
     def perform_with_schema_check(space, index, deadline)
       schema, ids = @schema_cache.resolve(space, index, deadline)
 
-      perform_resolved(schema, yield(*ids), deadline)
-    rescue ServerError => e
-      raise unless e.code == Protocol::Constants::ER_WRONG_SCHEMA_VERSION
+      perform_resolved(schema, yield(*ids, schema.space_info(ids.first)), deadline)
+    rescue ServerError, UnknownFieldError => e
+      raise if e.is_a?(ServerError) && e.code != Protocol::Constants::ER_WRONG_SCHEMA_VERSION
 
       fresh = @schema_cache.reload(schema, timeout: Transport::Deadline.remaining(deadline))
       schema, ids = @schema_cache.resolve(space, index, deadline, fresh)
-      perform_resolved(schema, yield(*ids), deadline)
+      perform_resolved(schema, yield(*ids, schema.space_info(ids.first)), deadline)
     end
 
     # Only the connection the schema came from: once it is lost, another instance may reuse the

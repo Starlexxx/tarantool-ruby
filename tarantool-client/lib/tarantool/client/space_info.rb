@@ -4,6 +4,8 @@ module Tarantool
   class Client
     # Format and indexes of a space from the loaded schema. `indexes` maps names to IndexInfo in id order.
     SpaceInfo = Data.define(:id, :name, :fields, :indexes) do
+      include TupleMapping
+
       def self.from_tuples(space, index_tuples)
         id, _owner, name, _engine, _field_count, _flags, format = space
         fields = (format || []).map { |raw| SpaceInfo::Field.from_raw(raw) }

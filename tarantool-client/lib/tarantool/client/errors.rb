@@ -29,6 +29,9 @@ module Tarantool
   # Space or index name cannot be resolved.
   class SchemaError < Error; end
 
+  # A Hash tuple names a field missing from the space format.
+  class UnknownFieldError < ArgumentError; end
+
   # Transaction misuse or a transaction that can no longer proceed.
   class TransactionError < Error; end
 
