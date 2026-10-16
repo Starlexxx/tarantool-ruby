@@ -94,6 +94,23 @@ RSpec.describe Tarantool::Client do
       end
     end
 
+    context 'with an instrumenter' do
+      let(:instrumenter) { RecordingInstrumenter.new }
+      let(:client) { described_class.new(server.uri, request_timeout: 2, connect_timeout: 2, instrumenter:) }
+
+      it 'reports the reopened connection in the child' do
+        client.ping
+        child_pid = fork do
+          server.restart_after_fork
+          client.ping
+          exit(instrumenter.payloads('fork.tarantool') == [{ address: server.path }] ? 0 : 1)
+        end
+        _, status = Process.wait2(child_pid)
+
+        expect(status.exitstatus).to eq(0)
+      end
+    end
+
     context 'with a stream created before fork' do
       let(:pre_fork_stream) do
         link = client.instance_variable_get(:@link)

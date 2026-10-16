@@ -32,6 +32,34 @@ RSpec.describe Tarantool::Client::Pool do
       end
     end
 
+    context 'with an instrumenter' do
+      let(:instrumenter) { RecordingInstrumenter.new }
+      let(:pool) do
+        described_class.new([rw_server.uri, ro_server.uri], request_timeout: 2, connect_timeout: 2,
+                                                            reconnect_delay: 0.05, instrumenter:)
+      end
+
+      after do
+        pool.close
+        rw_server.stop
+        ro_server.stop
+      end
+
+      it 'reports a fork for every member in the child' do
+        pool.ping
+        child_pid = fork do
+          rw_server.restart_after_fork
+          ro_server.restart_after_fork
+          pool.ping
+          addresses = instrumenter.payloads('fork.tarantool').map { |payload| payload[:address] }
+          exit(addresses.sort == [rw_server.path, ro_server.path].sort ? 0 : 1)
+        end
+        _, status = Process.wait2(child_pid)
+
+        expect(status.exitstatus).to eq(0)
+      end
+    end
+
     context 'with a member down at fork time' do
       let(:down_server) { ForkFakeTarantool.new(read_only: true).tap { |s| s.refusing = true } }
       let(:pool) do

@@ -8,11 +8,13 @@ module Tarantool
       # @api private
       class Member
         include Pool::MemberForkSafety
+        include Pool::MemberRole
 
         def initialize(uri, options)
           @uri = uri
           @options = options
           @config = Configuration.build(uri, **options)
+          @instrumentation = Instrumentation.build(@config)
           @lock = Mutex.new
           @changed = ConditionVariable.new
           @closed = false
@@ -73,13 +75,6 @@ module Tarantool
           end
 
           client.close if closed
-        end
-
-        def update(status)
-          @lock.synchronize do
-            @read_only = status['is_ro']
-            @changed.broadcast
-          end
         end
 
         def wait_for_status

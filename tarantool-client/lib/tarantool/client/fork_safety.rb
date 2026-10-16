@@ -17,6 +17,7 @@ module Tarantool
       def reopen_after_fork
         close_inherited_link
         open_link
+        @instrumentation&.notify('fork.tarantool')
       end
 
       # Joining a thread that died with an exception re-raises it; nothing from the parent may stop the reopen.

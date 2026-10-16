@@ -24,6 +24,25 @@ RSpec.describe Tarantool::Client::Pool::Member do
     expect(member.read_only).to be(false)
   end
 
+  context 'with an instrumenter' do
+    subject(:member) { described_class.new(server.uri, { reconnect_delay: 0.01, instrumenter: }) }
+
+    let(:instrumenter) { RecordingInstrumenter.new }
+
+    def roles_reported = instrumenter.payloads('role_change.tarantool')
+
+    it 'reports the first role and every change, not a repeated one' do
+      member.start
+      change_role(server, roles, 'a', true)
+      change_role(server, roles, 'a', false)
+      wait_for { roles_reported.last&.fetch(:read_only) == false }
+
+      expect(roles_reported).to eq(
+        [{ read_only: true, address: server.path }, { read_only: false, address: server.path }]
+      )
+    end
+  end
+
   it 'gives access to its client' do
     member.start
 

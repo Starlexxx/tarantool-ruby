@@ -78,6 +78,7 @@ require_relative 'client/watchers/dispatcher'
 require_relative 'client/fork_safety'
 require_relative 'client/pool'
 require_relative 'client/pool/member_fork_safety'
+require_relative 'client/pool/member_role'
 require_relative 'client/pool/member'
 
 module Tarantool
