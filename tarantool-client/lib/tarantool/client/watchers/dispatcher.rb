@@ -3,7 +3,8 @@
 module Tarantool
   class Client
     class Watchers
-      # Runs jobs in order on one thread, started by the first job. Close drops the jobs still queued.
+      # Runs jobs in order on one thread, started by the first job and again by the first one after it died.
+      # Close drops the jobs still queued.
       # @api private
       class Dispatcher
         def initialize
@@ -12,7 +13,9 @@ module Tarantool
         end
 
         def push(&job)
-          @lock.synchronize { @thread ||= Thread.new { run }.tap { |thread| thread.name = 'tarantool-watchers' } }
+          @lock.synchronize do
+            @thread = Thread.new { run }.tap { |thread| thread.name = 'tarantool-watchers' } unless @thread&.alive?
+          end
 
           @jobs.push(job)
         end

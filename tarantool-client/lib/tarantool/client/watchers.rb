@@ -58,12 +58,8 @@ module Tarantool
       end
 
       # Runs the block on the dispatcher after the events queued so far.
-      def defer
-        @dispatcher.push do
-          yield
-        rescue StandardError => e
-          warn("tarantool watchers: deferred job failed: #{e.class}: #{e.message}")
-        end
+      def defer(&job)
+        @dispatcher.push { CallbackGuard.run('tarantool watchers: deferred job', &job) }
       end
 
       # A new session has no subscriptions. WATCH also makes the server send each key's current value,

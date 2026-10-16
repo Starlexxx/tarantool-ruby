@@ -28,4 +28,4 @@ Naming/PredicateMethod:
 Lint/RescueException:
   Exclude:
     - 'tarantool-client/lib/tarantool/client/thread_join.rb'
-    - 'tarantool-client/lib/tarantool/client/watcher.rb'
+    - 'tarantool-client/lib/tarantool/client/callback_guard.rb'

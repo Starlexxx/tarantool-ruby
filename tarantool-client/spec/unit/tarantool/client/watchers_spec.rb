@@ -208,17 +208,53 @@ RSpec.describe Tarantool::Client::Watchers do
     end
   end
 
-  context 'when a callback raises Interrupt' do
+  def dispatcher_dead? = Thread.list.none? { |thread| thread.name == 'tarantool-watchers' && thread.alive? }
+
+  context 'when a callback raises an error that kills the dispatcher' do
     before do
       allow($stderr).to receive(:write)
-      watchers.add('k', ->(_key, _value) { raise Interrupt })
+      watchers.add('bad', ->(_key, _value) { raise NoMemoryError, 'oom' })
+      collect('good')
     end
 
-    it 'stops the dispatcher and closes normally' do
-      watchers.dispatch('k', 1)
-      wait_for { Thread.list.none? { |thread| thread.name == 'tarantool-watchers' && thread.alive? } }
+    it 'starts a new dispatcher for later events' do
+      watchers.dispatch('bad', 1)
+      wait_for { dispatcher_dead? }
+      watchers.dispatch('good', 2)
 
-      expect { watchers.close }.not_to raise_error
+      expect(events.pop(timeout: 1)).to eq(['good', 2])
+    end
+  end
+
+  context 'when a callback calls exit' do
+    let(:main) { instance_double(Thread, raise: nil) }
+
+    before do
+      allow(Thread).to receive(:main).and_return(main)
+      watchers.add('k', ->(_key, _value) { exit })
+      collect('k')
+    end
+
+    it 'forwards SystemExit to the main thread and keeps dispatching' do
+      watchers.dispatch('k', 1)
+
+      expect(events.pop(timeout: 1)).to eq(['k', 1])
+      expect(main).to have_received(:raise).with(an_instance_of(SystemExit))
+    end
+  end
+
+  context 'when a deferred job raises an error that is not a StandardError' do
+    before do
+      allow(Warning).to receive(:warn)
+      collect('k')
+    end
+
+    it 'reports it and keeps delivering events' do
+      watchers.defer { raise SystemStackError, 'deep' }
+      watchers.dispatch('k', 1)
+
+      expect(events.pop(timeout: 1)).to eq(['k', 1])
+      expect(Warning).to have_received(:warn).with(/deferred job failed: SystemStackError: deep/, any_args)
     end
   end
 

@@ -12,7 +12,7 @@ module Tarantool
       def join(thread)
         thread&.join unless Thread.current == thread
       rescue Exception
-        raise if thread.alive?
+        raise unless thread.status.nil?
       end
     end
   end
