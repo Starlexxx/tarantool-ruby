@@ -9,4 +9,5 @@ RSpec.configure do |config|
   config.disable_monkey_patching!
   config.order = :random
   config.filter_run_excluding :integration unless ENV['INTEGRATION']
+  config.filter_run_excluding :crud unless ENV['TARANTOOL_MODEL_CRUD_URI']
 end
