@@ -57,6 +57,15 @@ RSpec.describe Tarantool::Client::BatchDelete do
 
   def selects = target.calls.select { |call| call.first == :select }
 
+  def fail_second_delete(error)
+    calls = 0
+    allow(target).to receive(:delete).and_wrap_original do |original, *args, **options|
+      raise error if (calls += 1) == 2
+
+      original.call(*args, **options)
+    end
+  end
+
   def build(**options)
     described_class.new(target, :users, [18], index: :age, iterator: :eq, batch_size: 2, timeout: nil, **options)
   end
@@ -139,16 +148,30 @@ RSpec.describe Tarantool::Client::BatchDelete do
         expect(error.deleted).to eq(1)
       end
     end
+
+    it 'wraps a request timeout as the delete_by message with the request error as cause' do
+      failure = Tarantool::TimeoutError.new('no response within 0.1s')
+      fail_second_delete(failure)
+      message = 'delete_by did not finish within 5s'
+
+      expect { build(timeout: 5).call }.to raise_error(Tarantool::TimeoutError, message) do |error|
+        expect(error.deleted).to eq(1)
+        expect(error.cause).to equal(failure)
+      end
+    end
   end
 
   it 're-raises a failure mid-way as the same error with the count' do
     failure = Tarantool::ConnectionError.new('lost')
-    calls = 0
-    allow(target).to receive(:delete).and_wrap_original do |original, *args, **options|
-      raise failure if (calls += 1) == 2
+    fail_second_delete(failure)
 
-      original.call(*args, **options)
-    end
+    expect { batch_delete.call }.to raise_error(failure)
+    expect(failure.deleted).to eq(1)
+  end
+
+  it 're-raises a request timeout as the same error when there is no overall deadline' do
+    failure = Tarantool::TimeoutError.new('no response within 0.1s')
+    fail_second_delete(failure)
 
     expect { batch_delete.call }.to raise_error(failure)
     expect(failure.deleted).to eq(1)

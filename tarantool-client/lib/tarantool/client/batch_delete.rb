@@ -6,6 +6,10 @@ module Tarantool
     # by primary key. Drives only the public operations of its target, so it runs the same on Client and Stream.
     # @api private
     class BatchDelete
+      # Internal signal that the overall deadline ran out; `call` turns it into the public delete_by message.
+      class DeadlineExceeded < StandardError; end
+      private_constant :DeadlineExceeded
+
       def initialize(target, space, key, index:, iterator:, batch_size:, timeout:)
         validate_batch_size(batch_size)
 
@@ -22,6 +26,13 @@ module Tarantool
 
       def call
         delete_pages(primary_fieldnos)
+      rescue DeadlineExceeded
+        raise deadline_timeout_error, cause: nil
+      rescue TimeoutError => e
+        raise deadline_timeout_error if @deadline
+
+        e.deleted = @deleted
+        raise
       rescue Error => e
         e.deleted = @deleted
         raise
@@ -65,12 +76,19 @@ module Tarantool
         end
       end
 
+      def deadline_timeout_error
+        error = TimeoutError.new("delete_by did not finish within #{@timeout}s")
+        error.deleted = @deleted
+
+        error
+      end
+
       # nil leaves each request on the connection's request_timeout.
       def remaining
         return unless @deadline
 
         left = Transport::Deadline.remaining(@deadline)
-        raise TimeoutError, "delete_by did not finish within #{@timeout}s" if left.zero?
+        raise DeadlineExceeded if left.zero?
 
         left
       end
