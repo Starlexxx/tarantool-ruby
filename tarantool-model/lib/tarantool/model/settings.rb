@@ -35,6 +35,10 @@ module Tarantool
 
           @verified_storage = current
         end
+
+        def writing_storage
+          verified_storage.tap { |s| Transactions.check_write!(s) }
+        end
       end
 
       def to_key

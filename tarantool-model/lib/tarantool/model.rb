@@ -7,6 +7,8 @@ require_relative 'model/version'
 require_relative 'model/errors'
 require_relative 'model/row'
 require_relative 'model/key'
+require_relative 'model/transactions'
+require_relative 'model/transactional'
 require_relative 'model/types/uuid'
 require_relative 'model/types/interval'
 require_relative 'model/types/binary'
@@ -18,6 +20,7 @@ require_relative 'model/relation'
 require_relative 'model/querying'
 require_relative 'model/storage/box/layout'
 require_relative 'model/storage/box'
+require_relative 'model/storage/crud'
 
 module Tarantool
   # ActiveModel-based model over a Tarantool space. Attribute names are the space format field names.
@@ -33,6 +36,7 @@ module Tarantool
     include State
     include Persistence
     include Counters
+    include Transactional
     include Querying
   end
 end

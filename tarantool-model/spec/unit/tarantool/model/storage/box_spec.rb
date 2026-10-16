@@ -84,4 +84,40 @@ RSpec.describe Tarantool::Model::Storage::Box do
     expect { storage.verify(:users, attributes: [:phone], primary_key: [:id]) }
       .to raise_error(Tarantool::Model::SchemaMismatchError)
   end
+
+  describe '#transaction' do
+    let(:stream) { instance_double(Tarantool::Client::Stream, space_info: info, select: [[1, 'a', 3]]) }
+
+    before { allow(caller).to receive(:transaction).and_yield(stream).and_return(:done) }
+
+    it 'opens a client transaction with the given options and returns its value' do
+      expect(storage.transaction(isolation: :read_committed, timeout: 5) { :ignored }).to eq(:done)
+      expect(caller).to have_received(:transaction).with(isolation: :read_committed, timeout: 5)
+    end
+
+    it 'sends operations through the stream while the transaction is open' do
+      allow(caller).to receive(:select)
+      storage.transaction { storage.get(:users, [1]) }
+
+      expect(stream).to have_received(:select).with(:users, [1], limit: 1, timeout: 1)
+      expect(caller).not_to have_received(:select)
+    end
+
+    it 'drops mode: inside the transaction of a Pool' do
+      pool = Tarantool::Client::Pool.allocate
+      allow(pool).to receive(:transaction).and_yield(stream)
+      box = described_class.new(pool, read: { mode: :ro, timeout: 1 })
+      box.transaction { box.get(:users, [1]) }
+
+      expect(stream).to have_received(:select).with(:users, [1], limit: 1, timeout: 1)
+    end
+
+    it 'uses the caller again after the transaction' do
+      allow(caller).to receive(:select).and_return([])
+      storage.transaction { nil }
+      storage.get(:users, [1])
+
+      expect(caller).to have_received(:select)
+    end
+  end
 end

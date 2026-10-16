@@ -70,7 +70,7 @@ module Tarantool
 
       def create_row
         run_callbacks(:create) do
-          written(space_storage.insert(space_name, attributes.transform_keys(&:to_sym)))
+          written(writing_storage.insert(space_name, attributes.transform_keys(&:to_sym)))
 
           @persisted = true
         end
@@ -89,12 +89,12 @@ module Tarantool
       def updated_row
         operations = changes.map { |name, (_was, value)| ['=', name, value] }
 
-        space_storage.update(space_name, key_in_database, operations) ||
+        writing_storage.update(space_name, key_in_database, operations) ||
           raise(RecordNotFound.new(self.class, key_in_database))
       end
 
       def delete_row
-        space_storage.delete(space_name, key_in_database) if persisted?
+        writing_storage.delete(space_name, key_in_database) if persisted?
 
         @destroyed = true
       end

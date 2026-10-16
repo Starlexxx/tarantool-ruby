@@ -70,7 +70,21 @@ class MemoryStorage
 
   def count(space, index:, key:, iterator:) = matching(space(space), index, key, iterator).size
 
+  def transaction(**, &)
+    raise Tarantool::TransactionError, 'nested transactions are not supported' if
+      Tarantool::Model::Transactions.handle(self)
+
+    snapshot = @spaces.transform_values { |table| table.dup.tap { |copy| copy.rows = deep_rows(table) } }
+
+    Tarantool::Model::Transactions.open(self, :memory, &)
+  rescue StandardError
+    @spaces = snapshot
+    raise
+  end
+
   private
+
+  def deep_rows(table) = table.rows.transform_values(&:dup)
 
   def space(name) = @spaces.fetch(name.to_s)
 

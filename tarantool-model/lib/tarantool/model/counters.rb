@@ -16,7 +16,7 @@ module Tarantool
       private
 
       def change_counter(operator, attribute, by)
-        row = space_storage.update(space_name, key_in_database, [[operator, attribute.to_s, by]])
+        row = writing_storage.update(space_name, key_in_database, [[operator, attribute.to_s, by]])
         raise RecordNotFound.new(self.class, key_in_database) unless row
 
         @tuple = row.tuple

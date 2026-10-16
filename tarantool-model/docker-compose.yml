@@ -12,6 +12,20 @@ x-tarantool: &tarantool
     interval: 1s
     retries: 30
 
+x-crud: &crud
+  entrypoint: ['env', '-u', 'TT_APP_NAME', '-u', 'TT_INSTANCE_NAME', 'tarantool']
+  command: ['/opt/tarantool/crud_init.lua']
+  volumes:
+    - ./spec/integration/crud_init.lua:/opt/tarantool/crud_init.lua:ro
+  healthcheck:
+    test:
+      - CMD-SHELL
+      - >-
+        tarantool -e "local c = require('net.box').connect('app:secret@127.0.0.1:3301')
+        os.exit(pcall(c.call, c, 'crud.len', {'users'}) and 0 or 1)"
+    interval: 1s
+    retries: 60
+
 services:
   box-2.11:
     <<: *tarantool
@@ -22,3 +36,15 @@ services:
     <<: *tarantool
     image: tarantool/tarantool:3
     ports: ['3322:3301']
+
+  crud-2.11:
+    <<: *crud
+    image: tarantool-crud:2.11
+    build: { context: ../tarantool-crud/docker, args: { TARANTOOL_VERSION: '2.11' } }
+    ports: ['3331:3301']
+
+  crud-3:
+    <<: *crud
+    image: tarantool-crud:3
+    build: { context: ../tarantool-crud/docker, args: { TARANTOOL_VERSION: '3' } }
+    ports: ['3332:3301']
