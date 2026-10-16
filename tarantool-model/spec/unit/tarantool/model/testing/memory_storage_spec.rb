@@ -28,6 +28,25 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
     expect(described_class.from_definition(definition).insert(:users, { id: nil }).attributes).to eq(id: 1)
   end
 
+  describe 'value round trip through the wire codec' do
+    it 'turns Symbol keys into String keys in an any field' do
+      row = storage.insert(:accounts, { id: 1, email: 'a@x', tags: { color: :red } })
+
+      expect(row.attributes[:tags]).to eq('color' => 'red')
+    end
+
+    it 'round-trips BigDecimal, UUID, Interval and a Time with offset equal' do
+      balance = BigDecimal('12.50')
+      token = Tarantool::Client::UUID.new('550e8400-e29b-41d4-a716-446655440000')
+      period = Tarantool::Client::Interval.new(year: 1, month: 2)
+      created_at = Time.new(2024, 1, 1, 12, 0, 0, '+03:00')
+
+      row = storage.insert(:accounts, { id: 1, email: 'a@x', balance:, token:, created_at:, period: })
+
+      expect(row.attributes).to include(balance:, token:, created_at:, period:)
+    end
+  end
+
   describe 'writes' do
     before { storage.insert(:users, { id: 1, email: 'a@x', age: 1 }) }
 
@@ -43,6 +62,20 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
       expect { storage.insert(:users, { id: 3, email: 'a@x', age: 1 }) }
         .to raise_error(Tarantool::Model::RecordNotUnique, /unique index "email" in space "users"/)
       expect { storage.update(:users, [2], [['=', 'email', 'a@x']]) }.to raise_error(Tarantool::Model::RecordNotUnique)
+    end
+
+    it 'raises RecordNotUnique for a duplicate primary key, with the old and new tuple in the message' do
+      expect { storage.insert(:users, { id: 1, email: 'c@x', age: 2 }) }.to raise_error(
+        Tarantool::Model::RecordNotUnique,
+        'Duplicate key exists in unique index "primary" in space "users" with old tuple - [1, "a@x", 1] ' \
+        'and new tuple - [1, "c@x", 2]'
+      )
+    end
+
+    it 'overwrites the original row when a numeric primary key changes type but not value' do
+      storage.update(:users, [1], [['=', 'id', 1.0]])
+
+      expect(storage.get(:users, [1]).attributes[:id]).to be_a(Float)
     end
 
     it 'lets an update keep its own unique keys' do
@@ -110,7 +143,11 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
   end
 
   describe 'sequence' do
-    def account(id = nil) = storage.insert(:accounts, { id:, email: "#{id.inspect}#{rand}" }).attributes[:id]
+    let(:account_sequence) { (1..).each }
+
+    def account(id = nil)
+      storage.insert(:accounts, { id:, email: "#{id.inspect}#{account_sequence.next}" }).attributes[:id]
+    end
 
     it 'fills a nil primary key from 1 and moves past explicit values' do
       expect([account, account(10), account]).to eq([1, 10, 11])
@@ -126,6 +163,12 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
 
     it 'is not used for spaces without a sequence' do
       expect { storage.insert(:users, { id: nil, email: 'a', age: 1 }) }.to raise_error(server_error(23))
+    end
+
+    it 'does not move the counter for an explicit non-integer primary key' do
+      storage.insert(:accounts, { id: 2.5, email: 'a' })
+
+      expect(account).to eq(1)
     end
   end
 end

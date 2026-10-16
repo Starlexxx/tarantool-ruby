@@ -15,7 +15,7 @@ module Tarantool
             @layout = Storage::Box::Layout.new(info)
             @mapping = TupleMapping.new(info)
             @primary = info.primary_index
-            @sequence = sequence && @primary.parts.first.fieldno
+            @sequence_fieldno = sequence && @primary.parts.first.fieldno
             @counter = 0
             @required = required_fieldnos
             @rows = {}
@@ -51,7 +51,7 @@ module Tarantool
           def store(tuple, replacing:)
             check_nils(tuple)
             check_unique(tuple, replacing)
-            @rows[key_of(tuple, @primary)] = tuple
+            @rows[replacing || key_of(tuple, @primary)] = tuple
 
             copy(tuple)
           end
@@ -66,19 +66,27 @@ module Tarantool
             @info.indexes.each_value.select(&:unique).each do |index|
               key = key_of(tuple, index)
               next if key.include?(nil)
-              next unless @rows.any? { |row_key, row| row_key != replacing && key_of(row, index) == key }
 
-              raise RecordNotUnique, "Duplicate key exists in unique index \"#{index.name}\" in space \"#{@info.name}\""
+              _, old = @rows.find { |row_key, row| row_key != replacing && key_of(row, index) == key }
+              next unless old
+
+              raise RecordNotUnique, duplicate_key_message(index, old, tuple)
             end
           end
 
-          def advance_sequence(tuple)
-            return unless @sequence
+          def duplicate_key_message(index, old, tuple)
+            "Duplicate key exists in unique index \"#{index.name}\" in space \"#{@info.name}\" with old tuple - " \
+              "#{old.inspect} and new tuple - #{tuple.inspect}"
+          end
 
-            if tuple[@sequence].nil?
-              tuple[@sequence] = @counter += 1
-            else
-              @counter = [@counter, tuple[@sequence]].max
+          def advance_sequence(tuple)
+            return unless @sequence_fieldno
+
+            value = tuple[@sequence_fieldno]
+            if value.nil?
+              tuple[@sequence_fieldno] = @counter += 1
+            elsif value.is_a?(Integer)
+              @counter = [@counter, value].max
             end
           end
 
@@ -95,8 +103,10 @@ module Tarantool
             index.parts.map { |part| tuple[part.fieldno] }
           end
 
+          # Codec is @api private in tarantool-client, but released together with tarantool-model in this
+          # monorepo; only the wire round trip turns Symbols into Strings and rejects values Tarantool can't store.
           def copy(value)
-            value && Marshal.load(Marshal.dump(value))
+            value && Client::Protocol::Codec::FACTORY.load(Client::Protocol::Codec::FACTORY.dump(value))
           end
         end
       end
