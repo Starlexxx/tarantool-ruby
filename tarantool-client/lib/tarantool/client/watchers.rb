@@ -71,6 +71,16 @@ module Tarantool
         end
       end
 
+      # Preserve registrations; restart per-process state so callbacks re-fire after resubscribe.
+      # The parent's dispatcher thread is dead after fork. Start a new one immediately when
+      # pre-fork watchers exist so events queued by resubscribe get delivered.
+      def restart_after_fork(new_link)
+        @link = new_link
+        @values = {}
+        @jobs = Thread::Queue.new
+        @dispatcher = @watchers.empty? ? nil : start_dispatcher
+      end
+
       def close
         @jobs.clear
         @jobs.close
@@ -84,9 +94,7 @@ module Tarantool
 
       private
 
-      def start_dispatcher
-        Thread.new { run }.tap { |thread| thread.name = 'tarantool-watchers' }
-      end
+      def start_dispatcher = Thread.new { run }.tap { |thread| thread.name = 'tarantool-watchers' }
 
       def run
         while (job = @jobs.pop)

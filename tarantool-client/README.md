@@ -147,6 +147,14 @@ Every client operation accepts `mode:`:
 
 Roles come from `box.status` (`is_ro`), so a switchover is picked up as soon as the instances report it. Requests are spread round-robin among matching instances. If none matches, the call raises `NoAvailableInstanceError`. `Pool.new` raises it only if no address answers; addresses that are down keep being retried in the background. That retrying covers start-up only: once connected, a member relies on its client's reconnect, so with a finite `reconnect_attempts` a member that gives up stays out of rotation. `Pool#close` may wait for an in-progress background connect attempt, up to `connect_timeout` + `request_timeout`. Options are passed to each client. A prepared statement from `pool.prepare` stays bound to the instance that prepared it.
 
+## Forking servers
+
+`Client` and `Pool` are fork-safe. The first request in a child process after `fork` reinitializes the connection transparently — a new socket is opened, background threads are restarted, and watchers are resubscribed. The parent's connection is unaffected.
+
+Streams (interactive transactions) cannot cross a fork boundary. Using a stream that was created before `fork` in a child raises `ConnectionError`.
+
+No configuration is needed; the detection is a single PID comparison on every request.
+
 ## Errors
 
 ```

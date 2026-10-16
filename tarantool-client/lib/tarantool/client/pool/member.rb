@@ -6,6 +6,8 @@ module Tarantool
       # One pool address: its client once connected and the role from the instance's latest box.status.
       # An address that is down at start keeps being retried in the background.
       class Member
+        include Pool::MemberForkSafety
+
         def initialize(uri, options)
           @uri = uri
           @options = options
