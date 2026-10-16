@@ -8,6 +8,10 @@ module Tarantool
         # @api private
         module Decimal
           MAX_DIGITS = 38
+          # Digits, the sign and the zero nibble that pads them to whole bytes.
+          MAX_NIBBLES = MAX_DIGITS + 2
+          # Tarantool's decimal context: exponents up to 999_999, and down to -1_000_074 for subnormals and zeros.
+          SCALES = (-999_999..1_000_074)
           NEGATIVE_SIGNS = %w[b d].freeze
           BCD_NIBBLES = /\A\d+[a-f]\z/
 
@@ -25,14 +29,18 @@ module Tarantool
             unpacker = MessagePack::Unpacker.new.feed(payload)
             scale = unpacker.read
             nibbles = unpacker.buffer.read_all.unpack1('H*')
-            unless scale.is_a?(Integer) && nibbles.match?(BCD_NIBBLES)
-              raise ArgumentError, "malformed decimal: #{nibbles}"
-            end
+            raise ArgumentError, "malformed decimal of #{payload.bytesize} bytes" unless valid?(scale, nibbles)
 
             sign = NEGATIVE_SIGNS.include?(nibbles[-1]) ? '-' : ''
 
             BigDecimal("#{sign}#{nibbles[0...-1]}e#{-scale}")
           end
+
+          def valid?(scale, nibbles)
+            scale.is_a?(Integer) && SCALES.cover?(scale) && nibbles.length <= MAX_NIBBLES &&
+              nibbles.match?(BCD_NIBBLES) && nibbles.delete_prefix('0').length <= MAX_DIGITS + 1
+          end
+          private_class_method :valid?
 
           def scale_and_nibbles(value)
             sign, digits, _base, exponent = value.split
