@@ -42,8 +42,9 @@ module Tarantool
             Row.new(attributes: space.mapping.to_hash(tuple), tuple: single ? nil : tuple)
           end
 
-          # Without a condition crud scans the primary index; with one, it reads an unknown index name as a field
-          # name that no tuple has.
+          # Without a condition crud scans the primary index. With one, crud reads a name that is not an index as a
+          # field name and filters by that field; this returns nothing instead, as crud does for a name that is
+          # neither.
           def scan(space, index:, key:, iterator:, after:)
             return space.scan(index: nil, key: [], iterator: :all, after:) if iterator == :all || key.empty?
             return [] unless space.index?(index)
