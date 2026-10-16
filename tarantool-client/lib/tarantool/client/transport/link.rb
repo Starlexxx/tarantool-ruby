@@ -110,7 +110,7 @@ module Tarantool
 
           reconnect_with_backoff
         rescue StandardError => e
-          warn(e.full_message)
+          Diagnostics.warn(@config.logger, e.full_message)
           @state.give_up(ConnectionError.new("reconnect to #{@config.address} failed: #{e.class}: #{e.message}"))
         end
 
@@ -136,7 +136,7 @@ module Tarantool
         def run_hook(name)
           yield
         rescue StandardError => e
-          warn("#{name} failed for #{@config.address}: #{e.full_message}")
+          Diagnostics.warn(@config.logger, "#{name} failed for #{@config.address}: #{e.full_message}")
         end
 
         def give_up(attempts, error)

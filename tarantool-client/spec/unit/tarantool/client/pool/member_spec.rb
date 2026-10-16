@@ -70,6 +70,19 @@ RSpec.describe Tarantool::Client::Pool::Member do
     end.to output(/RuntimeError: boom/).to_stderr
   end
 
+  it 'reports an unexpected connect error to the logger when one is set' do
+    output = StringIO.new
+    logged = described_class.new(server.uri, { reconnect_delay: 0.01, logger: Logger.new(output) })
+    server.refusing = true
+    logged.start
+    allow(Tarantool::Client).to receive(:new).and_raise(RuntimeError, 'boom')
+    server.refusing = false
+
+    wait_for { output.string.include?('RuntimeError: boom') }
+    expect(output.string).to include('RuntimeError: boom')
+    logged.close
+  end
+
   it 'forgets the role while disconnected and takes the new one after reconnecting' do
     member.start
     server.refusing = true

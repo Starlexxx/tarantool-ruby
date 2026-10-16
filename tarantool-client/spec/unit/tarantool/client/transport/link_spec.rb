@@ -115,6 +115,20 @@ RSpec.describe Tarantool::Client::Transport::Link do
       end
     end
 
+    context 'when on_lost fails with a logger configured' do
+      let(:log_output) { StringIO.new }
+      let(:options) { { logger: Logger.new(log_output) } }
+
+      def on_lost = -> { raise ArgumentError, 'lost' }
+
+      it 'sends the warning to the logger instead of stderr' do
+        expect do
+          drop_connection
+          wait_for { log_output.string.include?('on_lost failed') }
+        end.not_to output.to_stderr
+      end
+    end
+
     context 'when on_connect fails once after the drop' do
       let(:on_connect) do
         calls = 0

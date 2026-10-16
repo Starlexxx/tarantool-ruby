@@ -115,7 +115,7 @@ module Tarantool
             attempt += 1
           end
         rescue StandardError => e
-          warn "tarantool pool: gave up connecting to #{address}: #{e.class}: #{e.message}"
+          Diagnostics.warn(@config.logger, "tarantool pool: gave up connecting to #{address}: #{e.class}: #{e.message}")
         end
 
         def try_connect
@@ -125,7 +125,7 @@ module Tarantool
         rescue Error
           false
         rescue StandardError => e
-          warn "tarantool pool: connecting to #{address} failed: #{e.class}: #{e.message}"
+          Diagnostics.warn(@config.logger, "tarantool pool: connecting to #{address} failed: #{e.class}: #{e.message}")
           false
         end
 
