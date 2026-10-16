@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'tarantool/model'
+require 'tarantool/model/testing'
 require 'tarantool/crud'
 
 Dir[File.join(__dir__, 'support', '*.rb')].each { |file| require file }
