@@ -60,7 +60,7 @@ RSpec.describe Tarantool::Schema::Definition do
       end
     end
 
-    expect(build).to raise_error(ArgumentError, 'space codes: declare it before its ensure_index')
+    expect(&build).to raise_error(ArgumentError, 'space codes: declare it before its ensure_index')
   end
 
   it 'validates spaces once the block is done' do
