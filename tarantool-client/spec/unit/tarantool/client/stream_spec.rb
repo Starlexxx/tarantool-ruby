@@ -6,7 +6,8 @@ RSpec.describe Tarantool::Client::Stream do
   let(:handler) do
     lambda do |request, fake|
       case request.body[0x10]
-      when 281 then fake.reply(request, [[512, 1, 'users']])
+      when 281
+        fake.reply(request, [[512, 1, 'users', 'memtx', 0, {}, [{ 'name' => 'type' }, { 'name' => 'space' }]]])
       when 289 then fake.reply(request, [[512, 0, 'primary']])
       else fake.reply(request, [[request.type, request.body[0x10]]])
       end
@@ -68,6 +69,11 @@ RSpec.describe Tarantool::Client::Stream do
   it 'sends names resolved against the schema version of BEGIN' do
     transaction { |tx| tx.select(:users, 1) }
 
+    expect(server.headers.find { |header| header[0x00] == 0x01 && header.key?(0x0a) }[0x05]).to eq(1)
+  end
+
+  it 'converts by the schema of BEGIN, numeric ids included' do
+    expect(transaction { |tx| tx.select(512, 1, index: 0, as: :hash) }).to eq([{ type: 0x01, space: 512 }])
     expect(server.headers.find { |header| header[0x00] == 0x01 && header.key?(0x0a) }[0x05]).to eq(1)
   end
 
