@@ -3,7 +3,6 @@
 module Tarantool
   class Client
     class Pool
-      # Per-process reinit for forked children. Included in Member.
       # @api private
       module MemberForkSafety
         # Pool re-runs its startup in a forked child after this. The inherited client and retry thread belong
