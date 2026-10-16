@@ -81,6 +81,7 @@ Options that are set on a live space but that you did not declare are ignored wh
 ```ruby
 client = Tarantool::Client.new(ENV.fetch('TARANTOOL_ADMIN_URI'))
 
+# codes already exists from an earlier deploy; only by_expiry is new
 MyApp::SCHEMA.plan(client)  # => ["index codes.by_expiry"], writes nothing
 MyApp::SCHEMA.apply(client) # => ["index codes.by_expiry"]
 MyApp::SCHEMA.apply(client) # => []
@@ -189,12 +190,20 @@ denied or a read-only instance are raised unchanged as `Tarantool::ServerError`.
 ## Development
 
 ```sh
-cd tarantool-client && podman compose up -d --wait   # from the main checkout only; 2.11 on 3301, 3.x on 3302
-cd ../tarantool-schema
+podman compose -f tarantool-client/docker-compose.yml up -d --wait tarantool-2.11 tarantool-3
+# or: docker compose -f tarantool-client/docker-compose.yml up -d --wait tarantool-2.11 tarantool-3
+
+cd tarantool-schema
 bundle exec rspec                                     # unit
 INTEGRATION=1 TARANTOOL_URI=tcp://app:secret@localhost:3301 bundle exec rspec
 INTEGRATION=1 TARANTOOL_URI=tcp://app:secret@localhost:3302 bundle exec rspec
 ```
+
+## Public API
+
+`Tarantool::Schema::Definition` and the error classes above.
+
+Everything else is an implementation detail and may change in any release.
 
 ## License
 
