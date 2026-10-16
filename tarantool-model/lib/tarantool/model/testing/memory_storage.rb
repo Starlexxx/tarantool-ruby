@@ -14,15 +14,31 @@ module Tarantool
           new(definition.to_h, **)
         end
 
-        def initialize(spaces, behaves_like: :box)
+        def initialize(spaces = {}, behaves_like: :box, **named_spaces)
           @mode = MODES.fetch(behaves_like) do
             raise ArgumentError, "behaves_like must be one of #{MODES.keys.join(', ')}, got #{behaves_like.inspect}"
           end.new
-          @spaces = spaces.to_h { |name, schema| [name.to_s, build_space(name, schema)] }
+          @spaces = spaces.merge(named_spaces).to_h { |name, schema| [name.to_s, build_space(name, schema)] }
         end
 
         def verify(space, attributes:, primary_key:)
           perform(space, :get) { |table| @mode.verify(table, attributes:, primary_key:) }
+        end
+
+        def get(space, key)
+          single(space, :get) { |table| table.get(key) }
+        end
+
+        def insert(space, attributes)
+          single(space, :insert) { |table| table.insert(@mode.to_tuple(table, attributes)) }
+        end
+
+        def update(space, key, operations)
+          single(space, :update) { |table| table.update(key, operations) }
+        end
+
+        def delete(space, key)
+          single(space, :delete) { |table| table.delete(key) }
         end
 
         private
@@ -31,6 +47,14 @@ module Tarantool
           yield @spaces.fetch(space.to_s) { raise Violation.unknown_space(space) }
         rescue Violation => e
           raise @mode.error(e, operation)
+        end
+
+        def single(space, operation)
+          perform(space, operation) do |table|
+            tuple = yield table
+
+            tuple && @mode.row(table, tuple, single: true)
+          end
         end
 
         def build_space(name, schema)

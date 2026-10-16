@@ -13,6 +13,14 @@ module Tarantool
 
           def sequences? = true
 
+          def to_tuple(space, attributes)
+            space.mapping.to_tuple(attributes)
+          end
+
+          def row(space, tuple, **)
+            Row.new(attributes: space.mapping.to_hash(tuple), tuple:)
+          end
+
           def error(violation, _operation)
             return Tarantool::SchemaError.new(violation.message) if %i[space index].include?(violation.kind)
 

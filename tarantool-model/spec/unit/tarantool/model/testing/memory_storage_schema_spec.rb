@@ -11,6 +11,11 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
     expect { build(Schemas::USERS, behaves_like: :sql) }.to raise_error(ArgumentError, /behaves_like/)
   end
 
+  it 'takes spaces as keywords' do
+    expect(described_class.new(users: Schemas::USERS).insert(:users, { id: 1, email: 'a', age: 1 }).attributes)
+      .to include(id: 1)
+  end
+
   it 'rejects unknown keys at every level' do
     expect { build(Schemas::USERS.merge(if_not_exists: true)) }.to raise_error(ArgumentError, /if_not_exists/)
     expect { build(with_index(name: :code, parts: %i[code], collation: 'unicode')) }
