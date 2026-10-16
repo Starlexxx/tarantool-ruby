@@ -27,9 +27,8 @@ RSpec.describe Tarantool::Client::BatchDelete do
 
       def select(_space, key, index:, iterator:, limit:, after:, timeout: nil)
         @calls << [:select, index, iterator, limit, after, timeout]
-        position = ->(row) { [row[1], row[0]] }
-        found = @rows.select { |row| row[1] == key.first }.sort_by(&position)
-        found = found.select { |row| (position.call(row) <=> position.call(after)).positive? } if after
+        found = @rows.select { |row| row[1] == key.first }.sort_by { |row| position(row) }
+        found = skip_until_after(found, after) if after
 
         found.first(limit)
       end
@@ -38,6 +37,16 @@ RSpec.describe Tarantool::Client::BatchDelete do
         @calls << [:delete, key, timeout]
 
         @rows.delete(@rows.find { |row| row.values_at(*@parts.map(&:fieldno)) == key })
+      end
+
+      private
+
+      def position(row)
+        [row[1], *row.values_at(*@parts.map(&:fieldno))]
+      end
+
+      def skip_until_after(found, cursor)
+        found.select { |row| (position(row) <=> position(cursor)).positive? }
       end
     end
   end
@@ -65,6 +74,7 @@ RSpec.describe Tarantool::Client::BatchDelete do
 
     expect(batch_delete.call).to eq(2)
     expect(selects.size).to eq(2)
+    expect(target.rows).to eq([[4, 19]])
   end
 
   context 'with a composite primary key' do
@@ -74,7 +84,7 @@ RSpec.describe Tarantool::Client::BatchDelete do
     it 'deletes by the primary key fields in part order' do
       batch_delete.call
 
-      expect(target.calls.select { |call| call.first == :delete }.map { |call| call[1] }).to eq([[2, 'a'], [1, 'b']])
+      expect(target.calls.select { |call| call.first == :delete }.map { |call| call[1] }).to eq([[1, 'b'], [2, 'a']])
     end
   end
 
