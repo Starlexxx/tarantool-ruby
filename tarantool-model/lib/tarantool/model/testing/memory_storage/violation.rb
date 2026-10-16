@@ -32,6 +32,10 @@ module Tarantool
             new("Invalid key part count (expected [0..#{max}], got #{got})", code: 31)
           end
 
+          def self.exact_match(expected, got)
+            new("Invalid key part count in an exact match (expected #{expected}, got #{got})", code: 19)
+          end
+
           def self.iterator(index, space)
             new("Index '#{index}' (HASH) of space '#{space}' (memtx) does not support requested iterator type",
                 code: 112)

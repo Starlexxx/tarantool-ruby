@@ -15,6 +15,10 @@ module Tarantool
 
           def transaction! = nil
 
+          def get(space, key)
+            space.get(key)
+          end
+
           def to_tuple(space, attributes)
             space.mapping.to_tuple(attributes)
           end

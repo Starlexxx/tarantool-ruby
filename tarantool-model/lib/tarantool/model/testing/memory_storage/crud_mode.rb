@@ -23,6 +23,13 @@ module Tarantool
 
           def sequences? = false
 
+          def get(space, key)
+            parts = space.info.primary_index.parts.size
+            raise Violation.exact_match(parts, key.size) unless key.size == parts
+
+            space.get(key)
+          end
+
           def to_tuple(space, attributes)
             tuple = space.mapping.to_tuple(attributes)
             fieldno = space.info.fields.index { |field| field.name == BUCKET_ID }

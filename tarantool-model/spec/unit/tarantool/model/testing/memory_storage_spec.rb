@@ -7,6 +7,13 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
     an_instance_of(Tarantool::ServerError).and(having_attributes(code:))
   end
 
+  def pairs(**)
+    described_class.new(
+      { pairs: { format: [{ name: :a, type: :unsigned }, { name: :b, type: :unsigned }],
+                 indexes: [{ name: :primary, parts: %i[a b] }] } }, **
+    ).tap { |memory| [[2, 1], [1, 2], [1, 1]].each { |a, b| memory.insert(:pairs, { a:, b: }) } }
+  end
+
   def nullable_codes
     described_class.new(
       codes: { format: [{ name: :id, type: :unsigned }, { name: :code, type: :string, is_nullable: true },
@@ -185,6 +192,17 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
     it 'returns nil for a missing key' do
       expect([storage.get(:users, [9]), storage.update(:users, [9], []), storage.delete(:users, [9])])
         .to eq([nil, nil, nil])
+    end
+
+    it 'gets the first row matching a partial primary key, like a select with limit 1' do
+      expect([pairs.get(:pairs, [1]).tuple, pairs.get(:pairs, []).tuple, pairs.get(:pairs, [3])])
+        .to eq([[1, 1], [1, 1], nil])
+    end
+
+    it 'raises ServerError 31 for a get with a key longer than the primary index' do
+      expect { pairs.get(:pairs, [1, 1, 1]) }.to raise_error(
+        server_error(31).and(having_attributes(message: 'Invalid key part count (expected [0..2], got 3)'))
+      )
     end
 
     it 'never shares values with the caller' do
@@ -412,6 +430,13 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
       expect { crud.update(:users, [1], [['=', 'id', 5]]) }
         .to raise_error(Tarantool::Crud::UpdateError, /\AFailed to update: Attempt to modify a tuple field/)
       expect { crud.get(:nope, [1]) }.to raise_error(Tarantool::Crud::GetError, 'Space "nope" doesn\'t exist')
+    end
+
+    it 'raises GetError for a get whose key does not have every primary key part' do
+      expect { pairs(behaves_like: :crud).get(:pairs, [1]) }.to raise_error(
+        Tarantool::Crud::GetError, 'Failed to get: Invalid key part count in an exact match (expected 2, got 1)'
+      )
+      expect { pairs(behaves_like: :crud).get(:pairs, [1, 1, 1]) }.to raise_error(Tarantool::Crud::GetError, /got 3/)
     end
 
     it 'does not use sequences' do

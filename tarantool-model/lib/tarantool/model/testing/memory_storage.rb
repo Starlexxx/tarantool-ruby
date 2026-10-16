@@ -26,7 +26,7 @@ module Tarantool
         end
 
         def get(space, key)
-          single(space, :get) { |table| table.get(key) }
+          single(space, :get) { |table| @mode.get(table, key) }
         end
 
         def insert(space, attributes)

@@ -21,7 +21,10 @@ module Tarantool
             @rows = {}
           end
 
+          # Storage::Box gets by a select with limit 1, so a partial key gives its first match.
           def get(key)
+            return scan(index: nil, key:, iterator: :eq, after: nil).first unless key.size == @primary.parts.size
+
             copy(@rows[copy(key)])
           end
 
