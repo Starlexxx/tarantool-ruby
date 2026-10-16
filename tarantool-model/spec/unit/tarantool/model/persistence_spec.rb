@@ -14,6 +14,17 @@ RSpec.describe Tarantool::Model::Persistence do
       expect { User.create!(id: nil, email: 'a@x') }.to raise_error(Tarantool::ServerError)
     end
 
+    context 'with a storage that assigns ids from a sequence' do
+      let(:storage) do
+        indexes = [{ name: :primary, parts: %i[id], sequence: true }, *Schemas::USERS[:indexes].drop(1)]
+        Tarantool::Model::Testing::MemoryStorage.new(users: Schemas::USERS.merge(indexes:))
+      end
+
+      it 'refreshes attributes from the stored row' do
+        expect(User.create!(id: nil, email: 'a@x').id).to eq(1)
+      end
+    end
+
     it 'keeps the tuple of the written row' do
       expect(User.create!(id: 1, email: 'a@x').tuple).to eq([1, 'a@x', 0])
     end
