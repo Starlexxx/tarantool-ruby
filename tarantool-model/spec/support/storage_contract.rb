@@ -59,6 +59,20 @@ RSpec.shared_examples 'a model storage' do |count: true|
     expect(ids(select(key: [30], iterator: :lt))).to eq([6, 2, 4])
   end
 
+  it 'selects :le in descending order' do
+    expect(ids(select(key: [20], iterator: :le))).to eq([6, 2, 4])
+  end
+
+  it 'selects :gt' do
+    expect(ids(select(key: [20], iterator: :gt))).to eq([1, 3, 5])
+  end
+
+  it 'combines a limit with after' do
+    first = select(key: [20], iterator: :ge).first
+
+    expect(ids(select(key: [20], iterator: :ge, after: first.tuple, limit: 2))).to eq([6, 1])
+  end
+
   it 'continues after a tuple on a non-unique index' do
     first = select(key: [20], iterator: :ge, limit: 2)
 

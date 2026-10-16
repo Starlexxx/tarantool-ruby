@@ -22,9 +22,12 @@ module Tarantool
           end
 
           def call(tuples, key:, iterator:, after:)
+            match = MATCHES.fetch(iterator) { raise ArgumentError, "unsupported iterator #{iterator.inspect}" }
+            raise Violation.key_part_count(@index.parts.size, key.size) if key.size > @index.parts.size
+
             check_hash!(iterator, after)
             sign = sign_for(iterator)
-            found = matching(sorted(tuples, sign), key, iterator)
+            found = matching(sorted(tuples, sign), key, match)
 
             after ? strictly_after(found, after, sign) : found
           end
@@ -35,9 +38,7 @@ module Tarantool
             DESCENDING.include?(iterator) ? -1 : 1
           end
 
-          def matching(tuples, key, iterator)
-            match = MATCHES.fetch(iterator) { raise ArgumentError, "unsupported iterator #{iterator.inspect}" }
-
+          def matching(tuples, key, match)
             tuples.select { |tuple| key.empty? || match.call(compare_key(tuple, key)) }
           end
 

@@ -28,6 +28,10 @@ module Tarantool
             new("Field '#{name}' was not found in the tuple", code: 201)
           end
 
+          def self.key_part_count(max, got)
+            new("Invalid key part count (expected [0..#{max}], got #{got})", code: 31)
+          end
+
           def self.iterator(index, space)
             new("Index '#{index}' (HASH) of space '#{space}' (memtx) does not support requested iterator type",
                 code: 112)

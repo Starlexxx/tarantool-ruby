@@ -196,6 +196,15 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
       memory.select(space, index: nil, key: [], iterator: :all, limit: nil, after: nil, **options)
     end
 
+    def prefixed
+      described_class.new(
+        pairs: { format: [{ name: :id, type: :unsigned }, { name: :a, type: :unsigned }, { name: :b, type: :unsigned }],
+                 indexes: [{ name: :primary, parts: %i[id] }, { name: :ab, parts: %i[a b], unique: false }] }
+      ).tap do |memory|
+        [[1, 1, 10], [2, 1, 20], [3, 2, 5], [4, 2, 15]].each { |id, a, b| memory.insert(:pairs, { id:, a:, b: }) }
+      end
+    end
+
     it 'sorts nil first and matches nil with eq' do
       codes = nullable_codes
       [[1, nil], [2, nil], [3, 'b'], [4, 'a']].each { |id, code| codes.insert(:codes, { id:, code: }) }
@@ -225,6 +234,37 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
 
     it 'raises ArgumentError for an unknown iterator' do
       expect { scan(storage, :users, iterator: :req, key: [1]) }.to raise_error(ArgumentError, /req/)
+    end
+
+    it 'raises ArgumentError for an unknown iterator on a hash index too' do
+      expect { scan(hashed, :tokens, index: :token, key: [20], iterator: :req) }.to raise_error(ArgumentError, /req/)
+    end
+
+    it 'orders a boolean field with false before true' do
+      flags = described_class.new(
+        flags: { format: [{ name: :id, type: :unsigned }, { name: :flag, type: :boolean }],
+                 indexes: [{ name: :primary, parts: %i[id] }, { name: :flag, parts: %i[flag], unique: false }] }
+      )
+      [[1, true], [2, false], [3, true]].each { |id, flag| flags.insert(:flags, { id:, flag: }) }
+
+      expect(ids(scan(flags, :flags, index: :flag))).to eq([2, 1, 3])
+    end
+
+    it 'raises ServerError 31 for a key longer than the index' do
+      expect { scan(storage, :users, index: :age, key: [1, 2]) }.to raise_error(
+        server_error(31).and(having_attributes(message: 'Invalid key part count (expected [0..1], got 2)'))
+      )
+    end
+
+    it 'matches a key shorter than a two-part index as a prefix' do
+      expect(ids(scan(prefixed, :pairs, index: :ab, key: [1], iterator: :eq))).to eq([1, 2])
+      expect(ids(scan(prefixed, :pairs, index: :ab, key: [1], iterator: :ge))).to eq([1, 2, 3, 4])
+    end
+
+    it 'continues after a tuple matched by a prefix key' do
+      first = scan(prefixed, :pairs, index: :ab, key: [1], iterator: :ge, limit: 1)
+
+      expect(ids(scan(prefixed, :pairs, index: :ab, key: [1], iterator: :ge, after: first.last.tuple))).to eq([2, 3, 4])
     end
 
     it 'does not count, like Storage::Box' do
