@@ -25,8 +25,12 @@ class ForkFakeTarantool
 
   def uri = "unix:#{@path}"
 
-  # Start a new accept loop in the child after fork (parent's thread died at fork).
+  # Start a new accept loop in the child after fork (parent's thread died at fork). The listening socket is
+  # rebound: the fd is shared with the parent, whose accept loop would otherwise take about half of the
+  # child's connections and, when refusing, drop them.
   def restart_after_fork
+    File.unlink(@path)
+    @server = UNIXServer.new(@path)
     @thread = Thread.new { serve }
   end
 
