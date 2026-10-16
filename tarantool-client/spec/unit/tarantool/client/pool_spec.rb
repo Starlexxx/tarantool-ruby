@@ -30,8 +30,8 @@ RSpec.describe Tarantool::Client::Pool do
     after { servers.each(&:stop) }
 
     it 'waits for the other members to start before raising' do
-      allow(Tarantool::Client).to receive(:new).and_wrap_original do |original, **options|
-        options[:path] == servers.first.path ? raise('boom') : original.call(**options)
+      allow(Tarantool::Client).to receive(:new).and_wrap_original do |original, *args, **options|
+        args.first&.include?(servers.first.path) ? raise('boom') : original.call(*args, **options)
       end
 
       expect { described_class.new(servers.map(&:uri), connect_timeout: 0.3) }.to raise_error('boom')

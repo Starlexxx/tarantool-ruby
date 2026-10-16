@@ -95,6 +95,16 @@ RSpec.describe Tarantool::Client::Configuration do
     end
   end
 
+  describe '#to_h' do
+    it 'filters a non-nil password' do
+      expect(described_class.build('tcp://app:secret@db.local').to_h[:password]).to eq('[FILTERED]')
+    end
+
+    it 'keeps a nil password as nil' do
+      expect(described_class.build.to_h[:password]).to be_nil
+    end
+  end
+
   describe '#inspect' do
     it 'masks a password' do
       expect(described_class.build('tcp://app:secret@db.local').inspect).to include('password="[FILTERED]"')

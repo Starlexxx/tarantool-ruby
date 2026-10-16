@@ -7,6 +7,8 @@ module Tarantool
       # An address that is down at start keeps being retried in the background.
       class Member
         def initialize(uri, options)
+          @uri = uri
+          @options = options
           @config = Configuration.build(uri, **options)
           @lock = Mutex.new
           @changed = ConditionVariable.new
@@ -50,7 +52,7 @@ module Tarantool
         private
 
         def connect
-          client = Client.new(**@config.to_h)
+          client = Client.new(@uri, **@options)
           # A role belongs to one session; the next one must report its own before the member is routed to.
           client.disconnect_handler = -> { @lock.synchronize { @read_only = nil } }
           client.watch('box.status') { |_key, status| update(status) }

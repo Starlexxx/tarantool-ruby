@@ -97,6 +97,8 @@ module Tarantool
           @state.start_reconnect(connection) do |previous|
             Thread.new { reconnect(previous) }.tap { |thread| thread.name = "tarantool-reconnect #{@config.address}" }
           end
+        rescue ThreadError => e
+          @state.give_up(ConnectionError.new("cannot reconnect to #{@config.address}: #{e.message}"))
         end
 
         # Joining the previous thread first lets close join only the newest one. Nothing may escape: a dead

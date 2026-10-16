@@ -60,8 +60,8 @@ RSpec.describe Tarantool::Client::Pool::Member do
     server.refusing = true
     member.start
     expect do
-      allow(Tarantool::Client).to receive(:new).and_wrap_original do |original, **options|
-        next original.call(**options) unless server.refusing
+      allow(Tarantool::Client).to receive(:new).and_wrap_original do |original, *args, **options|
+        next original.call(*args, **options) unless server.refusing
 
         server.refusing = false
         raise 'boom'
@@ -141,5 +141,20 @@ RSpec.describe Tarantool::Client::Pool::Member do
     member = described_class.new(server.uri, { user: 'app', password: 'secret' })
 
     expect(member.inspect).to eq("#<Tarantool::Client::Pool::Member #{server.path}>")
+  end
+
+  it 'passes the real password to Client.new, not [FILTERED]' do
+    seen_password = nil
+    allow(Tarantool::Client).to receive(:new).and_wrap_original do |original, *args, **opts|
+      seen_password = opts[:password]
+      original.call(*args, **opts)
+    end
+    member = described_class.new(server.uri, { user: 'app', password: 'secret' })
+
+    member.start
+
+    expect(seen_password).to eq('secret')
+  ensure
+    member&.close
   end
 end
