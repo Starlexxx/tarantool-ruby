@@ -160,6 +160,22 @@ RSpec.describe Tarantool::Client::Transport::Link do
       end
     end
 
+    context 'when the reconnect thread dies with an exception that is not a StandardError' do
+      let(:backoff) { instance_double(Tarantool::Client::Backoff) }
+
+      before do
+        allow($stderr).to receive(:write)
+        allow(backoff).to receive(:delay).and_raise(SystemStackError, 'deep')
+      end
+
+      it 'closes normally' do
+        drop_connection
+        wait_for { alive_threads('tarantool-reconnect').empty? }
+
+        expect(link.close).to be_nil
+      end
+    end
+
     context 'when Thread.new raises ThreadError on the reconnect' do
       let(:raise_flag) { [false] }
 

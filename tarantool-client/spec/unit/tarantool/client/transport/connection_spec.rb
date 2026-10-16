@@ -246,6 +246,35 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       end
     end
 
+    context 'when the server sends an error nested too deep' do
+      let(:handler) { ->(request, fake) { fake.reply(request, [nested_box_error(30_000)]) } }
+
+      it 'raises ConnectionError and closes normally' do
+        expect { connection.perform(eval_request('x'), timeout: 1) }.to raise_error(Tarantool::ConnectionError, /lost/)
+        expect(connection.close).to be_nil
+      end
+    end
+
+    context 'when the reader dies with an exception that is not a StandardError' do
+      before do
+        allow($stderr).to receive(:write)
+        connection.event_handler = ->(*) { raise SystemStackError, 'deep' }
+      end
+
+      it 'fails the pending request with ConnectionError and closes normally' do
+        waiter = Thread.new do
+          connection.perform(eval_request('x'), timeout: 1)
+        rescue Tarantool::Error => e
+          e
+        end
+        server.next_request
+        server.event('box.status')
+
+        expect(waiter.value).to have_attributes(class: Tarantool::ConnectionError, message: /SystemStackError: deep/)
+        expect(connection.close).to be_nil
+      end
+    end
+
     context 'when the server sends a frame that exceeds max_frame_size' do
       let(:config) { Tarantool::Client::Configuration.build(server.uri, user: 'app', password: 'secret', max_frame_size: 50) }
       let(:handler) { ->(_request, fake) { fake.send_raw([0xce, 100].pack('CN')) } }

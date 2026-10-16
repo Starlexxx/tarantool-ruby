@@ -88,7 +88,7 @@ module Tarantool
           @values.clear
         end
 
-        @dispatcher&.join unless Thread.current == @dispatcher
+        ThreadJoin.join(@dispatcher)
       end
 
       private
