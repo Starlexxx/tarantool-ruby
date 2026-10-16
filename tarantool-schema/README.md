@@ -97,7 +97,8 @@ Connect to the read-write instance. `apply`:
 4. creates the missing spaces and indexes in declaration order, with `if_not_exists` so two deploys racing each
    other do not fail;
 5. reads everything again and raises `MismatchError` if something is still missing or differs, for example
-   when another deploy created the space differently in the meantime.
+   when another deploy created the space differently in the meantime. Racing another deploy can also surface
+   as `Tarantool::ServerError` raised directly from `create_index`, before this re-verification runs.
 
 Each space and index is created with its own `eval`, so if one fails partway through (for example a privilege
 missing for a later index), the ones created before it stay; running `apply` again is idempotent and picks up
@@ -175,6 +176,9 @@ the application spaces, or one with the `super` role.
 `Definition#to_h` returns the normalized declaration: names as Symbols, types as Strings, every default filled
 in, part types inherited, and `ensure_index` entries merged into their spaces. Use it to build an in-memory
 test double or any other representation of the schema from the same declaration used to deploy it.
+
+Only spaces declared with `ensure_space` are in it: indexes added with `ensure_index` to a space declared
+elsewhere have no spec here and are not included.
 
 ```ruby
 MyApp::SCHEMA.to_h
