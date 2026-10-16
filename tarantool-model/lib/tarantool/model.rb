@@ -12,6 +12,7 @@ require_relative 'model/types/interval'
 require_relative 'model/types/binary'
 require_relative 'model/settings'
 require_relative 'model/state'
+require_relative 'model/persistence'
 require_relative 'model/storage/box/layout'
 require_relative 'model/storage/box'
 
@@ -27,5 +28,6 @@ module Tarantool
     include ActiveModel::Serializers::JSON
     include Settings
     include State
+    include Persistence
   end
 end

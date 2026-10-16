@@ -21,6 +21,13 @@ module Tarantool
 
       def destroyed? = @destroyed == true
 
+      # Assigning to a destroyed record must fail; freezing self alone leaves the attribute set writable.
+      def freeze
+        @attributes = @attributes.clone.freeze
+
+        super
+      end
+
       private
 
       def init_with_row(row)
@@ -35,6 +42,25 @@ module Tarantool
 
         assign_attributes(row.attributes.slice(*self.class.attribute_names.map(&:to_sym)))
       end
+
+      def written(row)
+        assign_row(row)
+
+        changes_applied
+      end
+
+      def key_in_database
+        self.class.primary_key_names.map { |name| attribute_in_database(name.to_s) }
+      end
+
+      # ActiveModel::Dirty does not expose attribute_in_database; we replicate the ActiveRecord semantic.
+      def attribute_in_database(attr_name)
+        attribute_changed?(attr_name) ? attribute_was(attr_name) : public_send(attr_name)
+      end
+
+      def space_storage = self.class.verified_storage
+
+      def space_name = self.class.space_name
     end
   end
 end
