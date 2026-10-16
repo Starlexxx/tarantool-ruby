@@ -25,6 +25,14 @@ RSpec.shared_examples 'a crud-compatible storage' do
       .to raise_error(Tarantool::Crud::UpdateError, /\AFailed to update: Attempt to modify a tuple field/)
   end
 
+  it 'raises UpdateError and DeleteError for a key that is not the whole primary key' do
+    expect { storage.update(:users, [1, 2], [['=', 'age', 2]]) }.to raise_error(
+      Tarantool::Crud::UpdateError, 'Failed to update: Invalid key part count in an exact match (expected 1, got 2)'
+    )
+    expect { storage.delete(:users, []) }
+      .to raise_error(Tarantool::Crud::DeleteError, /\AFailed to delete: Invalid key part count .*got 0/)
+  end
+
   it 'raises the operation error for an unknown space' do
     expect { storage.get(:nope, [1]) }.to raise_error(Tarantool::Crud::GetError, /Space "nope" doesn't exist/)
   end

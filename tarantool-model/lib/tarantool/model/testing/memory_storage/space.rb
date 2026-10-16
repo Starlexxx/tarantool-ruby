@@ -35,7 +35,7 @@ module Tarantool
           end
 
           def update(key, operations)
-            key = copy(key)
+            key = exact(key)
             current = @rows[key]
             return unless current
 
@@ -46,7 +46,7 @@ module Tarantool
           end
 
           def delete(key)
-            copy(@rows.delete(copy(key)))
+            copy(@rows.delete(exact(key)))
           end
 
           def scan(index:, key:, iterator:, after:)
@@ -118,6 +118,12 @@ module Tarantool
               field = @info.fields[fieldno]
               strict_parts.include?(fieldno) || !(field.is_nullable || field.type == 'any')
             end
+          end
+
+          def exact(key)
+            raise Violation.exact_match(@primary.parts.size, key.size) unless key.size == @primary.parts.size
+
+            copy(key)
           end
 
           def key_of(tuple, index)

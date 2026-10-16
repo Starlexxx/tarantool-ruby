@@ -31,6 +31,14 @@ RSpec.shared_examples 'a box-compatible storage' do
     expect { storage.update(:users, [1], [['=', 'nope', 1]]) }.to raise_error(server_error(201))
   end
 
+  it 'raises ServerError 19 for an update or delete whose key is not the whole primary key' do
+    message = 'Invalid key part count in an exact match (expected 1, got 2)'
+
+    expect { storage.update(:users, [1, 2], [['=', 'age', 2]]) }
+      .to raise_error(server_error(19).and(having_attributes(message:)))
+    expect { storage.delete(:users, []) }.to raise_error(server_error(19), /got 0/)
+  end
+
   it 'raises Tarantool::SchemaError for an unknown space or index' do
     expect { storage.get(:nope, [1]) }.to raise_error(Tarantool::SchemaError)
     expect { storage.select(:users, index: :nope, key: [], iterator: :all, limit: nil, after: nil) }
