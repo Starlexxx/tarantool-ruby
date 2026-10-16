@@ -98,6 +98,15 @@ RSpec.describe Tarantool::Client do
       let(:instrumenter) { RecordingInstrumenter.new }
       let(:client) { described_class.new(server.uri, request_timeout: 2, connect_timeout: 2, instrumenter:) }
 
+      def client_with_password(log)
+        described_class.new(server.uri, password: 'secret', instrumenter:, logger: Logger.new(log))
+      end
+
+      def fork_succeeded?(log)
+        instrumenter.payloads('fork.tarantool').any? &&
+          !instrumenter.events.inspect.include?('secret') && !log.string.include?('secret')
+      end
+
       it 'reports the reopened connection in the child' do
         client.ping
         child_pid = fork do
@@ -108,6 +117,20 @@ RSpec.describe Tarantool::Client do
         _, status = Process.wait2(child_pid)
 
         expect(status.exitstatus).to eq(0)
+      end
+
+      it 'keeps the password out of the fork event and its log line' do
+        secret_client = client_with_password(log = StringIO.new)
+        child_pid = fork do
+          server.restart_after_fork
+          secret_client.ping
+          exit(fork_succeeded?(log) ? 0 : 1)
+        end
+        _, status = Process.wait2(child_pid)
+
+        expect(status.exitstatus).to eq(0)
+      ensure
+        secret_client&.close
       end
     end
 
