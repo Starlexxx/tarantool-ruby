@@ -7,7 +7,8 @@ module Tarantool
     # Immutable connection settings built from a URI and keyword options; options win.
     Configuration = Data.define(
       :host, :port, :path, :user, :password, :connect_timeout, :request_timeout,
-      :reconnect, :reconnect_attempts, :reconnect_delay, :reconnect_max_delay
+      :reconnect, :reconnect_attempts, :reconnect_delay, :reconnect_max_delay,
+      :max_frame_size
     ) do
       def self.build(uri = nil, **options)
         new(**defaults, **parse_uri(uri), **options)
@@ -16,7 +17,8 @@ module Tarantool
       def self.defaults
         {
           host: 'localhost', port: 3301, path: nil, user: nil, password: nil, connect_timeout: 3, request_timeout: 10,
-          reconnect: true, reconnect_attempts: Float::INFINITY, reconnect_delay: 0.1, reconnect_max_delay: 5
+          reconnect: true, reconnect_attempts: Float::INFINITY, reconnect_delay: 0.1, reconnect_max_delay: 5,
+          max_frame_size: 64 * 1024 * 1024
         }
       end
 
@@ -56,8 +58,12 @@ module Tarantool
         host.include?(':') ? "[#{host}]:#{port}" : "#{host}:#{port}"
       end
 
+      def to_h
+        super.merge(password: password && '[FILTERED]')
+      end
+
       def inspect
-        fields = to_h.merge(password: password && '[FILTERED]').map { |k, v| "#{k}=#{v.inspect}" }.join(', ')
+        fields = to_h.map { |k, v| "#{k}=#{v.inspect}" }.join(', ')
 
         "#<data #{self.class.name} #{fields}>"
       end

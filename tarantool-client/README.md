@@ -10,6 +10,8 @@ Ruby client for [Tarantool](https://www.tarantool.io) 2.11+ and 3.x over the bin
 
 ## Installation
 
+Requirements: Ruby >= 3.2, Tarantool 2.11+ or 3.x.
+
 ```ruby
 gem 'tarantool-client'
 ```
@@ -24,6 +26,7 @@ require 'tarantool/client'
 client = Tarantool::Client.new('tcp://app:secret@localhost:3301', connect_timeout: 1, request_timeout: 5)
 client.ping           # => true
 client.server_version # => "3.2.0"
+client.config         # => the resolved Configuration
 client.close
 ```
 
@@ -38,6 +41,9 @@ URIs: `tcp://user:password@host:port`, `host:port`, `unix:/path/to/socket`. Keyw
 | `reconnect_attempts` | `Float::INFINITY` | failed attempts before the client gives up |
 | `reconnect_delay` | `0.1` | base delay of the exponential backoff |
 | `reconnect_max_delay` | `5` | cap of the backoff delay |
+| `max_frame_size` | `67108864` (64 MB) | maximum allowed response frame size in bytes; larger frames raise `ProtocolError` and break the connection |
+
+Tarantool Community Edition has no TLS support. Authentication uses chap-sha1; the password is never sent in clear. `client.inspect` and `Configuration#to_h` replace the password with `[FILTERED]`.
 
 ## Data
 
@@ -48,10 +54,12 @@ client.select(:users, [42])
 client.select(:users, ['a@b.c'], index: :email, limit: 10, offset: 0, iterator: :ge)
 client.insert(:users, [42, 'a@b.c', 0])
 client.replace(:users, [42, 'x@y.z', 0])
-client.update(:users, [42], [['=', 2, 'new@b.c']])
-client.upsert(:users, [42, 'a@b.c', 0], [['+', 3, 1]])
+client.update(:users, [42], [['=', 1, 'new@b.c']])
+client.upsert(:users, [42, 'a@b.c', 0], [['+', 2, 1]])
 client.delete(:users, [42])
 ```
+
+IPROTO update operations use 0-based field numbers: field 0 is the first field, field 1 the second, and so on.
 
 Names are resolved through a schema cache loaded from `_vspace` and `_vindex`. A request resolved by name carries the schema version. If the schema changed meanwhile, the server rejects the request without running it; the client then reloads the schema once and retries within the same timeout.
 
@@ -82,15 +90,17 @@ client.call('long_job', [], on_push: ->(message) { puts message }) # box.session
 ## SQL
 
 ```ruby
-result = client.execute('SELECT * FROM users WHERE id = ?', [42])
+result = client.execute('SELECT * FROM "users" WHERE "id" = ?', [42])
 result.rows      # => [[42, "a@b.c", 0]]
-result.columns   # => ["ID", "EMAIL", "VISITS"]
+result.columns   # => ["id", "email", "visits"]
 result.row_count # DML only
 
-statement = client.prepare('SELECT * FROM users WHERE id = ?')
+statement = client.prepare('SELECT * FROM "users" WHERE "id" = ?')
 statement.execute([42])
 statement.close
 ```
+
+Tarantool 2.x uppercases unquoted identifiers, so `FROM users` fails with "Space 'USERS' does not exist" on 2.11; quote both table and column names to work on both versions. `SqlResult` is not `Enumerable`; iterate rows with `result.rows.each`.
 
 ## Transactions
 
@@ -99,11 +109,11 @@ Interactive transactions run on their own IPROTO stream and need `memtx_use_mvcc
 ```ruby
 client.transaction(isolation: :read_committed, timeout: 5) do |tx|
   tx.insert(:users, [43, 'b@c.d', 0])
-  tx.update(:users, [42], [['+', 3, 1]])
+  tx.update(:users, [42], [['+', 2, 1]])
 end
 ```
 
-The block's value is returned after COMMIT. Any other exit from the block rolls the transaction back. Isolation levels: `:default`, `:read_committed`, `:read_confirmed`, `:best_effort`, `:linearizable`. A nested `transaction` raises `TransactionError`, and so does a schema change during the transaction (retry the whole transaction).
+The block argument is a `Tarantool::Client::Stream` and supports the same data operations as `Client`. The block's value is returned after COMMIT. Any other exit from the block rolls the transaction back. Isolation levels: `:default`, `:read_committed`, `:read_confirmed`, `:best_effort`, `:linearizable`. A nested `transaction` raises `TransactionError`, and so does a schema change during the transaction (retry the whole transaction).
 
 ## Watchers
 
@@ -134,7 +144,7 @@ pool.transaction { |tx| tx.delete(:users, [44]) } # always on a writable instanc
 pool.close
 ```
 
-Every client operation accepts `mode:`:
+`watch`, `server_version`, and `connected?` are available on `Client` only, not on `Pool`. Every other operation accepts `mode:`:
 
 | Mode | Instances |
 |---|---|
@@ -145,6 +155,14 @@ Every client operation accepts `mode:`:
 | `:prefer_rw` | writable ones, read-only if none |
 
 Roles come from `box.status` (`is_ro`), so a switchover is picked up as soon as the instances report it. Requests are spread round-robin among matching instances. If none matches, the call raises `NoAvailableInstanceError`. `Pool.new` raises it only if no address answers; addresses that are down keep being retried in the background. That retrying covers start-up only: once connected, a member relies on its client's reconnect, so with a finite `reconnect_attempts` a member that gives up stays out of rotation. `Pool#close` may wait for an in-progress background connect attempt, up to `connect_timeout` + `request_timeout`. Options are passed to each client. A prepared statement from `pool.prepare` stays bound to the instance that prepared it.
+
+## Forking servers
+
+`Client` and `Pool` are fork-safe. The first request in a child process after `fork` reinitializes the connection transparently — a new socket is opened, background threads are restarted, and watchers are resubscribed. The parent's connection is unaffected.
+
+Streams (interactive transactions) cannot cross a fork boundary. Using a stream that was created before `fork` in a child raises `ConnectionError`.
+
+No configuration is needed; the detection is a single PID comparison on every request.
 
 ## Errors
 
@@ -184,6 +202,15 @@ bundle exec rspec --tag failover
 ```
 
 Using podman instead of docker: prefix the `bundle exec rspec --tag failover` command above with `CONTAINER_CLI=podman`; the reconnect spec uses it to restart containers (default `docker`).
+
+## Public API
+
+`Tarantool::Client`, `Tarantool::Client::Pool`, `Tarantool::Client::Stream` (yielded by `transaction`),
+`Watcher` (returned by `watch`), `SqlResult`, `PreparedStatement`, `SpaceInfo`, `IndexInfo`, `Configuration`
+(returned by `client.config`), `Tarantool::Client::UUID`, `Interval`, `BoxError`, and the error classes above.
+
+Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
+and may change in any release.
 
 ## License
 

@@ -16,6 +16,14 @@ RSpec.describe Tarantool::Client::Configuration do
       )
     end
 
+    it 'defaults max_frame_size to 64 MB' do
+      expect(described_class.build.max_frame_size).to eq(64 * 1024 * 1024)
+    end
+
+    it 'accepts a custom max_frame_size' do
+      expect(described_class.build(max_frame_size: 1024).max_frame_size).to eq(1024)
+    end
+
     it 'takes reconnect options' do
       expect(described_class.build(reconnect: false, reconnect_attempts: 3)).to have_attributes(
         reconnect: false, reconnect_attempts: 3
@@ -92,6 +100,16 @@ RSpec.describe Tarantool::Client::Configuration do
 
     it 'brackets an IPv6 host' do
       expect(described_class.build('[::1]:3301').address).to eq('[::1]:3301')
+    end
+  end
+
+  describe '#to_h' do
+    it 'filters a non-nil password' do
+      expect(described_class.build('tcp://app:secret@db.local').to_h[:password]).to eq('[FILTERED]')
+    end
+
+    it 'keeps a nil password as nil' do
+      expect(described_class.build.to_h[:password]).to be_nil
     end
   end
 

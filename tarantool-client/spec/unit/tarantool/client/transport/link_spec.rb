@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require 'open3'
+require 'rbconfig'
+
 RSpec.describe Tarantool::Client::Transport::Link do
   let(:server) { FakeTarantool.new { |request, fake| fake.reply(request, [request.type]) } }
   let(:options) { {} }
@@ -157,6 +160,27 @@ RSpec.describe Tarantool::Client::Transport::Link do
       end
     end
 
+    context 'when Thread.new raises ThreadError on the reconnect' do
+      let(:raise_flag) { [false] }
+
+      before do
+        allow(Thread).to receive(:new).and_wrap_original do |original, &block|
+          raise ThreadError, "can't alloc thread" if raise_flag[0]
+
+          original.call(&block)
+        end
+      end
+
+      it 'gives up with ConnectionError instead of waiting for a timeout' do
+        link
+        raise_flag[0] = true
+        drop_connection
+
+        expect { link.perform(ping, timeout: 5) }.to raise_error(Tarantool::ConnectionError, /cannot reconnect/)
+        expect(link.connected?).to be(false)
+      end
+    end
+
     context 'when on_connect waits for a reply on the new connection' do
       let(:server) { FakeTarantool.new }
       let(:options) { { connect_timeout: 2 } }
@@ -250,6 +274,20 @@ RSpec.describe Tarantool::Client::Transport::Link do
         expect { link.perform(ping, timeout: 1) }.to raise_error(Tarantool::ConnectionError, /lost/)
         expect(server.connections).to eq(1)
       end
+    end
+  end
+
+  describe 'process exit without close' do
+    it 'prints nothing to stderr when a connected client is not closed before exit' do
+      srv = FakeTarantool.new { |request, fake| fake.reply(request, []) }
+      lib = File.expand_path('../../../../../lib', __dir__)
+      script = "require 'tarantool/client'; Tarantool::Client.new('unix:#{srv.path}'); sleep 0.05"
+
+      _out, stderr, _status = Open3.capture3(RbConfig.ruby, '-I', lib, '-e', script)
+
+      expect(stderr).to be_empty
+    ensure
+      srv&.stop
     end
   end
 end

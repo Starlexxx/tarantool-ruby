@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Requests
         # IPROTO_AUTH: authenticate the session.
+        # @api private
         Auth = Data.define(:user, :mechanism, :scramble) do
           def type = Constants::AUTH
 

@@ -5,6 +5,7 @@ module Tarantool
     # Clients with a transaction open in the current fiber. Thread#[] is fiber-local and, unlike
     # Fiber storage, not inherited, so a thread or fiber spawned inside a transaction block may
     # open its own transaction.
+    # @api private
     module TransactionScope
       NESTED = 'nested transactions are not supported'
 

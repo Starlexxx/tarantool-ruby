@@ -5,8 +5,13 @@ module Tarantool
     class Pool
       # One pool address: its client once connected and the role from the instance's latest box.status.
       # An address that is down at start keeps being retried in the background.
+      # @api private
       class Member
+        include Pool::MemberForkSafety
+
         def initialize(uri, options)
+          @uri = uri
+          @options = options
           @config = Configuration.build(uri, **options)
           @lock = Mutex.new
           @changed = ConditionVariable.new
@@ -50,7 +55,7 @@ module Tarantool
         private
 
         def connect
-          client = Client.new(**@config.to_h)
+          client = Client.new(@uri, **@options)
           # A role belongs to one session; the next one must report its own before the member is routed to.
           client.disconnect_handler = -> { @lock.synchronize { @read_only = nil } }
           client.watch('box.status') { |_key, status| update(status) }

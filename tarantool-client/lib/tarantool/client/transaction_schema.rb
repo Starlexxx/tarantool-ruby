@@ -5,6 +5,7 @@ module Tarantool
     # Name lookup for one transaction, pinned to the schema version the server reported for BEGIN.
     # Re-resolving names against a newer schema mid-transaction could send later statements to a
     # different space than earlier ones, so a schema change fails the transaction instead.
+    # @api private
     class TransactionSchema
       CHANGED = 'schema changed during the transaction; retry the whole transaction'
 

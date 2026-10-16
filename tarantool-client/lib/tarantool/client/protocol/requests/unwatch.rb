@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Requests
         # IPROTO_UNWATCH: drop the subscription to a key. No reply.
+        # @api private
         Unwatch = Data.define(:key) do
           def type = Constants::UNWATCH
           def body = { Constants::EVENT_KEY => key }

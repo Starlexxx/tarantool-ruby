@@ -7,6 +7,8 @@ there is no schema migration, no associations, and no query builder. Storage is 
 
 ## Installation
 
+Requirements: Ruby >= 3.2, Tarantool 2.11+ or 3.x.
+
 ```ruby
 gem 'tarantool-model'
 ```
@@ -41,6 +43,8 @@ class User
   validates :email, presence: true
 end
 ```
+
+For `Storage::Box`, `read:`/`write:` options are `Pool` routing modes (symbols like `:prefer_ro`, `:rw`; require a `Pool` as transport). For `Storage::Crud`, `read:`/`write:` options are passed verbatim to crud (use strings: `mode: 'read'`).
 
 Attribute names must match the space format field names exactly. `space_name` defaults to the plural model
 name; set it explicitly with `User.space_name = :members`. The primary key defaults to `:id`; set a composite
@@ -246,6 +250,14 @@ podman compose -f tarantool-model/docker-compose.yml up -d --wait --build crud-2
 TARANTOOL_MODEL_CRUD_URI=tcp://app:secret@localhost:3331 bundle exec rspec --tag crud  # 2.11
 TARANTOOL_MODEL_CRUD_URI=tcp://app:secret@localhost:3332 bundle exec rspec --tag crud  # 3.x
 ```
+
+## Public API
+
+`Tarantool::Model`, `Storage::Box`, `Storage::Crud`, `Types::UUID`, `Types::Interval`, `Types::Binary`,
+`Relation`, and the error classes above.
+
+Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
+and may change in any release.
 
 ## License
 

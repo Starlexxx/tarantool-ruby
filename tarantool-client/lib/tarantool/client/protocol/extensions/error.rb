@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Extensions
         # MP_ERROR: a box.error stack decoded into a BoxError chain.
+        # @api private
         module Error
           module_function
 

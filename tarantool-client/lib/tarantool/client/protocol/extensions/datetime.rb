@@ -6,6 +6,7 @@ module Tarantool
       module Extensions
         # MP_EXT datetime: int64 epoch seconds, then optional int32 nsec, int16 tzoffset, int16 tzindex.
         # tzindex is ignored: Time keeps the offset, not the zone name.
+        # @api private
         module Datetime
           SECONDS = 'q<'
           FULL = 'q<l<s<s<'

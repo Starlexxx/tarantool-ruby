@@ -13,7 +13,9 @@ module Tarantool
 
         @members = addresses.map { |address| Member.new(address, options) }
         @lock = Mutex.new
+        @reinit_lock = Mutex.new
         @turns = Hash.new(0)
+        @pid = Process.pid
         start_members
       rescue StandardError
         close
@@ -76,10 +78,24 @@ module Tarantool
       end
 
       def client_for(mode)
+        ensure_fork_safe
         members = candidates(mode)
         raise NoAvailableInstanceError, "no instance available for mode #{mode.inspect}" if members.empty?
 
         members[@lock.synchronize { @turns[mode] += 1 } % members.size].client
+      end
+
+      def ensure_fork_safe
+        return if @pid == Process.pid
+
+        @reinit_lock.synchronize do
+          return if @pid == Process.pid
+
+          @members.each(&:reset_for_fork)
+          start_members
+        ensure
+          @pid = Process.pid
+        end
       end
 
       def candidates(mode)

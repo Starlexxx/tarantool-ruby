@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Requests
         # IPROTO_UPDATE: field operations on the tuple found by key.
+        # @api private
         Update = Data.define(:space_id, :index_id, :key, :operations) do
           def type = Constants::UPDATE
 

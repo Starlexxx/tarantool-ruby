@@ -45,7 +45,8 @@ module Tarantool
     class UpsertManyError < Error; end
 
     # Raised by *_many! when any row failed; result holds the rows that were written.
-    class ManyError < Error
+    # An aggregate, not one crud function error, hence not a Crud::Error.
+    class ManyError < Tarantool::Error
       attr_reader :result
 
       def initialize(result)

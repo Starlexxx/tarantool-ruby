@@ -4,6 +4,7 @@ module Tarantool
   class Client
     module Transport
       # IPROTO_ID feature exchange, then chap-sha1 AUTH for a named user. Returns the server features.
+      # @api private
       module Handshake
         module_function
 

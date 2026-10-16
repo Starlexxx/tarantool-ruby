@@ -16,6 +16,7 @@ module Tarantool
         @id = id
         @request_timeout = request_timeout
         @state = :idle
+        @pid = Process.pid
       end
 
       def transaction(isolation:, timeout:, &)
@@ -108,6 +109,8 @@ module Tarantool
       end
 
       def check_connection
+        raise ConnectionError, 'stream was created before fork and cannot be used in a child process' \
+          if Process.pid != @pid
         raise TransactionError, LOST if @state != :idle && @connection.closed?
       end
 

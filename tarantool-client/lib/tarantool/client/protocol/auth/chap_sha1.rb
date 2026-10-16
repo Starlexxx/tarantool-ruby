@@ -5,8 +5,10 @@ require 'digest/sha1'
 module Tarantool
   class Client
     module Protocol
+      # @api private
       module Auth
         # chap-sha1: proves the password to the server without sending it.
+        # @api private
         module ChapSha1
           MECHANISM = 'chap-sha1'
 

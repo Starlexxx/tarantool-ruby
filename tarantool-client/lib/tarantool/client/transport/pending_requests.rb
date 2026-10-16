@@ -4,6 +4,7 @@ module Tarantool
   class Client
     module Transport
       # Thread-safe table of in-flight requests keyed by IPROTO sync.
+      # @api private
       class PendingRequests
         def initialize
           @lock = Mutex.new

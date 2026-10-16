@@ -4,6 +4,7 @@ module Tarantool
   class Client
     # Space and index name -> id lookup and space formats loaded from the _vspace and _vindex system views over one
     # connection. Its ids are valid only for the instance behind that connection.
+    # @api private
     class Schema
       attr_reader :version, :connection
 

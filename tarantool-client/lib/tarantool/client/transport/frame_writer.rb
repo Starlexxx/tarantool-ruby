@@ -6,6 +6,7 @@ module Tarantool
       # Serializes whole-frame writes to a socket; both the wait for the lock and the write are bounded by the deadline.
       # Yields when a write is interrupted after part of the frame went out, because
       # the stream is corrupt from then on.
+      # @api private
       class FrameWriter
         def initialize(socket)
           @socket = socket

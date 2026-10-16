@@ -7,6 +7,7 @@ module Tarantool
     # dispatcher thread so they never stall the reader; the ack (WATCH again) follows them, letting
     # the server coalesce changes made meanwhile. Watched keys outlive the socket so a reconnect
     # can subscribe to them again.
+    # @api private
     class Watchers
       def initialize(link, timeout:)
         @link = link
@@ -71,6 +72,14 @@ module Tarantool
         end
       end
 
+      # Registrations survive a fork; values and the dispatcher are per process and come back after resubscribe.
+      def restart_after_fork(new_link)
+        @link = new_link
+        @values = {}
+        @jobs = Thread::Queue.new
+        @dispatcher = @watchers.empty? ? nil : start_dispatcher
+      end
+
       def close
         @jobs.clear
         @jobs.close
@@ -84,9 +93,7 @@ module Tarantool
 
       private
 
-      def start_dispatcher
-        Thread.new { run }.tap { |thread| thread.name = 'tarantool-watchers' }
-      end
+      def start_dispatcher = Thread.new { run }.tap { |thread| thread.name = 'tarantool-watchers' }
 
       def run
         while (job = @jobs.pop)

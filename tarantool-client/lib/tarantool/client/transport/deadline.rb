@@ -4,6 +4,7 @@ module Tarantool
   class Client
     module Transport
       # Monotonic-clock deadlines. A nil timeout gives a nil deadline, which never expires.
+      # @api private
       module Deadline
         module_function
 

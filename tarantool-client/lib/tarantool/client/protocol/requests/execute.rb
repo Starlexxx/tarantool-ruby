@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Requests
         # IPROTO_EXECUTE: run SQL given as text or as a prepared statement id.
+        # @api private
         Execute = Data.define(:statement, :bindings) do
           def type = Constants::EXECUTE
 

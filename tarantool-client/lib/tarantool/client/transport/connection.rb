@@ -7,6 +7,7 @@ module Tarantool
     module Transport
       # One multiplexed IPROTO connection. Any number of threads or fibers may
       # perform requests concurrently; a reader thread routes responses by sync.
+      # @api private
       class Connection
         attr_reader :greeting, :server_features
         attr_writer :event_handler, :disconnect_handler
@@ -94,7 +95,7 @@ module Tarantool
         end
 
         def read_loop
-          loop { route(Protocol::Codec.read_response(@socket)) }
+          loop { route(Protocol::Codec.read_response(@socket, max_frame_size: @config.max_frame_size)) }
         rescue IOError, SystemCallError, ProtocolError => e
           reason = e.message
         rescue StandardError => e

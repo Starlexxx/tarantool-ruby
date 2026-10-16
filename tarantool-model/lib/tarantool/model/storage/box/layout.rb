@@ -6,6 +6,7 @@ module Tarantool
       class Box
         # Field order of a space: converts attribute Hashes to tuples and back, and checks a model against the
         # format. Fields the model does not declare go out as nil and are ignored on read.
+        # @api private
         class Layout
           def initialize(space_info)
             @space_info = space_info

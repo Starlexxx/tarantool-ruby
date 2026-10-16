@@ -5,6 +5,7 @@ module Tarantool
     module Protocol
       module Requests
         # IPROTO_EVAL: run a Lua chunk; arguments are available as `...`.
+        # @api private
         Eval = Data.define(:expression, :arguments) do
           def type = Constants::EVAL
           def body = { Constants::EXPR => expression, Constants::TUPLE => arguments }

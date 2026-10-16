@@ -6,6 +6,7 @@ module Tarantool
       # Keeps one instance connected. Owns the current Connection; once it is lost, a background thread
       # opens new ones with backoff while requests wait for one to become ready.
       # States: connecting -> ready -> reconnecting -> closed.
+      # @api private
       class Link
         attr_writer :event_handler
 
@@ -97,6 +98,8 @@ module Tarantool
           @state.start_reconnect(connection) do |previous|
             Thread.new { reconnect(previous) }.tap { |thread| thread.name = "tarantool-reconnect #{@config.address}" }
           end
+        rescue ThreadError => e
+          @state.give_up(ConnectionError.new("cannot reconnect to #{@config.address}: #{e.message}"))
         end
 
         # Joining the previous thread first lets close join only the newest one. Nothing may escape: a dead

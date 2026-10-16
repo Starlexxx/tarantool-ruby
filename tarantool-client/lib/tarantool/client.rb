@@ -61,13 +61,16 @@ require_relative 'client/transaction_scope'
 require_relative 'client/stream'
 require_relative 'client/watcher'
 require_relative 'client/watchers'
+require_relative 'client/fork_safety'
 require_relative 'client/pool'
+require_relative 'client/pool/member_fork_safety'
 require_relative 'client/pool/member'
 
 module Tarantool
   # Connection to one Tarantool instance. Safe to share between threads and fibers.
   class Client
     include Operations
+    include ForkSafety
 
     attr_reader :config
 
@@ -78,26 +81,25 @@ module Tarantool
 
     def initialize(uri = nil, **)
       @config = Configuration.build(uri, **)
-      @link = Transport::Link.new(@config, **link_hooks)
-      @watchers = Watchers.new(@link, timeout: @config.request_timeout)
-      @link.event_handler = @watchers.method(:dispatch)
-      @schema_cache = SchemaCache.new
-      @stream_ids = Transport::StreamIds.new
-      @link.connect
+      @pid = Process.pid
+      @reinit_lock = Mutex.new
+      open_link
     rescue StandardError
       @link&.close
       raise
     end
 
     def server_version
+      ensure_fork_safe
       @link.greeting.version
     end
 
     def connected?
-      @link.connected?
+      @pid == Process.pid && @link.connected?
     end
 
     def transaction(isolation: :default, timeout: nil, &block)
+      ensure_fork_safe
       TransactionScope.enter(self) do
         stream = Stream.new(
           connection: @link.connection, schema_cache: @schema_cache, id: @stream_ids.next,
@@ -115,6 +117,7 @@ module Tarantool
     def watch(key, &block)
       raise ArgumentError, 'watch requires a block' unless block
 
+      ensure_fork_safe
       @watchers.add(key, block)
     end
 
@@ -133,6 +136,7 @@ module Tarantool
     def link_hooks = { on_connect: method(:load_schema), on_ready: method(:resubscribe), on_lost: method(:lost) }
 
     def perform(request, timeout: nil, schema_version: nil, on_push: nil)
+      ensure_fork_safe
       @link.perform(request, timeout: timeout || @config.request_timeout, schema_version:, on_push:)
     end
 
@@ -165,6 +169,7 @@ module Tarantool
     # Every schema fetch and attempt draws on one deadline, so the whole call stays within timeout.
     # Waiting for a connection first means the cache already holds its schema or a newer one.
     def perform_by_name(space, index, timeout, &)
+      ensure_fork_safe
       deadline = Transport::Deadline.after(timeout)
       @link.connection(deadline)
 
@@ -174,6 +179,7 @@ module Tarantool
     end
 
     def lookup_space(space, timeout)
+      ensure_fork_safe
       timeout ||= @config.request_timeout
       deadline = Transport::Deadline.after(timeout)
       @link.connection(deadline)
