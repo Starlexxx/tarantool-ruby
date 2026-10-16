@@ -47,7 +47,7 @@ module Tarantool
             @changed.broadcast
             [@retrier, @client]
           end
-          retrier&.join
+          ThreadJoin.join(retrier)
 
           client&.close
         end

@@ -68,4 +68,32 @@ RSpec.describe Tarantool::Client::Protocol::Extensions::Decimal do
 
     expect { Tarantool::Client::Protocol::Codec.decode(payload) }.to raise_error(Tarantool::ProtocolError)
   end
+
+  describe 'limits on decoding' do
+    def decode(scale, nibbles)
+      payload = MessagePack.pack(scale) + [nibbles].pack('H*')
+
+      Tarantool::Client::Protocol::Codec.decode(response_payload([MessagePack::ExtensionValue.new(1, payload)]))
+    end
+
+    it 'decodes the extreme exponents Tarantool 3 produces' do
+      expect([factory.load(wire('c70601d2fff0bdc11c')), factory.load(wire('c70601ce000f428a0c'))])
+        .to eq([BigDecimal('1e999999'), BigDecimal('0')])
+    end
+
+    it 'rejects more than 38 digits without echoing them' do
+      expect { decode(0, "#{'7' * 39}c") }
+        .to raise_error(Tarantool::ProtocolError, 'malformed frame: malformed decimal of 21 bytes')
+    end
+
+    it 'accepts 38 digits padded with a leading zero nibble' do
+      expect(decode(0, "0#{'7' * 38}c").data).to eq([BigDecimal('7' * 38)])
+    end
+
+    it 'rejects a scale beyond the exponent range of Tarantool decimals' do
+      [-1_000_000, 1_000_075, 2**62].each do |scale|
+        expect { decode(scale, '1c') }.to raise_error(Tarantool::ProtocolError, /malformed decimal/)
+      end
+    end
+  end
 end

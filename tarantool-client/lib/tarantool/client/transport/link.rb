@@ -54,7 +54,7 @@ module Tarantool
           reconnector, attempt = @state.close
           attempt&.close
           begin
-            reconnector&.join unless Thread.current == reconnector
+            ThreadJoin.join(reconnector)
           ensure
             @state.connection&.close
           end
@@ -105,7 +105,7 @@ module Tarantool
         # Joining the previous thread first lets close join only the newest one. Nothing may escape: a dead
         # thread would leave the link reconnecting forever, and its exception would resurface in every join.
         def reconnect(previous)
-          previous&.join
+          ThreadJoin.join(previous)
           run_hook('on_lost') { @on_lost&.call }
 
           reconnect_with_backoff

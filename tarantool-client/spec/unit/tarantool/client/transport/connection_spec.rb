@@ -91,6 +91,17 @@ RSpec.describe Tarantool::Client::Transport::Connection do
       slow.stop
     end
 
+    it 'bounds a greeting dripped byte by byte by the connect timeout' do
+      dripping = DrippingTarantool.new(interval: 0.05)
+      config = Tarantool::Client::Configuration.build(dripping.uri, connect_timeout: 0.3)
+      started = Tarantool::Client::Transport::Deadline.now
+
+      expect { described_class.new(config).connect }.to raise_error(Tarantool::ConnectionError, /cannot connect/)
+      expect(Tarantool::Client::Transport::Deadline.now - started).to be < 0.6
+    ensure
+      dripping.stop
+    end
+
     it 'raises ConnectionError when nothing listens' do
       config = Tarantool::Client::Configuration.build('unix:/nonexistent/tarantool.sock')
 
@@ -243,6 +254,35 @@ RSpec.describe Tarantool::Client::Transport::Connection do
 
       it 'raises ConnectionError' do
         expect { connection.perform(eval_request('x'), timeout: 1) }.to raise_error(Tarantool::ConnectionError, /lost/)
+      end
+    end
+
+    context 'when the server sends an error nested too deep' do
+      let(:handler) { ->(request, fake) { fake.reply(request, [nested_box_error(30_000)]) } }
+
+      it 'raises ConnectionError and closes normally' do
+        expect { connection.perform(eval_request('x'), timeout: 1) }.to raise_error(Tarantool::ConnectionError, /lost/)
+        expect(connection.close).to be_nil
+      end
+    end
+
+    context 'when the reader dies with an exception that is not a StandardError' do
+      before do
+        allow($stderr).to receive(:write)
+        connection.event_handler = ->(*) { raise SystemStackError, 'deep' }
+      end
+
+      it 'fails the pending request with ConnectionError and closes normally' do
+        waiter = Thread.new do
+          connection.perform(eval_request('x'), timeout: 1)
+        rescue Tarantool::Error => e
+          e
+        end
+        server.next_request
+        server.event('box.status')
+
+        expect(waiter.value).to have_attributes(class: Tarantool::ConnectionError, message: /SystemStackError: deep/)
+        expect(connection.close).to be_nil
       end
     end
 

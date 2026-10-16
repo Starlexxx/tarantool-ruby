@@ -43,7 +43,7 @@ URIs: `tcp://user:password@host:port`, `host:port`, `unix:/path/to/socket`. Keyw
 | `reconnect_max_delay` | `5` | cap of the backoff delay |
 | `max_frame_size` | `67108864` (64 MB) | maximum allowed response frame size in bytes; larger frames raise `ProtocolError` and break the connection |
 
-Tarantool Community Edition has no TLS support. Authentication uses chap-sha1; the password is never sent in clear. `client.inspect` and `Configuration#to_h` replace the password with `[FILTERED]`.
+Tarantool Community Edition has no TLS support. Authentication uses chap-sha1; the password is never sent in clear. `client.inspect` leaves the password out, and `Configuration#inspect`, `#to_s` and `pp` replace it with `[FILTERED]`. `Configuration#to_h` keeps it, so `Tarantool::Client.new(**client.config.to_h)` connects with the same credentials; don't log it.
 
 ## Data
 
@@ -86,6 +86,8 @@ client.call('api.get_user', [42])
 client.eval('return ...', [1, 2])
 client.call('long_job', [], on_push: ->(message) { puts message }) # box.session.push messages
 ```
+
+`api.get_user` and `long_job` stand for Lua functions you define on the server; `call` needs `execute` on them.
 
 ## SQL
 
@@ -174,10 +176,13 @@ Tarantool::Error
 ├── AuthenticationError        # #code
 ├── ProtocolError
 ├── SchemaError                # unknown space or index name
-├── ServerError                # #code, #error_stack
+├── ServerError                # #code, #error_stack, #schema_version
 ├── TransactionError
 └── NoAvailableInstanceError
 ```
+
+The error classes are flat under `Tarantool::`, e.g. `Tarantool::ServerError`, not `Tarantool::Client::ServerError`.
+tarantool-crud and tarantool-model errors also descend from `Tarantool::Error`.
 
 `box.error` objects inside returned data decode into `Tarantool::Client::BoxError`.
 

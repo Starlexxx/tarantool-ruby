@@ -30,7 +30,7 @@ module Tarantool
 
         @notified = true
 
-        @callback.call(key, value)
+        CallbackGuard.run("tarantool watcher #{key.inspect}") { @callback.call(key, value) }
       end
     end
   end

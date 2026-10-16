@@ -157,4 +157,22 @@ RSpec.describe Tarantool::Client::Pool::Member do
   ensure
     member&.close
   end
+
+  describe '#reset_for_fork' do
+    it 'survives an inherited retry thread that died with an exception' do
+      retrier = Thread.new { raise NotImplementedError, 'died' }.tap { |thread| thread.report_on_exception = false }
+      wait_for { !retrier.alive? }
+      member.instance_variable_set(:@retrier, retrier)
+
+      expect { member.reset_for_fork }.not_to raise_error
+    end
+
+    it 'survives an inherited client that fails to close' do
+      client = instance_double(Tarantool::Client)
+      allow(client).to receive(:close).and_raise(Tarantool::ConnectionError, 'gone')
+      member.instance_variable_set(:@client, client)
+
+      expect { member.reset_for_fork }.not_to raise_error
+    end
+  end
 end

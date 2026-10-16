@@ -23,3 +23,9 @@ Naming/PredicateMethod:
   AllowedMethods:
     - call
     - ping
+
+# Internal threads must survive, or be joined despite, whatever exception user code or a crash raised.
+Lint/RescueException:
+  Exclude:
+    - 'tarantool-client/lib/tarantool/client/thread_join.rb'
+    - 'tarantool-client/lib/tarantool/client/callback_guard.rb'

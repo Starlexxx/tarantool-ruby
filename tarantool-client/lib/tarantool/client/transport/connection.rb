@@ -49,7 +49,7 @@ module Tarantool
         def close
           @pending.fail_all(ClientClosedError.new("connection to #{@config.address} closed"))
           @socket&.close
-          @reader&.join unless Thread.current == @reader
+          ThreadJoin.join(@reader)
 
           nil
         end
@@ -81,11 +81,7 @@ module Tarantool
         end
 
         def read_greeting(deadline)
-          @socket.timeout = Deadline.remaining(deadline)
-
-          Protocol::Greeting.parse(Protocol::Codec.read_exactly(@socket, Protocol::Constants::GREETING_SIZE))
-        ensure
-          @socket.timeout = nil
+          Protocol::Greeting.parse(TimedRead.read_exactly(@socket, Protocol::Constants::GREETING_SIZE, deadline))
         end
 
         def start_reader
@@ -98,7 +94,7 @@ module Tarantool
           loop { route(Protocol::Codec.read_response(@socket, max_frame_size: @config.max_frame_size)) }
         rescue IOError, SystemCallError, ProtocolError => e
           reason = e.message
-        rescue StandardError => e
+        rescue StandardError, SystemStackError => e
           reason = "#{e.class}: #{e.message}"
         ensure
           break_connection("connection to #{@config.address} lost: #{reason || 'reader stopped'}")

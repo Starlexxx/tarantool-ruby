@@ -6,10 +6,12 @@ module Tarantool
     class ManyResult < Result
       attr_reader :errors
 
+      # @api private
       def self.from_crud(response, errors = nil)
         super(response, errors: Array(errors).map { |error| Error.from(error) })
       end
 
+      # @api private
       def initialize(errors:, **)
         super(**)
         @errors = errors
