@@ -25,7 +25,15 @@ RSpec.describe Tarantool::Model::Querying do
     expect([User.find_by(index: :age, key: 30).id, User.find_by(index: :age, key: 99)]).to eq([1, nil])
   end
 
-  it 'lists all records in primary key order and counts them' do
-    expect([User.all.map(&:id), User.count]).to eq([[1, 2, 3], 3])
+  it 'lists all records in primary key order' do
+    expect(User.all.map(&:id)).to eq([1, 2, 3])
+  end
+
+  context 'with a storage that counts' do
+    let(:storage) { Tarantool::Model::Testing::MemoryStorage.new({ users: Schemas::USERS }, behaves_like: :crud) }
+
+    it 'counts all records' do
+      expect(User.count).to eq(3)
+    end
   end
 end

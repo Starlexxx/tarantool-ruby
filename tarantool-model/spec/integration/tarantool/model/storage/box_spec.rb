@@ -5,10 +5,11 @@ RSpec.describe Tarantool::Model::Storage::Box, :integration do
 
   let(:client) { Tarantool::Client.new(ENV.fetch('TARANTOOL_MODEL_URI', 'tcp://app:secret@localhost:3321')) }
 
-  before { client.eval('box.space.users:truncate()') }
+  before { client.eval('box.space.users:truncate() box.space.accounts:truncate()') }
   after { client.close }
 
   it_behaves_like 'a model storage', count: false
+  it_behaves_like 'a box-compatible storage'
 
   it 'raises NotSupportedError for count' do
     expect { storage.count(:users, index: nil, key: [], iterator: :all) }

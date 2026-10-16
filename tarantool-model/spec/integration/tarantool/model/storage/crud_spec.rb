@@ -9,4 +9,5 @@ RSpec.describe Tarantool::Model::Storage::Crud, :crud do
   after { client.close }
 
   it_behaves_like 'a model storage'
+  it_behaves_like 'a crud-compatible storage'
 end

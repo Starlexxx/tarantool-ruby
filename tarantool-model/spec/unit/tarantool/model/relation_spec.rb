@@ -25,12 +25,20 @@ RSpec.describe Tarantool::Model::Relation do
       .to eq([[2, 6], [1, 3, 5], [2, 6, 1, 3, 5]])
   end
 
-  it 'runs the query on every enumeration' do
-    relation = User.all
-    relation.to_a
-    User.create!(id: 7, email: 'u7@x')
+  context 'with a storage that counts' do
+    let(:storage) { Tarantool::Model::Testing::MemoryStorage.new({ users: Schemas::USERS }, behaves_like: :crud) }
 
-    expect(relation.count).to eq(7)
+    it 'runs the query on every enumeration' do
+      relation = User.all
+      relation.to_a
+      User.create!(id: 7, email: 'u7@x')
+
+      expect(relation.count).to eq(7)
+    end
+
+    it 'counts every match, ignoring limit and after' do
+      expect(User.where(index: :age, key: 20, iterator: :ge).limit(1).count).to eq(5)
+    end
   end
 
   it 'rejects a second where' do
@@ -46,10 +54,6 @@ RSpec.describe Tarantool::Model::Relation do
 
     expect(User.where(index: :age, key: 30).first.id).to eq(1)
     expect(storage).to have_received(:select).with('users', hash_including(limit: 1))
-  end
-
-  it 'counts every match, ignoring limit and after' do
-    expect(User.where(index: :age, key: 20, iterator: :ge).limit(1).count).to eq(5)
   end
 
   it 'enumerates with a block instead of counting in storage' do

@@ -205,6 +205,81 @@ by key with crud `get` and does not use it. Make sure the index name matches the
 Keyset pagination with `after` requires a tuple, which `select` returns but single-row operations (`find`,
 `find_by`) do not. Calling `after` on a record loaded with `find` raises `ArgumentError`.
 
+## Testing
+
+`Tarantool::Model::Testing::MemoryStorage` keeps rows in memory, so model specs run without a Tarantool server.
+It is loaded only on request:
+
+```ruby
+# spec/spec_helper.rb
+require 'tarantool/model/testing'
+
+USERS_SPACE = {
+  format: [{ name: :id, type: :unsigned }, { name: :email, type: :string },
+           { name: :age, type: :unsigned, is_nullable: true }],
+  indexes: [{ name: :primary, parts: [:id], sequence: true },
+            { name: :email, parts: [:email] },
+            { name: :age, parts: [:age], unique: false }]
+}.freeze
+
+RSpec.configure do |config|
+  config.before do
+    User.storage = Tarantool::Model::Testing::MemoryStorage.new({ users: USERS_SPACE })
+  end
+end
+```
+
+Build a new storage for every example; separate instances share nothing.
+
+Spaces are declared like the `ensure_space` arguments of tarantool-schema: `format` entries are
+`{ name:, type:, is_nullable: }`; `indexes` is an Array of `{ name:, parts:, unique:, type:, sequence: }` and the
+first one is primary; `unique` defaults to true and `type` to `tree`. Parts are field names or
+`{ field:, type:, is_nullable: }`. Unknown keys and types raise `ArgumentError`, and so do indexes Tarantool
+refuses to create: a non-unique primary or `hash` index, a nullable part in either. Spaces are passed as one Hash,
+`MemoryStorage.new({ users: SCHEMA, accounts: OTHER }, behaves_like: :crud)`; `behaves_like:` is the only keyword.
+A tarantool-schema definition can be passed as is: `MemoryStorage.from_definition(definition)` duck-types
+`definition.to_h`.
+
+`behaves_like: :box` (default) keeps the `Storage::Box` contract; `behaves_like: :crud` keeps the
+`Storage::Crud` one. What Tarantool would reject is raised with the class the application gets in production:
+
+| Situation | `:box` | `:crud` |
+|---|---|---|
+| duplicate unique key | `RecordNotUnique` | `RecordNotUnique` |
+| nil in a non-nullable field | `Tarantool::ServerError`, code 23 | `Tarantool::Crud::InsertError` / `UpdateError` |
+| update of a primary key field | `Tarantool::ServerError`, code 94 | `Tarantool::Crud::UpdateError` |
+| `+`/`-` on a non-number | `Tarantool::ServerError`, code 26 | `Tarantool::Crud::UpdateError` |
+| key with more parts than the index | `Tarantool::ServerError`, code 31 | — |
+| `get` by a key without every primary key part | first matching row | `Tarantool::Crud::GetError` |
+| partial key on a multi-part hash index | `Tarantool::ServerError`, code 136 | — |
+| unsupported iterator or `after` on a hash index | `Tarantool::ServerError`, code 112 | — |
+| unknown space | `Tarantool::SchemaError` | `Tarantool::Crud::<Operation>Error` |
+| `count` | `NotSupportedError` | counts |
+| `transaction` | rolls back when the block raises | `NotSupportedError` |
+| single-row results | with a tuple | `tuple` is nil |
+
+`verify` (the schema check `Storage::Box` runs on first use) does nothing in `:crud` mode. A nil primary key gets
+the next sequence value when the primary index has `sequence: true` (`:box` only). `transaction` accepts
+`isolation:` and `timeout:` and ignores them. In `:crud` mode a missing `bucket_id` is filled from the primary key:
+the same key always gets the same value, but not the bucket vshard would compute. Values, keys and `after` tuples
+are copied through the client's msgpack codec, so they behave as on the wire: Symbols become Strings (incl. Hash
+keys in any/map fields), and changing a returned value never changes the store.
+
+Not modelled:
+
+- value types: only nullability is checked, so a String in an `unsigned` field is stored;
+- update operators other than `=`, `+` and `-` (`NotSupportedError`);
+- MVCC and concurrency: writes are visible at once, and a transaction is a snapshot restored on error;
+- Strings compare bytewise like Tarantool's default collation; values of different classes in one index raise
+  `ArgumentError`;
+- a `hash` index walks in key order, Tarantool's order is unspecified;
+- `get`, `update` and `delete` match primary keys by Ruby equality, so `[1.0]` does not find a row stored as `[1]`,
+  while Tarantool does;
+- in `:crud` mode, a condition through a name that is a field but not an index: crud filters by that field,
+  MemoryStorage returns nothing;
+- JSON path parts, `rtree` and `bitset` indexes (`ArgumentError`);
+- thread safety.
+
 ## Rails
 
 `to_param` joins a composite key with `-` (e.g. `"7-1"`) for route helpers. `as_json` works through
@@ -260,8 +335,8 @@ TARANTOOL_MODEL_CRUD_URI=tcp://app:secret@localhost:3332 bundle exec rspec --tag
 
 ## Public API
 
-`Tarantool::Model`, `Storage::Box`, `Storage::Crud`, `Types::UUID`, `Types::Interval`, `Types::Binary`,
-`Relation`, and the error classes above.
+`Tarantool::Model`, `Storage::Box`, `Storage::Crud`, `Testing::MemoryStorage`, `Types::UUID`, `Types::Interval`,
+`Types::Binary`, `Relation`, and the error classes above.
 
 Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
 and may change in any release.
