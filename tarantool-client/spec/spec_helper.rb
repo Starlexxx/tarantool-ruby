@@ -10,6 +10,7 @@ require_relative 'support/fake_tarantool'
 require_relative 'support/dripping_tarantool'
 require_relative 'support/pool_helpers'
 require_relative 'support/fork_fake_tarantool'
+require_relative 'support/recording_instrumenter'
 
 RSpec.configure do |config|
   config.include IprotoHelpers
