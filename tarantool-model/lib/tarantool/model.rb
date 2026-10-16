@@ -13,6 +13,7 @@ require_relative 'model/types/binary'
 require_relative 'model/settings'
 require_relative 'model/state'
 require_relative 'model/persistence'
+require_relative 'model/counters'
 require_relative 'model/storage/box/layout'
 require_relative 'model/storage/box'
 
@@ -29,5 +30,6 @@ module Tarantool
     include Settings
     include State
     include Persistence
+    include Counters
   end
 end
