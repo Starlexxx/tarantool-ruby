@@ -6,15 +6,17 @@ module Tarantool
     # stream's requests in order. Created by Client#transaction.
     class Stream
       include Operations
+      include Instrumented
 
       LOST = 'connection lost during the transaction; the server rolled it back'
       FINISHED = 'transaction is finished'
 
-      def initialize(connection:, schema_cache:, id:, request_timeout:)
+      def initialize(connection:, schema_cache:, id:, request_timeout:, instrumentation: nil)
         @connection = connection
         @schema_cache = schema_cache
         @id = id
         @request_timeout = request_timeout
+        @instrumentation = instrumentation
         @state = :idle
         @pid = Process.pid
       end
@@ -51,33 +53,40 @@ module Tarantool
         abandon if @state == :active
       end
 
-      def perform(request, timeout: nil, schema_version: nil, on_push: nil)
+      def transmit(request, timeout: nil, schema_version: nil, on_push: nil)
         check_active
 
         send_request(request, timeout: timeout || @request_timeout, schema_version:, on_push:)
       end
 
-      def perform_on_space(space, index, timeout: nil, format: false, &)
-        return perform(yield(space, index), timeout:) if !format && space.is_a?(Integer) && index.is_a?(Integer)
+      def transmit_on_space(space, index, timeout: nil, format: false, payload: nil, &)
+        return transmit(yield(space, index), timeout:) if !format && space.is_a?(Integer) && index.is_a?(Integer)
 
-        perform_by_name(space, index, timeout || @request_timeout, &)
+        perform_by_name(space, index, timeout || @request_timeout, payload, &)
       end
 
       # Checks for a lost connection first: resolving would otherwise meet the next connection's schema
       # and report a schema change instead.
-      def perform_by_name(space, index, timeout)
+      def perform_by_name(space, index, timeout, payload, &)
         check_connection
         deadline = Transport::Deadline.after(timeout)
-        space_id, index_id = @schema.resolve(space, index, deadline)
-        request = yield(space_id, index_id, @schema.space_info(space_id, deadline))
+        request = build_request(space, index, deadline, payload, &)
 
-        perform(request, timeout: remaining(deadline), schema_version: @schema.version)
+        transmit(request, timeout: remaining(deadline), schema_version: @schema.version)
       rescue ServerError => e
         raise unless e.code == Protocol::Constants::ER_WRONG_SCHEMA_VERSION
 
-        @schema.raise_changed(deadline)
+        mark_schema_reloaded(payload) if @schema.refresh?(deadline)
+        raise TransactionError, TransactionSchema::CHANGED
       rescue TimeoutError
         raise TimeoutError, "no response within #{timeout}s"
+      end
+
+      def build_request(space, index, deadline, payload)
+        (space_id, index_id), reloaded = @schema.resolve(space, index, deadline)
+        mark_schema_reloaded(payload) if reloaded
+
+        yield(space_id, index_id, @schema.space_info(space_id, deadline))
       end
 
       def lookup_space(space, timeout)
@@ -99,7 +108,7 @@ module Tarantool
       def finish(request)
         @state = :finished
 
-        send_request(request, timeout: @request_timeout)
+        instrumented(request) { send_request(request, timeout: @request_timeout) }
       end
 
       # A stream is bound to its connection's session, so a reconnect can't carry the transaction over.

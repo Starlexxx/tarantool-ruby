@@ -79,18 +79,21 @@ RSpec.describe Tarantool::Client do
   end
 
   it 'emits begin, the operations and commit of a transaction' do
-    skip 'Task 7'
-
     client.transaction { |tx| tx.select(:users, 1) }
 
     expect(requests.map { |payload| payload[:request] }).to eq(%i[begin select commit])
   end
 
   it 'emits rollback when the transaction block raises' do
-    skip 'Task 7'
-
     expect { client.transaction { raise 'boom' } }.to raise_error('boom')
 
     expect(requests.map { |payload| payload[:request] }).to eq(%i[begin rollback])
+  end
+
+  it 'reports the space and the exception when a name never resolves, with no request key' do
+    expect { client.select(:ghost, 1) }.to raise_error(Tarantool::SchemaError, /ghost/)
+
+    expect(requests.last).not_to have_key(:request)
+    expect(requests.last).to include(space: :ghost, exception: ['Tarantool::SchemaError', a_string_including('ghost')])
   end
 end

@@ -123,7 +123,7 @@ module Tarantool
       TransactionScope.enter(self) do
         stream = Stream.new(
           connection: @link.connection, schema_cache: @schema_cache, id: @stream_ids.next,
-          request_timeout: @config.request_timeout
+          request_timeout: @config.request_timeout, instrumentation: @instrumentation
         )
         stream.transaction(isolation:, timeout:, &block)
       end
