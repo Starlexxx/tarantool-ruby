@@ -310,4 +310,58 @@ RSpec.describe Tarantool::Model::Testing::MemoryStorage do
       expect([result, storage.get(:users, [1])&.tuple]).to eq([:done, [1, 'u1', 1]])
     end
   end
+
+  context 'when it behaves like Storage::Crud' do
+    subject(:crud) { described_class.new({ users: Schemas::CRUD_USERS }, behaves_like: :crud) }
+
+    def user(id, age = 1) = crud.insert(:users, { id:, email: "u#{id}", age: })
+
+    def ids(rows) = rows.map { |row| row.attributes[:id] }
+
+    it 'skips verify, counts, and refuses transactions' do
+      user(1)
+
+      expect([crud.verify(:users, attributes: %i[phone], primary_key: %i[x]),
+              crud.count(:users, index: :age, key: [1], iterator: :eq)]).to eq([nil, 1])
+      expect { crud.transaction { nil } }.to raise_error(Tarantool::Model::NotSupportedError, /transactions/)
+    end
+
+    it 'returns single-row results without a tuple and fills bucket_id' do
+      row = user(1)
+
+      expect([row.tuple, crud.get(:users, [1]).tuple, crud.delete(:users, [1]).tuple]).to eq([nil, nil, nil])
+      expect(row.attributes[:bucket_id]).to be_between(1, 30_000)
+    end
+
+    it 'keeps tuples on select rows' do
+      user(1)
+
+      expect(crud.select(:users, index: nil, key: [], iterator: :all, limit: nil, after: nil).map(&:tuple))
+        .to all(be_an(Array))
+    end
+
+    it 'scans the primary index without a condition, and finds nothing through an unknown index with one' do
+      [[1, 30], [2, 20]].each { |id, age| user(id, age) }
+
+      expect(ids(crud.select(:users, index: :age, key: [], iterator: :ge, limit: nil, after: nil))).to eq([1, 2])
+      expect([crud.select(:users, index: :nope, key: [1], iterator: :eq, limit: nil, after: nil),
+              crud.count(:users, index: :nope, key: [1], iterator: :eq)]).to eq([[], 0])
+    end
+
+    it 'raises crud error classes with crud messages' do
+      user(1)
+
+      expect { crud.insert(:users, { id: 2, email: 'b' }) }
+        .to raise_error(Tarantool::Crud::InsertError, /Failed to flatten object: .*Field "age" isn't nullable/)
+      expect { crud.update(:users, [1], [['=', 'id', 5]]) }
+        .to raise_error(Tarantool::Crud::UpdateError, /\AFailed to update: Attempt to modify a tuple field/)
+      expect { crud.get(:nope, [1]) }.to raise_error(Tarantool::Crud::GetError, 'Space "nope" doesn\'t exist')
+    end
+
+    it 'does not use sequences' do
+      memory = described_class.new({ accounts: Schemas::ACCOUNTS }, behaves_like: :crud)
+
+      expect { memory.insert(:accounts, { id: nil, email: 'a' }) }.to raise_error(Tarantool::Crud::InsertError, /"id"/)
+    end
+  end
 end

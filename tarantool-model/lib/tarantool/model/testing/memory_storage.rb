@@ -8,7 +8,7 @@ module Tarantool
       # Storage::Crud one: what the server would reject is raised with the classes and codes the application sees
       # in production. The README lists what it does not model.
       class MemoryStorage
-        MODES = { box: BoxMode }.freeze
+        MODES = { box: BoxMode, crud: CrudMode }.freeze
 
         def self.from_definition(definition, **)
           new(definition.to_h, **)
