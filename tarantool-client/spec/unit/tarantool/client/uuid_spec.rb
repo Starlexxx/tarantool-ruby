@@ -12,11 +12,11 @@ RSpec.describe Tarantool::Client::UUID do
       .to eq(described_class.new('F81D4FAE-7DEC-11D0-A765-00A0C91E6BF6'))
   end
 
-  it 'rejects a string that is not a canonical uuid' do
+  it 'rejects a string that is not a canonical uuid', :rbs_untestable do
     expect { described_class.new('f81d4fae7dec11d0a76500a0c91e6bf6') }.to raise_error(ArgumentError, /invalid UUID/)
   end
 
-  it 'rejects non-strings' do
+  it 'rejects non-strings', :rbs_untestable do
     expect { described_class.new(42) }.to raise_error(ArgumentError, /invalid UUID/)
   end
 

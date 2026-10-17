@@ -107,7 +107,8 @@ module Tarantool
 
       attr_reader value: String
 
-      def self.new: (value: String) -> UUID
+      def self.new: (String value) -> UUID
+                  | (value: String) -> UUID
       def with: (?value: String) -> UUID
       def to_s: () -> String
     end
