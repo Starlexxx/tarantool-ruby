@@ -22,6 +22,8 @@ module Tarantool
       }.freeze
       ID = Field.new(name: 'id', attribute_type: ':integer', field_type: 'unsigned', nullable: false)
       SCHEMA_PATH = 'config/tarantool_schema.rb'
+      SCHEMA_END = /^end\s*\z/
+      LINE_START = /^/
 
       source_root File.expand_path('templates', __dir__)
 
@@ -40,7 +42,7 @@ module Tarantool
       def add_space_to_schema
         return if options[:skip_schema] || !File.exist?(File.join(destination_root, SCHEMA_PATH))
 
-        inject_into_file SCHEMA_PATH, space_declaration, before: /^end\s*\z/
+        inject_into_file SCHEMA_PATH, space_declaration, before: SCHEMA_END
       end
 
       private
@@ -70,7 +72,7 @@ module Tarantool
                  '             ],', '             indexes: [',
                  "               { name: :primary, parts: [:#{model_fields.first.name}]#{sequence} }", '             ]']
 
-        "\n#{lines.join("\n").gsub(/^/, '  ')}\n"
+        "\n#{lines.join("\n").gsub(LINE_START, '  ')}\n"
       end
     end
   end

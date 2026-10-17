@@ -10,6 +10,7 @@ module Tarantool
       WIDTH = 120
       ARGUMENT_INDENT = ' ' * 15
       ENTRY_INDENT = ' ' * 17
+      NEEDS_ESCAPING = /['\\]/
 
       module_function
 
@@ -102,7 +103,7 @@ module Tarantool
 
       def symbol(name) = name.to_sym.inspect
 
-      def string(value) = value.match?(/['\\]/) ? value.inspect : "'#{value}'"
+      def string(value) = value.match?(NEEDS_ESCAPING) ? value.inspect : "'#{value}'"
     end
   end
 end

@@ -10,6 +10,10 @@ module Tarantool
       :reconnect, :reconnect_attempts, :reconnect_delay, :reconnect_max_delay,
       :max_frame_size, :instrumenter, :logger
     ) do
+      const_set(:UNIX_URI, %r{\Aunix/?:})
+      const_set(:UNIX_PATH, %r{\Aunix/?:(?://(?=/))?(.+)\z})
+      const_set(:EMPTY_PATH, %r{\A/*\z})
+
       def self.build(uri = nil, **options)
         new(**defaults, **parse_uri(uri), **options)
       end
@@ -24,15 +28,15 @@ module Tarantool
 
       def self.parse_uri(uri)
         return {} if uri.nil?
-        return parse_unix_uri(uri) if uri.match?(%r{\Aunix/?:})
+        return parse_unix_uri(uri) if uri.match?(Configuration::UNIX_URI)
 
         parse_tcp_uri(uri)
       end
 
       def self.parse_unix_uri(uri)
-        match = %r{\Aunix/?:(?://(?=/))?(.+)\z}.match(uri)
+        match = Configuration::UNIX_PATH.match(uri)
         path = match && match[1]
-        raise ArgumentError, 'invalid Tarantool URI' if path.nil? || path.match?(%r{\A/*\z})
+        raise ArgumentError, 'invalid Tarantool URI' if path.nil? || path.match?(Configuration::EMPTY_PATH)
 
         { path: path }
       end

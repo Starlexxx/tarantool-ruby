@@ -16,7 +16,9 @@ module Tarantool
         reason: 'tarantool.reason', attempts: 'tarantool.attempts', read_only: 'tarantool.read_only',
         pending: 'tarantool.pending'
       }.freeze
-      private_constant :REQUEST, :DB_KEYS, :EVENT_KEYS
+      # host:port or [ipv6]:port; a unix socket path has no port.
+      HOST_PORT = /\A\[?(.+?)\]?:(\d+)\z/
+      private_constant :REQUEST, :DB_KEYS, :EVENT_KEYS, :HOST_PORT
 
       module_function
 
@@ -38,11 +40,10 @@ module Tarantool
 
       def value(value) = value.is_a?(Symbol) ? value.to_s : value
 
-      # host:port or [ipv6]:port; anything without a port is a unix socket path.
       def server(address)
         return {} if address.nil?
 
-        host, port = address.match(/\A\[?(.+?)\]?:(\d+)\z/)&.captures
+        host, port = address.match(HOST_PORT)&.captures
         return { 'server.address' => address } unless port
 
         { 'server.address' => host, 'server.port' => port.to_i }
