@@ -34,9 +34,8 @@ RSpec.describe Tarantool::Client::CachedStatements do
 
   def execute(request, fake)
     log << [:execute, request.body[0x43] || request.body[0x40]]
-    if failures.pop(timeout: 0)
-      return fake.reply_error(request, code: 211, message: 'Prepared statement does not exist')
-    end
+    failure = failures.pop(timeout: 0)
+    return fake.reply_error(request, code: failure.first, message: failure.last) if failure
 
     fake.reply(request, [[1]])
   end
@@ -87,7 +86,7 @@ RSpec.describe Tarantool::Client::CachedStatements do
 
   it 'prepares again once when the server no longer knows the id' do
     client.execute(sql, [1])
-    failures << true
+    failures << [211, 'Prepared statement with id 7 does not exist']
 
     expect(client.execute(sql, [1]).rows).to eq([[1]])
     expect(drain(log)).to eq([[:prepare, sql], [:execute, sql.size], [:execute, sql.size], [:prepare, sql],
@@ -96,9 +95,25 @@ RSpec.describe Tarantool::Client::CachedStatements do
 
   it 'raises when the fresh statement is unknown too' do
     client.execute(sql, [1])
-    2.times { failures << true }
+    2.times { failures << [211, 'Prepared statement with id 7 does not exist'] }
 
     expect { client.execute(sql, [1]) }.to raise_error(Tarantool::ServerError) { |error| expect(error.code).to eq(211) }
+  end
+
+  it 'prepares again once when the statement expired after a schema change' do
+    client.execute(sql, [1])
+    failures << [159, 'Failed to execute SQL statement: statement has expired']
+
+    expect(client.execute(sql, [1]).rows).to eq([[1]])
+    expect(drain(log).count { |event, _| event == :prepare }).to eq(2)
+  end
+
+  it 'does not retry another execute failure' do
+    client.execute(sql, [1])
+    failures << [159, 'Failed to execute SQL statement: boom']
+
+    expect { client.execute(sql, [1]) }.to raise_error(Tarantool::ServerError, /boom/)
+    expect(drain(log).count { |event, _| event == :prepare }).to eq(1)
   end
 
   it 'ignores an error on the unprepare of an evicted statement' do

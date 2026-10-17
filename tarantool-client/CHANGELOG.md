@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0 (unreleased)
+
+- `statement_cache:` option: `execute` with SQL text prepares once and runs by id, LRU per client, re-prepared after a reconnect, a dropped id or a DDL that expired the statement.
+
 ## 0.3.0 (2026-10-17)
 
 - `select(fetch_position: true)` returns a `Page` with the server-side position of the last tuple; `after:` takes that position (String) as well as a tuple.

@@ -3,12 +3,15 @@
 module Tarantool
   class Client
     # execute(String) through the statement cache: PREPARE on a miss, EXECUTE by id, one fresh PREPARE when the
-    # server no longer knows the id (the session changed under a cached entry). Ids belong to a session, so a
-    # lost connection empties the cache; a stream has its own perform and does not use it.
+    # server no longer knows the id (the session changed under a cached entry) or expired it (any DDL does).
+    # Ids belong to a session, so a lost connection empties the cache; a stream has its own perform and does
+    # not use it.
     # @api private
     module CachedStatements
       ER_WRONG_QUERY_ID = 211
-      private_constant :ER_WRONG_QUERY_ID
+      ER_SQL_EXECUTE = 159
+      EXPIRED = 'statement has expired'
+      private_constant :ER_WRONG_QUERY_ID, :ER_SQL_EXECUTE, :EXPIRED
 
       def execute(sql, bindings = [], timeout: nil)
         return super unless @statement_cache && sql.is_a?(String)
@@ -23,10 +26,14 @@ module Tarantool
 
         SqlResult.from_response(perform(request, timeout:))
       rescue ServerError => e
-        raise unless retry_unknown && e.code == ER_WRONG_QUERY_ID
+        raise unless retry_unknown && stale_statement?(e)
 
         @statement_cache.forget(sql)
         execute_cached(sql, bindings, timeout, retry_unknown: false)
+      end
+
+      def stale_statement?(error)
+        error.code == ER_WRONG_QUERY_ID || (error.code == ER_SQL_EXECUTE && error.message.include?(EXPIRED))
       end
 
       def cached_statement_id(sql, timeout)

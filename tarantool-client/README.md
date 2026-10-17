@@ -42,6 +42,7 @@ URIs: `tcp://user:password@host:port`, `host:port`, `unix:/path/to/socket`. Keyw
 | `reconnect_delay` | `0.1` | base delay of the exponential backoff |
 | `reconnect_max_delay` | `5` | cap of the backoff delay |
 | `max_frame_size` | `67108864` (64 MB) | maximum allowed response frame size in bytes; larger frames raise `ProtocolError` and break the connection |
+| `statement_cache` | `0` | prepared statements kept per client for `execute` with SQL text; see [SQL](#sql) |
 | `instrumenter` | `nil` | receives request and lifecycle events; see [Instrumentation](#instrumentation) |
 | `logger` | `nil` | `Logger`-compatible; one debug line per request, lifecycle lines, background warnings |
 
@@ -144,6 +145,8 @@ statement.close
 
 Tarantool 2.x uppercases unquoted identifiers, so `FROM users` fails with "Space 'USERS' does not exist" on 2.11; quote both table and column names to work on both versions. `SqlResult` is not `Enumerable`; iterate rows with `result.rows.each`.
 
+With `statement_cache: 100`, `execute` with SQL text prepares the statement on the first call and runs it by id afterwards, keeping up to that many statements per client (least recently used evicted and unprepared; `Pool` members each have their own). A statement the server no longer knows (the session changed, or any DDL expired it) is prepared again once, transparently; the cache is emptied when the connection is lost. `execute` with a `PreparedStatement` or an id, and SQL inside `transaction` streams, do not use it. The saving is server-side parsing, not the round trip: `benchmark/statement_cache.rb` against the container on 3301 gives about 5.5k executes/s of one parameterised `SELECT` by primary key with the cache and about 5.3k without.
+
 ## Transactions
 
 Interactive transactions run on their own IPROTO stream and need `memtx_use_mvcc_engine = true` on the server.
@@ -173,7 +176,7 @@ The block gets the current value first (`nil` if the key was never broadcast), t
 - Requests issued meanwhile wait for the new connection up to `connect_timeout` (and never past their own timeout), then raise `ConnectionError`.
 - After reconnecting, the client performs the handshake and loads the schema of the new instance before any request can use it. It then subscribes the watchers again, and each watcher gets the current value.
 - A transaction cannot survive a reconnect: the server rolls it back, and the next call in the block raises `TransactionError`.
-- Prepared statements belong to the old session and are gone.
+- Prepared statements belong to the old session and are gone; the statement cache prepares again on the next `execute`.
 - After `reconnect_attempts` failures the client stops, and every request raises `ConnectionError`. With `reconnect: false`, requests after a loss raise `ConnectionError` right away.
 
 ## Pool
@@ -284,9 +287,10 @@ INTEGRATION=1 TARANTOOL_URI=tcp://app:secret@localhost:3301 bundle exec rspec   
 bundle exec rubocop
 ```
 
-Instrumentation overhead against the container on 3301:
+Statement cache gain and instrumentation overhead against the container on 3301:
 
 ```sh
+bundle exec ruby -Ilib benchmark/statement_cache.rb
 bundle exec ruby -Ilib benchmark/request_overhead.rb
 ```
 
