@@ -57,6 +57,10 @@ module Tarantool
         info "Tarantool #{event.payload[:address]} is now #{event.payload[:read_only] ? 'read-only' : 'writable'}"
       end
 
+      def shutdown(event)
+        info "Tarantool #{event.payload[:address]} is shutting down, #{event.payload[:pending]} requests in flight"
+      end
+
       private
 
       def request_name(payload)

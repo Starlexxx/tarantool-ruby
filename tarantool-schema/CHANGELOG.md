@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.2.0 (unreleased)
+## 0.2.0 (2026-10-17)
 
 - `Definition.from_live(client, only:)`: the live user spaces as a definition, for bootstrapping an existing
   database; `Definition#to_ruby` renders a definition as DSL source.
