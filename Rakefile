@@ -16,7 +16,7 @@ TARGETS = {
   'tarantool-crud' => %w[Tarantool::Crud::Client Tarantool::Crud::Space Tarantool::Crud::Result
                          Tarantool::Crud::ManyResult Tarantool::Crud::Error Tarantool::Crud::ManyError],
   'tarantool-schema' => %w[Tarantool::Schema::Definition Tarantool::Schema::MismatchError],
-  'tarantool-model' => %w[Tarantool::Model Tarantool::Model::Relation Tarantool::Model::Storage::Box
+  'tarantool-model' => %w[Tarantool::Model Tarantool::Model::ClassMethods Tarantool::Model::Relation Tarantool::Model::Storage::Box
                           Tarantool::Model::Storage::Crud Tarantool::Model::Testing::MemoryStorage
                           Tarantool::Model::Types::UUID Tarantool::Model::Types::Interval Tarantool::Model::Types::Binary
                           Tarantool::Model::RecordNotFound Tarantool::Model::RecordInvalid Tarantool::Model::RecordNotSaved

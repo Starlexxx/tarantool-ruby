@@ -1,0 +1,182 @@
+module Tarantool
+  # ActiveModel-based model over a Tarantool space. `include Tarantool::Model` adds the instance methods below and
+  # extends the class with ClassMethods; attributes, validations, callbacks and dirty tracking come from ActiveModel.
+  module Model
+    VERSION: String
+
+    type key = Tarantool::Client::key
+    type iterator = Tarantool::Client::iterator
+    type index_ref = Tarantool::Client::index_ref
+    type attributes = Hash[Symbol | String, untyped]
+    # One update operation, e.g. ['=', 'email', value].
+    type operation = Array[untyped]
+    # A Tarantool::Model::Row (@api private): the attributes by Symbol name and the raw tuple, or nil for no row.
+    type stored_row = untyped
+
+    # What a model reads and writes through: Storage::Box, Storage::Crud or Testing::MemoryStorage.
+    interface _Storage
+      def verify: (String | Symbol space, attributes: Array[Symbol], primary_key: Array[Symbol]) -> void
+      def get: (String | Symbol space, Array[untyped] key) -> stored_row
+      def insert: (String | Symbol space, Hash[Symbol | String, untyped] attributes) -> stored_row
+      def update: (String | Symbol space, Array[untyped] key, Array[operation] operations) -> stored_row
+      def delete: (String | Symbol space, Array[untyped] key) -> stored_row
+      def select: (String | Symbol space, index: index_ref?, key: Array[untyped], iterator: iterator, limit: Integer?,
+                   after: Array[untyped]?) -> Array[stored_row]
+      def count: (String | Symbol space, index: index_ref?, key: Array[untyped], iterator: iterator) -> Integer
+      def supports_transactions?: () -> bool
+      # Storage::Box takes isolation: and timeout:; Storage::Crud raises NotSupportedError.
+      def transaction: [T] (?isolation: Tarantool::Client::isolation, ?timeout: Numeric?) { () -> T } -> T
+    end
+
+    # Storage for models that set none of their own: a storage, or a Proc called once on first use.
+    def self.default_storage: () -> _Storage?
+    def self.default_storage=: (_Storage | ^() -> _Storage | nil storage) -> void
+
+    # Class-level API of a model; Instance is the model class.
+    module ClassMethods[Instance]
+      def storage: () -> _Storage?
+      def storage=: (_Storage? storage) -> void
+      def space_name: () -> (String | Symbol)
+      def space_name=: (String | Symbol name) -> void
+      def primary_key: () -> (Symbol | Array[Symbol])
+      def primary_key=: (Symbol | Array[Symbol] key) -> void
+      def primary_key_names: () -> Array[Symbol]
+      def locking_column: () -> (Symbol | String)?
+      def locking_column=: ((Symbol | String)? column) -> void
+      def locking_enabled?: () -> bool
+      def create: (?attributes attributes) -> Instance
+      def create!: (?attributes attributes) -> Instance
+      def all: () -> Relation[Instance]
+      def where: (?index: index_ref?, ?key: key, ?iterator: iterator) -> Relation[Instance]
+      def find_each: (?batch_size: Integer) { (Instance) -> void } -> void
+                   | (?batch_size: Integer) -> Enumerable[Instance]
+      # Storage::Box raises NotSupportedError.
+      def count: () -> Integer
+      def find_by: (index: index_ref?, key: key) -> Instance?
+      def find: (key key) -> Instance
+      def transaction: [T] (?isolation: Tarantool::Client::isolation, ?timeout: Numeric?) { () -> T } -> T
+      # @api private: a record from a storage row.
+      def instantiate: (stored_row row) -> Instance
+    end
+
+    def save: () -> bool
+    def save!: () -> bool
+    def update: (attributes attributes) -> bool
+    def update!: (attributes attributes) -> bool
+    # self (frozen), or false when a before_destroy callback aborted.
+    def destroy: () -> (self | false)
+    def reload: () -> self
+    def increment!: (Symbol | String attribute, ?Integer by) -> self
+    def decrement!: (Symbol | String attribute, ?Integer by) -> self
+    def new_record?: () -> bool
+    def persisted?: () -> bool
+    def destroyed?: () -> bool
+    # The raw tuple the record was loaded from or last written with; Relation#after continues past it.
+    def tuple: () -> Array[untyped]?
+    def to_key: () -> Array[untyped]?
+
+    # An immutable query over one index condition, run on every enumeration.
+    class Relation[Instance]
+      include Enumerable[Instance]
+
+      def where: (?index: index_ref?, ?key: key, ?iterator: iterator) -> Relation[Instance]
+      def limit: (Integer count) -> Relation[Instance]
+      def after: (Instance record) -> Relation[Instance]
+      def each: () { (Instance) -> void } -> void
+              | () -> Enumerable[Instance]
+      def first: () -> Instance?
+               | (Integer count) -> Array[Instance]
+      # Without arguments delegates to the storage (NotSupportedError on Storage::Box); with a block or an
+      # argument enumerates.
+      def count: () -> Integer
+               | (untyped item) -> Integer
+               | () { (Instance) -> boolish } -> Integer
+      def find_each: (?batch_size: Integer) { (Instance) -> void } -> void
+                   | (?batch_size: Integer) -> Enumerable[Instance]
+    end
+
+    module Storage
+      # Storage over a Tarantool::Client or Pool; read/write options go to the client's requests verbatim.
+      class Box
+        include _Storage
+
+        def initialize: (Tarantool::Client | Tarantool::Client::Pool caller, ?read: Hash[Symbol, untyped],
+                         ?write: Hash[Symbol, untyped]) -> void
+      end
+
+      # Storage over a Tarantool::Crud::Client; raises NotSupportedError for transactions.
+      class Crud
+        include _Storage
+
+        def initialize: (untyped crud, ?primary_index: String | Symbol) -> void
+      end
+    end
+
+    module Testing
+      # In-memory storage for application tests, declared in tarantool-schema's ensure_space shape.
+      class MemoryStorage
+        include _Storage
+
+        # Anything responding to to_h with the spaces Hash, such as a Tarantool::Schema::Definition.
+        def self.from_definition: (untyped definition, ?behaves_like: :box | :crud) -> MemoryStorage
+        def initialize: (Hash[Symbol | String, Hash[Symbol, untyped]] spaces, ?behaves_like: :box | :crud) -> void
+      end
+    end
+
+    # Attribute types for MP_EXT values; pass instances to `attribute`. Subclasses of ActiveModel::Type::Value.
+    module Types
+      class UUID
+        def type: () -> :uuid
+      end
+
+      class Interval
+        def type: () -> :interval
+      end
+
+      class Binary
+        def type: () -> :binary
+      end
+    end
+
+    class Error < Tarantool::Error
+    end
+
+    class RecordNotFound < Error
+      attr_reader model: Class
+      attr_reader key: Array[untyped]
+
+      def initialize: (Class model, Array[untyped] key) -> void
+    end
+
+    class RecordInvalid < Error
+      attr_reader record: untyped
+
+      def initialize: (untyped record) -> void
+    end
+
+    class RecordNotSaved < Error
+      attr_reader record: untyped
+
+      def initialize: (untyped record) -> void
+    end
+
+    class StaleObjectError < Error
+      attr_reader record: untyped
+      attr_reader attempted_action: Symbol
+
+      def initialize: (untyped record, Symbol attempted_action) -> void
+    end
+
+    class RecordNotUnique < Error
+    end
+
+    class SchemaMismatchError < Error
+    end
+
+    class TransactionMismatchError < Error
+    end
+
+    class NotSupportedError < Error
+    end
+  end
+end
