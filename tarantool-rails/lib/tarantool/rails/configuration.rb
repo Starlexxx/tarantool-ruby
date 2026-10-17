@@ -17,7 +17,7 @@ module Tarantool
       def filtered(key, value)
         case key
         when :client_options then value.key?(:password) ? value.merge(password: '[FILTERED]') : value
-        when :admin_uri then value&.sub(%r{:[^:@/]*@}, ':[FILTERED]@')
+        when :admin_uri then value&.sub(Configuration::URI_PASSWORD, ':[FILTERED]@')
         else value
         end
       end
@@ -30,6 +30,7 @@ module Tarantool
       KEYS = (CLIENT_KEYS + %i[addresses address read write storage crud admin_uri]).freeze
       CRUD_KEYS = %i[primary_index read write timeout_margin].freeze
       STORAGES = %i[box crud].freeze
+      URI_PASSWORD = %r{:[^:@/]*@}
 
       class << self
         def from_hash(hash)

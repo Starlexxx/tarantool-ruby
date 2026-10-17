@@ -24,15 +24,15 @@ module Tarantool
 
       def self.parse_uri(uri)
         return {} if uri.nil?
-        return parse_unix_uri(uri) if uri.match?(%r{\Aunix/?:})
+        return parse_unix_uri(uri) if uri.match?(Configuration::UNIX_URI)
 
         parse_tcp_uri(uri)
       end
 
       def self.parse_unix_uri(uri)
-        match = %r{\Aunix/?:(?://(?=/))?(.+)\z}.match(uri)
+        match = Configuration::UNIX_PATH.match(uri)
         path = match && match[1]
-        raise ArgumentError, 'invalid Tarantool URI' if path.nil? || path.match?(%r{\A/*\z})
+        raise ArgumentError, 'invalid Tarantool URI' if path.nil? || path.match?(Configuration::EMPTY_PATH)
 
         { path: path }
       end
@@ -83,6 +83,12 @@ module Tarantool
         klass = value.is_a?(Module) ? value : value.class
         klass.name ? "#<#{klass.name}>" : klass.inspect
       end
+    end
+
+    class Configuration
+      UNIX_URI = %r{\Aunix/?:}
+      UNIX_PATH = %r{\Aunix/?:(?://(?=/))?(.+)\z}
+      EMPTY_PATH = %r{\A/*\z}
     end
   end
 end
