@@ -3,6 +3,7 @@
 ## 0.3.0 (unreleased)
 
 - `select(fetch_position: true)` returns a `Page` with the server-side position of the last tuple; `after:` takes that position (String) as well as a tuple.
+- Graceful shutdown: the client subscribes to `box.shutdown`; on the event it stops sending, a `Pool` member leaves the rotation, requests in flight finish, and the connection is closed by the client before the server stops (`shutdown.tarantool` event, `disconnect.tarantool` with the reason `server ... is shutting down`).
 
 ## 0.2.0 (2026-10-17)
 
