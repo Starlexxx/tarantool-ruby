@@ -18,10 +18,16 @@ RSpec.describe Tarantool::Schema::Creation do
       .to eq([[described_class::INDEX_LUA, ['codes', 'by_code', index.to_lua.merge('if_not_exists' => true)]]])
   end
 
+  it 'sets the whole declared format with the name as an eval argument' do
+    described_class::Format.new(space:, fields: space.format.drop(2)).apply(client)
+
+    expect(client.evals).to eq([[described_class::FORMAT_LUA, ['codes', space.format.map(&:to_lua)]]])
+  end
+
   it 'describes what it creates' do
-    steps = [described_class::Space.new(spec: space),
+    steps = [described_class::Space.new(spec: space), described_class::Format.new(space:, fields: space.format.drop(1)),
              described_class::Index.new(space: :codes, spec: space.indexes.last)]
 
-    expect(steps.map(&:to_s)).to eq(['space codes', 'index codes.by_code'])
+    expect(steps.map(&:to_s)).to eq(['space codes', 'format codes: add code, note', 'index codes.by_code'])
   end
 end

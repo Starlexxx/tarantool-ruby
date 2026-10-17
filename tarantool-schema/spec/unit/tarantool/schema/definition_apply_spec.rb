@@ -57,6 +57,50 @@ RSpec.describe Tarantool::Schema::Definition do
       expect(client.creations.size).to eq(3)
     end
 
+    context 'with alter: [:add_field]' do
+      let(:short) { codes_live.merge('format' => codes_live['format'].take(2)) }
+
+      it 'rejects anything else' do
+        expect { codes_definition.plan(FakeClient.new, alter: [:drop]) }.to raise_error(ArgumentError, /allowed/)
+      end
+
+      it 'keeps a short live format a mismatch by default' do
+        expect { codes_definition.plan(FakeClient.new('codes' => short)) }
+          .to raise_error(Tarantool::Schema::MismatchError, /format: declared 3 fields, actual 2/)
+      end
+
+      it 'plans the fields to add without writing' do
+        client = FakeClient.new('codes' => short)
+
+        expect(codes_definition.plan(client, alter: [:add_field])).to eq(['format codes: add note'])
+        expect(client.creations).to eq([])
+      end
+
+      it 'sets the format before creating indexes and re-verifies' do
+        client = FakeClient.new('codes' => short.merge('indexes' => short['indexes'].take(1)))
+        client.on_create { |fake| fake.live['codes'] = codes_live }
+
+        expect(codes_definition.apply(client, alter: [:add_field]))
+          .to eq(['format codes: add note', 'index codes.by_code'])
+        expect(client.creations.map(&:first)).to eq([creation::FORMAT_LUA, creation::INDEX_LUA])
+      end
+
+      it 'fails when the fields are still missing after apply' do
+        expect { codes_definition.apply(FakeClient.new('codes' => short), alter: [:add_field]) }
+          .to raise_error(Tarantool::Schema::MismatchError, /format: fields missing after apply/)
+      end
+
+      it 'creates nothing for a field that is not nullable' do
+        declared = codes_declaration.merge(format: [*codes_declaration[:format], { name: :flag, type: :unsigned }])
+        definition = described_class.new { ensure_space(:codes, **declared) }
+        client = FakeClient.new('codes' => codes_live)
+
+        expect { definition.apply(client, alter: [:add_field]) }
+          .to raise_error(Tarantool::Schema::MismatchError, /field 4 flag: must be is_nullable: true to be added/)
+        expect(client.creations).to eq([])
+      end
+    end
+
     def by_note_index_creation
       ['codes', 'by_note', { 'type' => 'tree', 'unique' => false, 'sequence' => false,
                              'parts' => [{ 'field' => 'note', 'type' => 'string', 'is_nullable' => true }],

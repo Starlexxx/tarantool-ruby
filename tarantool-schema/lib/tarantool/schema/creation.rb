@@ -16,12 +16,26 @@ module Tarantool
         box.space[space]:create_index(name, options)
       LUA
 
+      FORMAT_LUA = <<~LUA
+        local name, format = ...
+        box.space[name]:format(format)
+      LUA
+
       Space = Data.define(:spec) do
         def apply(client)
           client.eval(SPACE_LUA, [spec.name.to_s, spec.to_lua.merge('if_not_exists' => true)])
         end
 
         def to_s = "space #{spec.name}"
+      end
+
+      # The whole declared format goes out: the live one is a prefix of it, verified before apply.
+      Format = Data.define(:space, :fields) do
+        def apply(client)
+          client.eval(FORMAT_LUA, [space.name.to_s, space.format.map(&:to_lua)])
+        end
+
+        def to_s = "format #{space.name}: add #{fields.map(&:name).join(', ')}"
       end
 
       Index = Data.define(:space, :spec) do

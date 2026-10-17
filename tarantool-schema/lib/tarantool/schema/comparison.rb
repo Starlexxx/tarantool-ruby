@@ -7,14 +7,16 @@ module Tarantool
     # from the live format.
     # @api private
     class Comparison
-      attr_reader :name, :space, :mismatches, :missing_indexes
+      attr_reader :name, :space, :mismatches, :missing_indexes, :format_additions
 
-      def initialize(name:, indexes:, live:, space: nil)
+      def initialize(name:, indexes:, live:, space: nil, alter: [])
         @name = name
         @space = space
         @live = live
+        @alter = alter
         @mismatches = []
         @missing_indexes = []
+        @format_additions = []
         live ? compare(indexes) : absent(indexes)
       end
 
@@ -37,7 +39,9 @@ module Tarantool
 
       def compare_space
         @mismatches << "engine: declared #{@space.engine}, actual #{@live.engine}" if @space.engine != @live.engine
-        @mismatches.concat(FormatComparison.new(@space.format, @live.format).mismatches)
+        format = FormatComparison.new(@space.format, @live.format, add_field: @alter.include?(:add_field))
+        @mismatches.concat(format.mismatches)
+        @format_additions = format.additions
         compare_primary
       end
 

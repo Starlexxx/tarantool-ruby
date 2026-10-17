@@ -4,7 +4,9 @@ RSpec.describe Tarantool::Schema::Comparison do
   let(:space) { Tarantool::Schema::SpaceSpec.build(:codes, engine: :memtx, **codes_declaration).resolve }
   let(:by_note) { Tarantool::Schema::IndexSpec.build(:by_note, { parts: [:note], unique: false }) }
 
-  def declared(raw) = described_class.new(name: :codes, indexes: space.indexes, live: live(raw), space:)
+  def declared(raw, alter: [])
+    described_class.new(name: :codes, indexes: space.indexes, live: live(raw), space:, alter:)
+  end
 
   def external(raw, index = by_note) = described_class.new(name: :codes, indexes: [index], live: live(raw))
 
@@ -38,6 +40,14 @@ RSpec.describe Tarantool::Schema::Comparison do
     raw = codes_live.merge('indexes' => [live_index(0, 'pk', [[1, 'unsigned']], sequence: true)])
 
     expect(declared(raw).mismatches).to eq(['primary index: declared primary, actual pk'])
+  end
+
+  it 'plans fields missing from the live format only when add_field is allowed' do
+    raw = codes_live.merge('format' => codes_live['format'].take(2))
+
+    expect(declared(raw).format_additions).to eq([])
+    expect(declared(raw, alter: [:add_field]).format_additions.map(&:name)).to eq([:note])
+    expect(declared(raw, alter: [:add_field]).mismatches).to eq([])
   end
 
   it 'plans an index missing from an existing space' do
