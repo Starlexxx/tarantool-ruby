@@ -46,6 +46,7 @@ RSpec.shared_examples 'a crud-compatible storage' do
   end
 
   it 'refuses transactions' do
+    expect(storage.supports_transactions?).to be(false)
     expect { storage.transaction { nil } }.to raise_error(Tarantool::Model::NotSupportedError)
   end
 end

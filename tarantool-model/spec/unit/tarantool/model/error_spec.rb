@@ -22,4 +22,13 @@ RSpec.describe Tarantool::Model::Error do
 
     expect(Tarantool::Model::RecordNotSaved.new(record)).to have_attributes(record:)
   end
+
+  it 'names the action and key of a stale record' do
+    stub_const('Account', Struct.new(:to_key))
+    record = Account.new([1])
+    error = Tarantool::Model::StaleObjectError.new(record, :update)
+
+    expect([error.record, error.attempted_action, error.message])
+      .to eq([record, :update, 'Attempted to update a stale Account with key [1]'])
+  end
 end

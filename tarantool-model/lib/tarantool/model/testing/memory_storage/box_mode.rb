@@ -15,6 +15,8 @@ module Tarantool
 
           def transaction! = nil
 
+          def supports_transactions? = true
+
           def get(space, key)
             space.get(key)
           end

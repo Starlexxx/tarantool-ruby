@@ -54,6 +54,8 @@ module Tarantool
           raise NotSupportedError, 'Storage::Box does not count'
         end
 
+        def supports_transactions? = true
+
         def transaction(**options, &block)
           @caller.transaction(**options) do |stream|
             Transactions.open(self, stream, &block)

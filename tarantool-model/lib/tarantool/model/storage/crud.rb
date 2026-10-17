@@ -48,6 +48,8 @@ module Tarantool
           @crud.space(space).count(conditions(index, key, iterator))
         end
 
+        def supports_transactions? = false
+
         def transaction(**)
           raise NotSupportedError, 'crud has no interactive transactions'
         end
