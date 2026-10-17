@@ -74,6 +74,10 @@ RSpec.shared_examples 'a box-compatible storage' do
     expect(storage.get(:users, [2]).attributes).to include(id: 2)
   end
 
+  it 'supports transactions' do
+    expect(storage.supports_transactions?).to be(true)
+  end
+
   it 'raises TransactionError for a nested transaction' do
     expect { storage.transaction { storage.transaction { nil } } }.to raise_error(Tarantool::TransactionError)
   end

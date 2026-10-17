@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.0 (unreleased)
+
+- `Tarantool::Model.default_storage`: a storage, or a Proc called once on first use, for models without one of
+  their own.
+- Optimistic locking on the `locking_column` attribute (`lock_version` by default): update and destroy compare
+  the stored version with the record's and bump it, in a transaction on `Storage::Box`; `StaleObjectError`.
+- Storages answer `supports_transactions?`.
+
 ## 0.2.0 (2026-10-17)
 
 - `Storage::Box` converts rows with tarantool-client (`as: :row`), by the format of the schema each request ran against, and no longer looks up `space_info` before every operation.

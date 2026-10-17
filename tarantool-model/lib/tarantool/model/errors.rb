@@ -35,6 +35,17 @@ module Tarantool
       end
     end
 
+    # The row's locking column changed since the record was loaded.
+    class StaleObjectError < Error
+      attr_reader :record, :attempted_action
+
+      def initialize(record, attempted_action)
+        @record = record
+        @attempted_action = attempted_action
+        super("Attempted to #{attempted_action} a stale #{record.class.name} with key #{record.to_key.inspect}")
+      end
+    end
+
     class RecordNotUnique < Error; end
     class SchemaMismatchError < Error; end
     class TransactionMismatchError < Error; end

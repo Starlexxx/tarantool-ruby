@@ -57,6 +57,8 @@ module Tarantool
           perform(space, :count) { |table| @mode.scan(table, index:, key:, iterator:, after: nil).size }
         end
 
+        def supports_transactions? = @mode.supports_transactions?
+
         # Writes apply at once; the rows are restored unless the block finishes normally. `isolation:` and
         # `timeout:` are accepted and ignored. Sequences are not restored, as in Tarantool.
         def transaction(**, &)

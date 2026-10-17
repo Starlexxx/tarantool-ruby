@@ -15,6 +15,7 @@ require_relative 'model/types/binary'
 require_relative 'model/settings'
 require_relative 'model/state'
 require_relative 'model/persistence'
+require_relative 'model/locking'
 require_relative 'model/counters'
 require_relative 'model/relation'
 require_relative 'model/querying'
@@ -27,6 +28,22 @@ module Tarantool
   module Model
     extend ActiveSupport::Concern
 
+    DEFAULT_STORAGE_LOCK = Mutex.new
+    private_constant :DEFAULT_STORAGE_LOCK
+
+    class << self
+      # Storage for models that set none of their own: a storage, or a Proc called once on first use.
+      attr_writer :default_storage
+
+      def default_storage
+        DEFAULT_STORAGE_LOCK.synchronize do
+          @default_storage = @default_storage.call if @default_storage.is_a?(Proc)
+
+          @default_storage
+        end
+      end
+    end
+
     include ActiveModel::API
     include ActiveModel::Attributes
     include ActiveModel::Dirty
@@ -35,6 +52,7 @@ module Tarantool
     include Settings
     include State
     include Persistence
+    include Locking
     include Counters
     include Transactional
     include Querying

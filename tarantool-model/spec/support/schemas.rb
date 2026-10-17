@@ -9,6 +9,11 @@ module Schemas
               { name: :age, parts: %i[age], unique: false }]
   }.freeze
 
+  LOCKED_USERS = {
+    format: [*USERS[:format], { name: :lock_version, type: :unsigned }],
+    indexes: USERS[:indexes]
+  }.freeze
+
   ACCOUNTS = {
     format: [{ name: :id, type: :unsigned }, { name: :email, type: :string },
              { name: :balance, type: :decimal, is_nullable: true }, { name: :token, type: :uuid, is_nullable: true },

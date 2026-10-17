@@ -23,6 +23,8 @@ module Tarantool
 
           def sequences? = false
 
+          def supports_transactions? = false
+
           def get(space, key)
             parts = space.info.primary_index.parts.size
             raise Violation.exact_match(parts, key.size) unless key.size == parts

@@ -90,4 +90,44 @@ RSpec.describe Tarantool::Model do
       expect(other.calls).to eq([['users', { attributes: [:id], primary_key: [:id] }]])
     end
   end
+
+  describe '.default_storage' do
+    let(:storage) { Tarantool::Model::Testing::MemoryStorage.new({ users: Schemas::USERS }) }
+
+    after { described_class.default_storage = nil }
+
+    it 'is used by a model without a storage of its own' do
+      described_class.default_storage = storage
+
+      expect(User.storage).to be(storage)
+    end
+
+    it 'calls a Proc once on first use and shares the result' do
+      calls = 0
+      described_class.default_storage = -> { calls += 1 and storage }
+      stub_const('Member', Class.new(base))
+
+      expect([User.storage, Member.storage, calls]).to eq([storage, storage, 1])
+    end
+
+    it 'keeps a Proc that raised so the next read retries' do
+      attempts = 0
+      described_class.default_storage = -> { (attempts += 1) == 1 ? raise('not yet') : storage }
+
+      expect { User.storage }.to raise_error('not yet')
+      expect(User.storage).to be(storage)
+    end
+
+    it 'yields to a storage set on the model' do
+      own = Tarantool::Model::Testing::MemoryStorage.new({ users: Schemas::USERS })
+      described_class.default_storage = storage
+      User.storage = own
+
+      expect(User.storage).to be(own)
+    end
+
+    it 'leaves the error for a model without any storage' do
+      expect { User.verified_storage }.to raise_error(Tarantool::Model::Error, 'User.storage is not set')
+    end
+  end
 end

@@ -80,15 +80,23 @@ module Tarantool
         raise ArgumentError, "the primary key of a persisted #{self.class.name} cannot change" if primary_key_changed?
 
         run_callbacks(:update) do
-          written(updated_row) if changed?
+          written(updated_row) if update_pending?
 
           true
         end
       end
 
-      def updated_row
-        operations = changes.map { |name, (_was, value)| ['=', name, value] }
+      def update_pending? = changed?
 
+      def updated_row
+        write_row(update_operations)
+      end
+
+      def update_operations
+        changes.map { |name, (_was, value)| ['=', name, value] }
+      end
+
+      def write_row(operations)
         writing_storage.update(space_name, key_in_database, operations) ||
           raise(RecordNotFound.new(self.class, key_in_database))
       end

@@ -7,13 +7,22 @@ module Tarantool
       extend ActiveSupport::Concern
 
       included do
-        class_attribute :storage, instance_accessor: false
         class_attribute :primary_key, instance_accessor: false, default: :id
+        # @api private
+        class_attribute :_storage, instance_accessor: false
         # @api private
         class_attribute :_space_name, instance_accessor: false
       end
 
       class_methods do
+        def storage
+          _storage || Tarantool::Model.default_storage
+        end
+
+        def storage=(storage)
+          self._storage = storage
+        end
+
         def space_name
           _space_name || model_name.plural
         end
