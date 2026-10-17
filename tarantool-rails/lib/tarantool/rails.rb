@@ -21,7 +21,13 @@ module Tarantool
 
     class << self
       attr_accessor :config, :schema_path
-      attr_writer :schema
+      attr_writer :schema, :instrumenter
+
+      # What the pool reports requests to; the log subscriber listens to ActiveSupport::Notifications, so an
+      # instrumenter of your own should chain it (tarantool-opentelemetry's does with `instrumenter:`).
+      def instrumenter
+        @instrumenter || ActiveSupport::Notifications
+      end
 
       def pool
         LOCK.synchronize { @pool ||= build_pool }
@@ -69,8 +75,7 @@ module Tarantool
       end
 
       def build_pool
-        Tarantool::Client::Pool.new(configured.addresses, **configured.client_options,
-                                                          instrumenter: ActiveSupport::Notifications)
+        Tarantool::Client::Pool.new(configured.addresses, **configured.client_options, instrumenter:)
       end
 
       def build_storage

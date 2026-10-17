@@ -67,6 +67,14 @@ can run; the first model operation then raises `Tarantool::Rails::Error`.
   password).
 - `Tarantool::Rails.pool` is one `Tarantool::Client::Pool` per process, built on first use with
   `instrumenter: ActiveSupport::Notifications`. After `fork` the pool reopens its connections on its own.
+  `config.tarantool.instrumenter` replaces the instrumenter; the log subscriber still needs the events on
+  `ActiveSupport::Notifications`, so chain it:
+
+  ```ruby
+  # config/initializers/tarantool.rb
+  Rails.application.config.tarantool.instrumenter =
+    Tarantool::OpenTelemetry::Instrumenter.new(instrumenter: ActiveSupport::Notifications)
+  ```
 - `Tarantool::Rails.storage` is a `Storage::Box` (or `Storage::Crud`) over the pool, and
   `Tarantool::Model.default_storage` is set so every model without a storage of its own uses it. Nothing
   connects until a model is used.

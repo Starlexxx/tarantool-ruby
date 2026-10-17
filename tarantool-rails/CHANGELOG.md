@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0 (unreleased)
+
+- `config.tarantool.instrumenter` replaces `ActiveSupport::Notifications` as the pool instrumenter, for chaining
+  tarantool-opentelemetry.
+
 ## 0.2.0 (2026-10-17)
 
 - `tarantool:schema:dump` writes the live schema to `config/tarantool_schema.rb` (`FORCE=1` to overwrite,
