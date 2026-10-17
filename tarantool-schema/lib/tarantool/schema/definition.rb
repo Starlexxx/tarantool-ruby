@@ -51,6 +51,8 @@ module Tarantool
 
       def to_h = @spaces.transform_values(&:to_h)
 
+      def to_ruby = Source.render(to_h, @external.transform_values { |indexes| indexes.map(&:to_h) })
+
       def plan(client) = build_plan(client).verify.creations.map(&:to_s)
 
       # The second plan re-reads everything, so a space another deploy created differently in the meantime fails

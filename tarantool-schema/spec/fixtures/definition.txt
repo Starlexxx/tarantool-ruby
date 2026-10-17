@@ -1,0 +1,29 @@
+Tarantool::Schema::Definition.new do
+  ensure_space :codes,
+               format: [
+                 { name: :id, type: :unsigned },
+                 { name: :code, type: :string },
+                 { name: :meta, type: :map, is_nullable: true },
+                 { name: :tags, type: :any, is_nullable: true },
+                 { name: :flags, type: :unsigned }
+               ],
+               indexes: [
+                 { name: :primary, parts: [:id], sequence: true },
+                 { name: :by_code, type: :hash, parts: [:code] },
+                 { name: :by_x, parts: [{ field: :meta, type: :string, path: 'x' }], unique: false },
+                 { name: :by_flags, type: :bitset, parts: [:flags], unique: false },
+                 { name: :by_code_scalar, parts: [{ field: :code, type: :scalar }, :id], unique: false }
+               ]
+
+  ensure_space :events,
+               engine: :vinyl,
+               format: [
+                 { name: :id, type: :unsigned }
+               ],
+               indexes: [
+                 { name: :primary, parts: [:id] }
+               ]
+
+  ensure_index :owned, :by_name, parts: [:name], unique: false
+  ensure_index :owned, :by_path, parts: [{ field: :meta, type: :string, is_nullable: true, path: 'x' }]
+end
