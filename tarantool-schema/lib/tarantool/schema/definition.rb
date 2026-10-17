@@ -14,6 +14,17 @@ module Tarantool
         freeze
       end
 
+      # Every user space as the server has it, or only the named ones. A space the DSL cannot express raises.
+      def self.from_live(client, only: nil)
+        arguments = SpaceLister.call(client, only:).to_h do |name|
+          live = Inspector.call(client, name) || raise(ArgumentError, "space #{name}: not found")
+
+          [name, LiveDefinition.arguments(name, live)]
+        end
+
+        new { arguments.each { |name, space| ensure_space(name, **space) } }
+      end
+
       def ensure_space(name, format:, indexes:, engine: :memtx)
         raise ArgumentError, 'space without name' if name.nil?
 
