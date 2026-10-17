@@ -5,7 +5,7 @@ module Tarantool
     module Transport
       # Keeps one instance connected. Owns the current Connection; once it is lost, a background thread
       # opens new ones with backoff while requests wait for one to become ready.
-      # States: connecting -> ready -> reconnecting -> closed.
+      # States: connecting -> ready -> draining | reconnecting -> closed.
       # @api private
       class Link
         include LinkEvents
@@ -52,14 +52,16 @@ module Tarantool
         def greeting = @state.connection.greeting
         def connected? = @state.connected?
 
-        # Closing the attempt first fails a handshake or on_connect blocked on it, so the join is short.
+        # Closing the attempt first fails a handshake or on_connect blocked on it, so the join is short. The
+        # drain thread waits on the connection's requests, which closing the connection fails, so it is joined last.
         def close
-          reconnector, attempt = @state.close
+          reconnector, attempt, drainer = @state.close
           attempt&.close
           begin
             ThreadJoin.join(reconnector)
           ensure
             @state.connection&.close
+            ThreadJoin.join(drainer)
           end
 
           nil
