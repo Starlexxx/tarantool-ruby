@@ -60,6 +60,18 @@ RSpec.describe Tarantool::Model::Locking do
         expect(storage).to have_received(:update).with('users', [1], [['=', 'email', 'c@x'], ['=', 'lock_version', 2]])
       end
 
+      it 'treats a nil stored version as 0' do
+        format = [*Schemas::USERS[:format], { name: :lock_version, type: :unsigned, is_nullable: true }]
+        schema = Schemas::LOCKED_USERS.merge(format:)
+        LockedUser.storage = Tarantool::Model::Testing::MemoryStorage.new({ users: schema })
+        LockedUser.storage.insert(:users, { id: 2, email: 'n@x', age: 0, lock_version: nil })
+
+        user = LockedUser.find(2)
+        user.update!(email: 'b@x')
+
+        expect(user.lock_version).to eq(1)
+      end
+
       it 'raises StaleObjectError and keeps the changes when the row changed underneath' do
         storage.update(:users, [1], [['=', 'lock_version', 5]])
 

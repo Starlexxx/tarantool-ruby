@@ -59,7 +59,7 @@ module Tarantool
         column = locking_column.to_s
         operations = update_operations.reject { |(_operator, name, _value)| name == column }
 
-        operations << ['=', column, public_send(locking_column) + 1]
+        operations << ['=', column, public_send(locking_column).to_i + 1]
       end
 
       # The row, or nil when it is gone; a version other than the record's raises.
