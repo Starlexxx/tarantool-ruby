@@ -9,6 +9,7 @@ RSpec.describe Tarantool::Crud::Error do
     'UpdateError' => Tarantool::Crud::UpdateError,
     'DeleteError' => Tarantool::Crud::DeleteError,
     'SelectError' => Tarantool::Crud::SelectError,
+    'SchemaError' => Tarantool::Crud::SchemaError,
     'CountError' => Tarantool::Crud::CountError,
     'BorderError' => Tarantool::Crud::MinMaxError,
     'LenError' => Tarantool::Crud::LenError,

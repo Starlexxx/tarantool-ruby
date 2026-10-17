@@ -36,6 +36,7 @@ module Tarantool
     class MinMaxError < Error; end
     class LenError < Error; end
     class TruncateError < Error; end
+    class SchemaError < Error; end
 
     # One row of a *_many call failed; operation_data holds that row.
     class CallError < Error; end
@@ -71,6 +72,7 @@ module Tarantool
         'BorderError' => MinMaxError,
         'LenError' => LenError,
         'TruncateError' => TruncateError,
+        'SchemaError' => SchemaError,
         'CallError' => CallError,
         'InsertManyError' => InsertManyError,
         'ReplaceManyError' => ReplaceManyError,

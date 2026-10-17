@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+- `Client#schema(space = nil)`: `crud.schema` through the router, returned in the shape of a tarantool-schema
+  declaration (`MemoryStorage.new(crud.schema, behaves_like: :crud)` works); `Crud::SchemaError`.
+- Depends on `tarantool-client ~> 0.3`.
+
 ## 0.1.1 (2026-10-17)
 
 - Depends on `tarantool-client ~> 0.2.0`.

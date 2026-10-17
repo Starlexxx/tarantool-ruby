@@ -12,6 +12,15 @@ module Tarantool
 
       def storage_info(**options) = @call.value('storage_info', [], options)
 
+      # The format and indexes of one space, or of every space keyed by name, as crud sees them through the
+      # router: the same shape as a tarantool-schema declaration, so MemoryStorage.new(crud.schema, behaves_like: :crud)
+      # works. An unknown space raises SchemaError.
+      def schema(space = nil, **options)
+        raw = @call.value('schema', [space&.to_s], options)
+
+        space ? Schema.space(raw) : Schema.all(raw)
+      end
+
       # crud.stats takes no options and encodes an empty table as an Array.
       def stats(space = nil, timeout: nil)
         stats = @call.without_options('stats', [space&.to_s].compact, timeout).first

@@ -6,7 +6,7 @@ module Tarantool
     # narrowed to what each function accepts (crud 1.8.0); options given to a call are sent as is.
     # @api private
     class Defaults
-      READ_FUNCTIONS = %w[get select count min max len storage_info stats].freeze
+      READ_FUNCTIONS = %w[get select count min max len storage_info stats schema].freeze
 
       READ = %i[timeout request_timeout bucket_id prefer_replica balance mode vshard_router].freeze
       BORDERS = %i[timeout request_timeout fields mode vshard_router fetch_latest_metadata].freeze
@@ -27,6 +27,7 @@ module Tarantool
         'max' => BORDERS,
         'len' => READ - %i[bucket_id],
         'storage_info' => SERVICE,
+        'schema' => SERVICE,
         'stats' => %i[timeout],
         'truncate' => SERVICE,
         'insert' => TUPLE,

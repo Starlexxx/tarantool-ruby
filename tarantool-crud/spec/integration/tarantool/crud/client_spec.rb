@@ -79,6 +79,18 @@ RSpec.describe Tarantool::Crud::Client, :integration do
     expect { customers.insert([1, nil, 'a', 1]) }.to raise_error(Tarantool::Crud::InsertError, /Duplicate key/)
   end
 
+  it 'reads the schema through the router' do
+    schema = crud.schema(:customers)
+
+    expect(schema[:format].map { |field| field[:name] }).to eq(%i[id bucket_id name age])
+    expect(schema[:indexes].first).to include(name: :primary, unique: true)
+    expect(crud.schema.keys).to include(:customers)
+  end
+
+  it 'raises SchemaError for an unknown space' do
+    expect { crud.schema(:nope) }.to raise_error(Tarantool::Crud::SchemaError, /nope/)
+  end
+
   it 'reads storage info and stats' do
     expect(crud.storage_info.values).to all(include('status' => 'running'))
     expect(crud.stats(:customers)).to include('truncate')
