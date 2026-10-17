@@ -9,6 +9,7 @@ require_relative 'rails/version'
 require_relative 'rails/errors'
 require_relative 'rails/configuration'
 require_relative 'rails/log_subscriber'
+require_relative 'rails/controller_runtime'
 
 module Tarantool
   # Rails integration: configuration from config/tarantool.yml, one Pool per process, models on it, log lines,
