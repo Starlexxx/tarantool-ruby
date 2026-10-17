@@ -182,7 +182,7 @@ RSpec.describe Tarantool::Client::Pool do
       expect(pool.transaction { |tx| tx.eval('return 1') }).to eq(['rw'])
     end
 
-    it 'rejects an unknown mode', :untyped_input do
+    it 'rejects an unknown mode', :rbs_untestable do
       expect { pool.ping(mode: :primary) }.to raise_error(ArgumentError, /unknown mode :primary/)
     end
 

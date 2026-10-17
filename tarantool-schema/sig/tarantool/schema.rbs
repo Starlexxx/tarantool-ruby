@@ -1,0 +1,47 @@
+module Tarantool
+  # Idempotent declaration of spaces, indexes and primary key sequences.
+  module Schema
+    VERSION: String
+
+    type name = String | Symbol
+    # A format entry: { name:, type:, is_nullable: }; type omitted means any, is_nullable defaults to false.
+    type field = { name: name, ?type: name, ?is_nullable: bool }
+    # A part is a field name, or a Hash with the keys that differ from the field: type, is_nullable, path.
+    type part = name | { field: name, ?type: name, ?is_nullable: bool, ?path: String }
+    # An index declaration: { name:, parts:, unique: true, type: :tree, sequence: false }.
+    type index = { name: name, parts: Array[part], ?unique: bool, ?type: name, ?sequence: bool }
+    # Changes to live spaces that plan and apply may make: :add_field.
+    type alter = Array[Symbol | String]
+
+    # Tarantool::Client connected to the read-write instance, or anything else that evaluates Lua.
+    interface _Evaluator
+      def eval: (String expression, ?Array[untyped] arguments) -> Array[untyped]
+    end
+
+    class Definition
+      # The block runs with the definition as self; the definition is frozen afterwards.
+      def initialize: () ?{ () [self: Definition] -> void } -> void
+      # Every user space as the server has it (ids past the system range, names without a leading underscore),
+      # or only the named ones.
+      def self.from_live: (_Evaluator client, ?only: Array[name]?) -> Definition
+      def ensure_space: (name name, format: Array[field], indexes: Array[index], ?engine: name) -> nil
+      def ensure_index: (name space, name name, parts: Array[part], ?unique: bool, ?type: name,
+                         ?sequence: bool) -> nil
+      # The normalized declaration: names as Symbols, types as Strings, every default filled in.
+      def to_h: () -> Hash[Symbol, Hash[Symbol, untyped]]
+      def to_ruby: () -> String
+      def plan: (_Evaluator client, ?alter: alter) -> Array[String]
+      def apply: (_Evaluator client, ?alter: alter) -> Array[String]
+    end
+
+    class Error < Tarantool::Error
+    end
+
+    # The live schema differs from the declaration; mismatches are the lines, each prefixed with the space.
+    class MismatchError < Error
+      attr_reader mismatches: Array[String]
+
+      def initialize: (Hash[name, Array[String]] by_space) -> void
+    end
+  end
+end

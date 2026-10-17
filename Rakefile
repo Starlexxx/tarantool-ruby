@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Checks the RBS signatures of every gem: `rbs validate` over all sig directories together, then each gem's
-# unit specs under rbs/test with its public classes as targets. Examples tagged :untyped_input feed a value
+# unit specs under rbs/test with its public classes as targets. Examples tagged :rbs_untestable feed a value
 # outside the signature on purpose, to assert the ArgumentError; rbs/test would reject it first.
 GEMS = %w[tarantool-client tarantool-crud tarantool-schema tarantool-model tarantool-opentelemetry
           tarantool-rails].freeze
@@ -37,6 +37,6 @@ task :rbs do
       'RUBYOPT' => '-rbundler/setup -rrbs/test/setup', 'RBS_TEST_OPT' => sig_options, 'RBS_TEST_TARGET' => TARGETS.fetch(gem).join(','),
       'RBS_TEST_RAISE' => 'true', 'RBS_TEST_LOGLEVEL' => 'error'
     }
-    sh(env, 'bundle exec rspec --tag ~untyped_input', chdir: gem)
+    sh(env, 'bundle exec rspec --tag ~rbs_untestable', chdir: gem)
   end
 end

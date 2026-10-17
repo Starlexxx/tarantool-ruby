@@ -131,7 +131,7 @@ RSpec.describe Tarantool::Client do
         expect(client.transaction { :again }).to eq(:again)
       end
 
-      it 'rejects an unknown isolation level before sending anything', :untyped_input do
+      it 'rejects an unknown isolation level before sending anything', :rbs_untestable do
         expect { client.transaction(isolation: :serializable) { nil } }.to raise_error(ArgumentError)
         expect(stream_requests).to eq([])
       end
@@ -356,7 +356,7 @@ RSpec.describe Tarantool::Client do
       expect(watch_requests.pop(timeout: 1)).to have_attributes(type: 0x4b, body: { 0x57 => 'config' })
     end
 
-    it 'requires a block', :untyped_input do
+    it 'requires a block', :rbs_untestable do
       expect { client.watch('config') }.to raise_error(ArgumentError, 'watch requires a block')
     end
 

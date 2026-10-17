@@ -48,21 +48,21 @@ RSpec.describe Tarantool::Schema::Definition do
       .to raise_error(ArgumentError, 'space codes is already declared')
   end
 
-  it 'rejects unsupported space options' do
+  it 'rejects unsupported space options', :rbs_untestable do
     declared = declaration
 
     expect { described_class.new { ensure_space(:codes, **declared, is_sync: true) } }
       .to raise_error(ArgumentError, /unknown keyword: :is_sync/)
   end
 
-  it 'rejects a space without a name' do
+  it 'rejects a space without a name', :rbs_untestable do
     declared = declaration
 
     expect { described_class.new { ensure_space(nil, **declared) } }
       .to raise_error(ArgumentError, 'space without name')
   end
 
-  it 'rejects an index for a space without a name' do
+  it 'rejects an index for a space without a name', :rbs_untestable do
     expect { described_class.new { ensure_index(nil, :x, parts: [:id]) } }
       .to raise_error(ArgumentError, 'space without name')
   end
