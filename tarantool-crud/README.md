@@ -73,6 +73,21 @@ returns an Enumerator without a block. Single-row operations (`get`, `insert`, `
 call fails (missing space, empty row list, ...), crud reports it as `InsertManyError`/`ReplaceManyError`/
 `UpsertManyError` inside `errors` with no rows, rather than raising.
 
+## Schema
+
+```ruby
+crud.schema(:users)   # => { format: [{ name: :id, type: 'unsigned', is_nullable: false }, ...],
+                      #      indexes: [{ name: :primary, type: 'tree', unique: true,
+                      #                  parts: [{ field: :id, type: 'unsigned', is_nullable: false }] }, ...] }
+crud.schema           # => { users: { format: ..., indexes: ... }, ... }
+```
+
+`crud.schema` through the router, for applications without read access to `_space`. The shape is the one
+tarantool-schema declares (Symbol names, String types, indexes in id order, parts named by their field), so
+tarantool-model's in-memory storage takes it as is: `MemoryStorage.new(crud.schema, behaves_like: :crud)`.
+`exclude_null` is dropped; a part past the format is named `:"#N"` by its position. An unknown space raises
+`SchemaError`. Options: `timeout:`, `vshard_router:`, and crud's `cached:`.
+
 ## Conditions
 
 An Array of `[operator, field, value]` or a Hash:
@@ -102,7 +117,7 @@ The `mode:` option here is the crud/vshard router option (`'read'` or `'write'` 
 
 `Tarantool::Crud::Error` has `message` (the crud error message), `str` (crud's `tostring` of the full error, e.g. `"InsertError: ..."`), `class_name`, `file`, `line`, and `operation_data`. Subclasses: `InsertError`,
 `ReplaceError`, `UpsertError`, `GetError`, `UpdateError`, `DeleteError`, `SelectError`, `CountError`, `MinMaxError`,
-`LenError`, `TruncateError`, `CallError`, `InsertManyError`, `ReplaceManyError`, `UpsertManyError`.
+`LenError`, `TruncateError`, `SchemaError`, `CallError`, `InsertManyError`, `ReplaceManyError`, `UpsertManyError`.
 `Tarantool::Crud::ManyError` is a separate `Tarantool::Error` subclass raised by the `*_many!` bang variants; it
 carries `result` (and `errors`), not the crud error fields. Transport and server errors from tarantool-client
 propagate unchanged.
