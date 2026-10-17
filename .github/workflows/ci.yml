@@ -180,3 +180,18 @@ jobs:
         env:
           INTEGRATION: '1'
           TARANTOOL_URI: tcp://app:secret@localhost:${{ matrix.tarantool.port }}
+
+  opentelemetry:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ['3.2', '3.3', '3.4']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - run: bundle exec rspec
+        working-directory: tarantool-opentelemetry

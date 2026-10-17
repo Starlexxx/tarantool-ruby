@@ -31,3 +31,7 @@ Lint/RescueException:
     - 'tarantool-client/lib/tarantool/client/thread_join.rb'
     - 'tarantool-client/lib/tarantool/client/callback_guard.rb'
     - 'tarantool-client/lib/tarantool/client/instrumentation.rb'
+
+RSpec/SpecFilePathFormat:
+  CustomTransform:
+    OpenTelemetry: opentelemetry
