@@ -1,0 +1,4 @@
+test:
+  addresses: [<%= ENV.fetch('TARANTOOL_URI', 'tcp://app:secret@localhost:3301') %>]
+  admin_uri: <%= ENV.fetch('TARANTOOL_URI', 'tcp://app:secret@localhost:3301') %>
+  request_timeout: 5

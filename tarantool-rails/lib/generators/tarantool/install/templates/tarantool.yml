@@ -1,0 +1,24 @@
+# Every key is documented in the tarantool-rails README. The file goes through ERB like database.yml.
+default: &default
+  user: app
+  password: <%= ENV["TARANTOOL_PASSWORD"] %>
+  connect_timeout: 3
+  request_timeout: 10
+
+development:
+  <<: *default
+  addresses: [tcp://localhost:3301]
+  admin_uri: <%= ENV.fetch("TARANTOOL_ADMIN_URI", "tcp://app:secret@localhost:3301") %>
+
+test:
+  <<: *default
+  addresses: [tcp://localhost:3301]
+
+production:
+  <<: *default
+  addresses:
+    - tcp://db1:3301
+    - tcp://db2:3301
+  read:  { mode: prefer_ro }
+  write: { mode: rw }
+  admin_uri: <%= ENV["TARANTOOL_ADMIN_URI"] %>

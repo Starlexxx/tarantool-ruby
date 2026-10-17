@@ -1,0 +1,30 @@
+# frozen_string_literal: true
+
+ENV['RAILS_ENV'] ||= 'test'
+
+require 'rails'
+require 'action_controller/railtie'
+require 'tarantool/rails'
+
+module Dummy
+  LOG = StringIO.new
+
+  # Minimal application booting the Railtie against spec/dummy/config.
+  class Application < ::Rails::Application
+    config.root = File.join(__dir__, 'dummy')
+    config.eager_load = false
+    config.logger = ActiveSupport::Logger.new(LOG)
+    config.log_level = :debug
+    config.active_support.deprecation = :stderr
+  end
+end
+
+Dummy::Application.initialize!
+
+Dir[File.join(__dir__, 'support', '*.rb')].each { |file| require file }
+
+RSpec.configure do |config|
+  config.disable_monkey_patching!
+  config.order = :random
+  config.filter_run_excluding :integration unless ENV['INTEGRATION']
+end
