@@ -273,6 +273,38 @@ tarantool-crud and tarantool-model errors also descend from `Tarantool::Error`.
 
 `box.error` objects inside returned data decode into `Tarantool::Client::BoxError`.
 
+## Benchmarks
+
+Measured with the scripts in [benchmark/](benchmark/README.md) on an Apple M-series laptop, Ruby 3.3.6, Go 1.25.5,
+Tarantool in a podman VM (every request crosses the VM boundary, which sets the ~0.15 ms floor). 20k requests
+per case over a `bench_items` space of 10k rows, one connection unless stated; `req/s` and p99 latency.
+
+Tarantool 2.11.5:
+
+| Case | tarantool-client 0.3.0 | tarantool16 0.1.2 | go-tarantool v2.4.2 |
+|---|---|---|---|
+| select by pk | 5233 req/s, p99 0.49 ms | 6461 req/s, p99 0.27 ms | 6033 req/s, p99 0.24 ms |
+| insert | 5025 req/s, p99 0.30 ms | 4924 req/s, p99 0.46 ms | 4961 req/s, p99 0.44 ms |
+| select by pk, 8 threads | 22476 req/s, p99 0.72 ms (`Pool`) | not supported | 50406 req/s, p99 0.20 ms (8 goroutines, one connection) |
+
+Tarantool 3.8.1:
+
+| Case | tarantool-client 0.3.0 | tarantool16 0.1.2 | go-tarantool v2.4.2 |
+|---|---|---|---|
+| select by pk | 5947 req/s, p99 0.25 ms | fails (`comparison of Integer with Array`) | 5956 req/s, p99 0.31 ms |
+| insert | 4169 req/s, p99 0.55 ms | fails | 4608 req/s, p99 0.53 ms |
+| select by pk, 8 threads | 22044 req/s, p99 0.81 ms (`Pool`) | fails | 39051 req/s, p99 0.53 ms |
+
+One connection at a time, every connector sits on the round trip: the differences are within run-to-run
+noise. Under 8 threads the GVL and per-request allocations cap Ruby at about half of Go's throughput on the same
+server. tarantool16 (the previous Ruby connector for 1.6+) still works against 2.11 for simple requests but
+cannot read the 3.x schema.
+
+Codec throughput on the same machine (`benchmark/codec.rb`, 10-field tuples, ops/s): plain tuple
+`MessagePack.pack` 2.57M, `Codec.encode` (framing, header, body map) 810k, `MessagePack.unpack` 1.45M,
+`Codec.decode` 862k; a tuple with Decimal, UUID and Datetime fields encodes at 334k and decodes at 257k, the
+extension types costing roughly 3x.
+
 ## Development
 
 ```sh
@@ -284,11 +316,7 @@ INTEGRATION=1 TARANTOOL_URI=tcp://app:secret@localhost:3301 bundle exec rspec   
 bundle exec rubocop
 ```
 
-Instrumentation overhead against the container on 3301:
-
-```sh
-bundle exec ruby -Ilib benchmark/request_overhead.rb
-```
+Benchmarks, including the instrumentation overhead one, are described in [benchmark/README.md](benchmark/README.md).
 
 Reconnect and pool specs restart their own pair of instances:
 
