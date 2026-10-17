@@ -8,7 +8,8 @@ module Tarantool
       module LogLines
         LEVELS = {
           'request.tarantool' => :debug, 'disconnect.tarantool' => :warn, 'reconnect.tarantool' => :info,
-          'reconnect_failed.tarantool' => :error, 'fork.tarantool' => :info, 'role_change.tarantool' => :info
+          'reconnect_failed.tarantool' => :error, 'fork.tarantool' => :info, 'role_change.tarantool' => :info,
+          'shutdown.tarantool' => :info
         }.freeze
 
         LINES = {
@@ -27,6 +28,9 @@ module Tarantool
           end,
           'role_change.tarantool' => lambda do |payload, _duration|
             "tarantool #{payload[:address]} is now #{payload[:read_only] ? 'read-only' : 'writable'}"
+          end,
+          'shutdown.tarantool' => lambda do |payload, _duration|
+            "tarantool #{payload[:address]} is shutting down, #{requests(payload[:pending])} in flight"
           end
         }.freeze
 
@@ -49,6 +53,7 @@ module Tarantool
         def request_name(payload) = payload[:request] ? "tarantool #{payload[:request]}" : 'tarantool'
 
         def attempts(count) = count == 1 ? '1 attempt' : "#{count} attempts"
+        def requests(count) = count == 1 ? '1 request' : "#{count} requests"
         def error(payload) = payload[:exception].join(': ')
 
         # The message may quote data (ER_TUPLE_FOUND repeats the tuple), so the request line keeps only the

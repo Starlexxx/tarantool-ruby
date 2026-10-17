@@ -58,6 +58,14 @@ module Tarantool
           !@pending.failure.nil?
         end
 
+        def in_flight = @pending.size
+
+        # True once every request got its answer, false at the deadline.
+        def wait_idle(timeout) = @pending.wait_empty(timeout)
+
+        # Ends the connection on the client's initiative with a reason the requests and the disconnect handler see.
+        def shut_down(reason) = break_connection(reason)
+
         def failure = @pending.failure
 
         private

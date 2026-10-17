@@ -318,6 +318,7 @@ RSpec.describe Tarantool::Client do
     let!(:watch_requests) { Thread::Queue.new }
     let(:server) do
       FakeTarantool.new do |request, fake|
+        next if request.body[0x57] == 'box.shutdown'
         next watch_requests << request if [0x4a, 0x4b].include?(request.type)
 
         fake.reply(request, [])

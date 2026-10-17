@@ -84,6 +84,14 @@ RSpec.describe Tarantool::Client::Instrumentation::LogInstrumenter do
     expect(output.string).to include('INFO -- : tarantool db:3301 is now writable')
   end
 
+  it 'logs a shutdown announcement as info with the requests in flight' do
+    notify('shutdown.tarantool', pending: 1)
+    notify('shutdown.tarantool', pending: 3)
+
+    expect(output.string).to include('INFO -- : tarantool db:3301 is shutting down, 1 request in flight')
+    expect(output.string).to include('INFO -- : tarantool db:3301 is shutting down, 3 requests in flight')
+  end
+
   it 'logs a request line with no name when the name never resolved' do
     payload = { space: :ghost, address: 'db:3301' }
 

@@ -3,11 +3,18 @@
 module Tarantool
   class Client
     module Transport
-      # Lifecycle events of a Link. Includers set @config, @state and @instrumentation, and provide
-      # #run_hook and #install.
+      # Lifecycle events and hooks of a Link. Includers set @config, @state and @instrumentation, and provide
+      # #install.
       # @api private
       module LinkEvents
         private
+
+        # A failing hook is the caller's bug, not a reason to stop reconnecting or to drop the new connection.
+        def run_hook(name)
+          yield
+        rescue StandardError => e
+          Diagnostics.warn(@config.logger, "#{name} failed for #{@config.address}: #{e.full_message}")
+        end
 
         # Without reconnect the link keeps the lost connection, so the loss of the current one is all to
         # report. The reader thread's disconnect handler and install's own loss check can both reach this
