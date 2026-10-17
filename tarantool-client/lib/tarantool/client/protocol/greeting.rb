@@ -6,7 +6,7 @@ module Tarantool
       # Greeting sent by the server on connect: a 64-byte banner and a 64-byte base64 salt line.
       # @api private
       Greeting = Data.define(:version, :salt) do
-        self::BANNER_VERSION = /\ATarantool (\S+)/
+        const_set(:BANNER_VERSION, /\ATarantool (\S+)/)
 
         def self.parse(bytes)
           banner = bytes.byteslice(0, 64)
