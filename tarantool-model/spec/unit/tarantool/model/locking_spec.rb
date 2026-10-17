@@ -144,4 +144,29 @@ RSpec.describe Tarantool::Model::Locking do
       end
     end
   end
+
+  context 'with a storage without transactions' do
+    include_context 'with locked users'
+
+    let(:storage) do
+      Tarantool::Model::Testing::MemoryStorage.new({ users: Schemas::LOCKED_USERS }, behaves_like: :crud)
+    end
+    let!(:user) { LockedUser.create!(id: 1, email: 'a@x') }
+
+    before { allow(storage).to receive(:transaction).and_call_original }
+
+    it 'bumps the version without a transaction' do
+      user.update!(email: 'b@x')
+
+      expect([user.lock_version, storage.get(:users, [1]).attributes[:lock_version]]).to eq([1, 1])
+      expect(storage).not_to have_received(:transaction)
+    end
+
+    it 'still raises StaleObjectError for a stale record' do
+      storage.update(:users, [1], [['=', 'lock_version', 5]])
+
+      expect { user.update!(email: 'b@x') }.to raise_error(Tarantool::Model::StaleObjectError)
+      expect { user.destroy }.to raise_error(Tarantool::Model::StaleObjectError)
+    end
+  end
 end
