@@ -209,6 +209,8 @@ gem must be in the Gemfile.
 `Tarantool::Rails::Configuration`, `Tarantool::Rails::LogSubscriber`, `Tarantool::Rails::Error`
 (descends from `Tarantool::Error`), the rake tasks and the generators.
 
+RBS signatures for this API ship with the gem in `sig/`.
+
 Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
 and may change in any release.
 

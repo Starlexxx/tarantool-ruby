@@ -280,6 +280,8 @@ INTEGRATION=1 TARANTOOL_URI=tcp://app:secret@localhost:3302 bundle exec rspec
 `Tarantool::Schema::Definition` (`new`, `from_live`, `ensure_space`, `ensure_index`, `plan`, `apply`, `to_h`,
 `to_ruby`) and the error classes above.
 
+RBS signatures for this API ship with the gem in `sig/`.
+
 Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
 and may change in any release.
 

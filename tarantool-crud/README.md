@@ -146,5 +146,7 @@ docker build -t ghcr.io/starlexxx/tarantool-crud:3 --build-arg TARANTOOL_VERSION
 
 `Tarantool::Crud::Client`, `Space`, `Result`, `ManyResult`, and the error classes above.
 
+RBS signatures for this API ship with the gem in `sig/`.
+
 Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
 and may change in any release.

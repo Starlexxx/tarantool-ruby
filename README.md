@@ -54,6 +54,16 @@ Every error raised by these gems descends from `Tarantool::Error`: the client's 
 `Tarantool::ConnectionError` and `Tarantool::ServerError`, `Tarantool::Crud::Error`, `Tarantool::Model::Error`,
 `Tarantool::Schema::Error`, and `Tarantool::Rails::Error`.
 
+## Development
+
+```sh
+bundle install
+bundle exec rubocop
+bundle exec rake rbs   # validates the RBS signatures in each gem's sig/ and runs the unit suites under rbs/test
+```
+
+Each gem's README has its own test commands and the containers it needs.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

@@ -372,6 +372,8 @@ TARANTOOL_MODEL_CRUD_URI=tcp://app:secret@localhost:3332 bundle exec rspec --tag
 `Tarantool::Model`, `Storage::Box`, `Storage::Crud`, `Testing::MemoryStorage`, `Types::UUID`, `Types::Interval`,
 `Types::Binary`, `Relation`, and the error classes above.
 
+RBS signatures for this API ship with the gem in `sig/`.
+
 Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
 and may change in any release.
 
