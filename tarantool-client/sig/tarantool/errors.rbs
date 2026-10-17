@@ -1,0 +1,47 @@
+module Tarantool
+  # Base class for every error raised by the tarantool-* gems.
+  class Error < StandardError
+    # Rows delete_by confirmed deleted before it failed; nil for any other operation.
+    attr_accessor deleted: Integer?
+  end
+
+  class ConnectionError < Error
+  end
+
+  class ClientClosedError < ConnectionError
+  end
+
+  class TimeoutError < Error
+  end
+
+  class AuthenticationError < Error
+    attr_reader code: Integer?
+
+    def initialize: (?String? message, ?code: Integer?) -> void
+  end
+
+  class ProtocolError < Error
+  end
+
+  class SchemaError < Error
+  end
+
+  class UnknownFieldError < ArgumentError
+  end
+
+  class TransactionError < Error
+  end
+
+  class NoAvailableInstanceError < Error
+  end
+
+  class ServerError < Error
+    attr_reader code: Integer
+    # The box.error stack as sent: one Hash per error (keys :type, :file, :line, :message, :errno, :code,
+    # :fields); the constructor takes whatever Array it is given.
+    attr_reader error_stack: Array[untyped]
+    attr_reader schema_version: Integer?
+
+    def initialize: (String? message, code: Integer, ?error_stack: Array[untyped], ?schema_version: Integer?) -> void
+  end
+end

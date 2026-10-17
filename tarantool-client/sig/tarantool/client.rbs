@@ -1,0 +1,73 @@
+module Tarantool
+  # Connection to one Tarantool instance.
+  class Client
+    VERSION: String
+
+    # A space or index, by name or numeric id.
+    type space_ref = String | Symbol | Integer
+    type index_ref = String | Symbol | Integer
+    # A tuple as sent and received: an Array of msgpack values.
+    type tuple = Array[untyped]
+    # A tuple keyed by field name; fields beyond the format are keyed by their 0-based position.
+    type row_hash = Hash[Symbol | Integer, untyped]
+    # Tuples go out as Arrays or as Hashes keyed by field name (Symbol or String).
+    type tuple_input = tuple | Hash[Symbol | String, untyped]
+    # One msgpack value of a key part.
+    type scalar = Integer | Float | String | bool | nil | BigDecimal | Time | UUID | Interval
+    # An index key: the parts as an Array, or one scalar for a single-part key.
+    type key = Array[untyped] | scalar
+    type iterator = :eq | :req | :all | :lt | :le | :ge | :gt | :bits_all_set | :bits_any_set | :bits_all_not_set |
+                    :overlaps | :neighbor | :np | :pp
+    type shape = :tuple | :hash | :row
+    # One update operation, e.g. ['=', 'name', value] or ['+', 2, 1]; splice operations have five elements.
+    type operation = Array[untyped]
+    # What select returns for one tuple, by `as:`.
+    type row = tuple | row_hash | Row
+    type isolation = :default | :read_committed | :read_confirmed | :best_effort | :linearizable
+    # A position from Page#position, or the last tuple of the previous page.
+    type cursor = String | tuple
+
+    interface _Instrumenter
+      def instrument: (String name, Hash[Symbol, untyped] payload) { () -> untyped } -> untyped
+    end
+
+    interface _Logger
+      def debug: (?untyped message) ?{ () -> untyped } -> untyped
+      def info: (?untyped message) ?{ () -> untyped } -> untyped
+      def warn: (?untyped message) ?{ () -> untyped } -> untyped
+      def error: (?untyped message) ?{ () -> untyped } -> untyped
+    end
+
+    attr_reader config: Configuration
+
+    def initialize: (?String? uri, ?host: String, ?port: Integer, ?path: String?, ?user: String?, ?password: String?,
+                     ?connect_timeout: Numeric?, ?request_timeout: Numeric?, ?reconnect: bool,
+                     ?reconnect_attempts: Numeric, ?reconnect_delay: Numeric, ?reconnect_max_delay: Numeric,
+                     ?max_frame_size: Integer, ?instrumenter: _Instrumenter?, ?logger: _Logger?) -> void
+
+    def ping: (?timeout: Numeric?) -> true
+    def space_info: (space_ref space, ?timeout: Numeric?) -> SpaceInfo
+    def select: (space_ref space, ?key key, ?index: index_ref, ?limit: Integer, ?offset: Integer, ?iterator: iterator,
+                 ?after: cursor?, ?fetch_position: bool, ?as: shape, ?timeout: Numeric?) -> (Array[row] | Page)
+    def insert: (space_ref space, tuple_input tuple, ?as: shape, ?timeout: Numeric?) -> row
+    def replace: (space_ref space, tuple_input tuple, ?as: shape, ?timeout: Numeric?) -> row
+    def update: (space_ref space, key key, Array[operation] operations, ?index: index_ref, ?as: shape,
+                 ?timeout: Numeric?) -> row?
+    def upsert: (space_ref space, tuple_input tuple, Array[operation] operations, ?timeout: Numeric?) -> nil
+    def delete: (space_ref space, key key, ?index: index_ref, ?as: shape, ?timeout: Numeric?) -> row?
+    def delete_by: (space_ref space, key key, index: index_ref, ?iterator: iterator, ?batch_size: Integer,
+                    ?timeout: Numeric?) -> Integer
+    def call: (String function_name, ?Array[untyped] arguments, ?timeout: Numeric?,
+               ?on_push: (^(untyped message) -> void)?) -> Array[untyped]
+    def eval: (String expression, ?Array[untyped] arguments, ?timeout: Numeric?) -> Array[untyped]
+    def execute: (String | Integer | PreparedStatement sql, ?Array[untyped] bindings, ?timeout: Numeric?) -> SqlResult
+    def prepare: (String sql, ?timeout: Numeric?) -> PreparedStatement
+
+    def server_version: () -> String
+    def connected?: () -> bool
+    def transaction: [T] (?isolation: isolation, ?timeout: Numeric?) { (Stream) -> T } -> T
+    def watch: (String key) { (String key, untyped value) -> void } -> Watcher
+    def close: () -> void
+    def inspect: () -> String
+  end
+end
