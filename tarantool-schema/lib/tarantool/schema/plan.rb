@@ -5,7 +5,8 @@ module Tarantool
     # The live state of everything a definition declares, compared with it, and what is left to create.
     # @api private
     class Plan
-      def initialize(spaces:, external:, client:)
+      def initialize(spaces:, external:, client:, alter: [])
+        @alter = alter
         @comparisons = spaces.values.map { |space| compare(client, space.name, space.indexes, space) } +
                        external.map { |name, indexes| compare(client, name, indexes) }
       end
@@ -21,24 +22,33 @@ module Tarantool
         self
       end
 
+      # Per space: the space itself or its format change, then its indexes, so an index on a new field works.
       def creations
         @comparisons.flat_map do |comparison|
-          space = comparison.missing_space? ? [Creation::Space.new(spec: comparison.space)] : []
-
-          space + comparison.missing_indexes.map { |index| Creation::Index.new(space: comparison.name, spec: index) }
+          space_creation(comparison) +
+            comparison.missing_indexes.map { |index| Creation::Index.new(space: comparison.name, spec: index) }
         end
       end
 
       private
 
+      def space_creation(comparison)
+        return [Creation::Space.new(spec: comparison.space)] if comparison.missing_space?
+        return [] if comparison.format_additions.empty?
+
+        [Creation::Format.new(space: comparison.space, fields: comparison.format_additions)]
+      end
+
       def compare(client, name, indexes, space = nil)
-        Comparison.new(name:, indexes:, live: Inspector.call(client, name), space:)
+        Comparison.new(name:, indexes:, live: Inspector.call(client, name), space:, alter: @alter)
       end
 
       def still_missing(comparison)
         return ['missing after apply'] if comparison.missing_space?
 
-        comparison.missing_indexes.map { |index| "index #{index.name}: missing after apply" }
+        format = comparison.format_additions.empty? ? [] : ['format: fields missing after apply']
+
+        format + comparison.missing_indexes.map { |index| "index #{index.name}: missing after apply" }
       end
     end
   end

@@ -3,6 +3,33 @@
 RSpec.describe Tarantool::Schema::Definition do
   let(:declaration) { codes_declaration }
 
+  describe '.from_live' do
+    it 'declares every user space as the server has it' do
+      client = FakeClient.new('codes' => codes_live, 'users' => codes_live)
+      definition = described_class.from_live(client)
+
+      expect(definition.to_h.keys).to eq(%i[codes users])
+      expect(definition.to_h[:codes]).to eq(codes_definition.to_h[:codes])
+    end
+
+    it 'has nothing to plan against the server it was read from' do
+      client = FakeClient.new('codes' => codes_live)
+
+      expect(described_class.from_live(client).plan(client)).to eq([])
+    end
+
+    it 'reads only the named spaces' do
+      client = FakeClient.new('codes' => codes_live, 'users' => codes_live)
+
+      expect(described_class.from_live(client, only: [:users]).to_h.keys).to eq([:users])
+    end
+
+    it 'rejects a named space that does not exist' do
+      expect { described_class.from_live(FakeClient.new, only: [:nope]) }
+        .to raise_error(ArgumentError, 'space nope: not found')
+    end
+  end
+
   it 'is frozen after the block' do
     expect(codes_definition).to be_frozen
   end

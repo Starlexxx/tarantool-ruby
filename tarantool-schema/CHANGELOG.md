@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+- `Definition.from_live(client, only:)`: the live user spaces as a definition, for bootstrapping an existing
+  database; `Definition#to_ruby` renders a definition as DSL source.
+- `plan`/`apply` take `alter: [:add_field]` to append nullable fields to the end of a live format. Without it a
+  longer declared format stays a mismatch, as before.
+
 ## 0.1.0 (2026-10-17)
 
 First release.

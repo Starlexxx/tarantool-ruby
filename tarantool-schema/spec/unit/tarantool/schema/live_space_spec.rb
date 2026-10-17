@@ -34,6 +34,13 @@ RSpec.describe Tarantool::Schema::LiveSpace do
     expect(described_class.from_eval(raw).primary.parts.first.field).to eq(:'#5')
   end
 
+  it 'reads the func flag and defaults it to false' do
+    raw = codes_live.merge('indexes' => [live_index(0, 'primary', [[1, 'unsigned']]).except('func'),
+                                         live_index(1, 'by_hash', [[1, 'unsigned']], func: true)])
+
+    expect(described_class.from_eval(raw).indexes.map(&:func)).to eq([false, true])
+  end
+
   it 'reads an empty format and no indexes' do
     space = described_class.from_eval('engine' => 'memtx', 'format' => {}, 'indexes' => {})
 

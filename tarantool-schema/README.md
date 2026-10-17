@@ -2,8 +2,9 @@
 
 Idempotent schema declaration for Tarantool 2.11+ and 3.x, meant for deploys. You declare spaces, indexes and
 primary key sequences in Ruby; `apply` creates whatever is missing and checks everything that already exists.
-If the live schema differs from the declaration, it raises an error with a diff and creates nothing. It never
-alters or drops anything: changing a field type or rebuilding an index is a migration and is out of scope.
+If the live schema differs from the declaration, it raises an error with a diff and creates nothing. It alters
+only what you allow (appending nullable fields) and never drops anything: changing a field type or rebuilding an
+index is a migration and is out of scope. An existing database can be read back into the DSL with `from_live`.
 
 ## Installation
 
@@ -95,7 +96,7 @@ Connect to the read-write instance. `apply`:
 2. compares it with the declaration and collects the differences across all spaces;
 3. if there are any, raises `Tarantool::Schema::MismatchError` and creates nothing;
 4. creates the missing spaces and indexes in declaration order, with `if_not_exists` so two deploys racing each
-   other do not fail;
+   other do not fail (and sets the format of spaces that get new fields, see Altering);
 5. reads everything again and raises `MismatchError` if something is still missing or differs, for example
    when another deploy created the space differently in the meantime. Racing another deploy can also surface
    as `Tarantool::ServerError` raised directly from `create_index`, before this re-verification runs.
@@ -119,6 +120,64 @@ schema mismatch:
 
 `MismatchError#mismatches` returns the same lines as an Array, each prefixed with `space <name>: `.
 
+## Altering
+
+Appending nullable fields to the end of a live format is the one change `apply` makes to an existing space, and
+only when asked:
+
+```ruby
+MyApp::SCHEMA.plan(client, alter: [:add_field])   # => ["format codes: add phone, archived_at"]
+MyApp::SCHEMA.apply(client, alter: [:add_field])  # => ["format codes: add phone, archived_at"]
+MyApp::SCHEMA.apply(client, alter: [:add_field])  # => []
+```
+
+`alter:` takes `:add_field` only; anything else raises `ArgumentError`. It applies when the live format is a
+prefix of the declared one (same names, types and nullability) and every field past it is `is_nullable: true`,
+which is what Tarantool requires while the space holds tuples. The whole declared format is sent with
+`box.space[name]:format(...)`, before any new index of that space, so an index on a new field works. Existing
+tuples read the new fields as nil.
+
+Everything else stays a mismatch: a field that is not nullable (`field 4 flag: must be is_nullable: true to be
+added`), a live format longer than the declared one, a field differing inside the prefix. Nothing is ever
+dropped.
+
+## Bootstrapping from a live schema
+
+```ruby
+definition = Tarantool::Schema::Definition.from_live(client)                      # every user space
+definition = Tarantool::Schema::Definition.from_live(client, only: %i[codes users])
+definition.plan(client)  # => []
+File.write('config/tarantool_schema.rb', definition.to_ruby)
+```
+
+`from_live` reads the spaces with ids past the system range whose names do not start with `_` (vshard's
+`_bucket` and crud's `_ddl_*` stay out); `only:` names the spaces to read instead, with or without a leading
+underscore, and raises `ArgumentError` for a name that does not exist. Each space is read as `ensure_space`
+would declare it: engine, format, indexes in id order with their parts. A part that inherits its type and
+nullability from the field is a bare field name; a JSON path part keeps its type. Index options the DSL does not
+know (`hint`, collations, `exclude_null`, vinyl tuning) are not read, as `plan` ignores them anyway. A
+functional index, or a part pointing past the format, raises `ArgumentError` naming the space and index: the
+DSL cannot express them.
+
+`to_ruby` renders a definition as source for a `Tarantool::Schema::Definition.new do ... end` block, defaults
+left out, one space per `ensure_space`, `ensure_index` entries after them; it evaluates back to the same `to_h`:
+
+```ruby
+Tarantool::Schema::Definition.new do
+  ensure_space :codes,
+               format: [
+                 { name: :id, type: :unsigned },
+                 { name: :code, type: :string },
+                 { name: :expires_at, type: :unsigned, is_nullable: true }
+               ],
+               indexes: [
+                 { name: :primary, parts: [:id], sequence: true },
+                 { name: :by_code, parts: [:code] },
+                 { name: :by_expiry, parts: [:expires_at], unique: false }
+               ]
+end
+```
+
 ## Rake
 
 ```ruby
@@ -138,9 +197,9 @@ namespace :tarantool do
       with_schema_client { |client| puts MyApp::SCHEMA.plan(client) }
     end
 
-    desc 'Create missing Tarantool spaces and indexes; fail on drift'
+    desc 'Create missing Tarantool spaces and indexes, append nullable fields; fail on drift'
     task :apply do
-      with_schema_client { |client| puts MyApp::SCHEMA.apply(client) }
+      with_schema_client { |client| puts MyApp::SCHEMA.apply(client, alter: [:add_field]) }
     end
   end
 end
@@ -218,7 +277,8 @@ INTEGRATION=1 TARANTOOL_URI=tcp://app:secret@localhost:3302 bundle exec rspec
 
 ## Public API
 
-`Tarantool::Schema::Definition` and the error classes above.
+`Tarantool::Schema::Definition` (`new`, `from_live`, `ensure_space`, `ensure_index`, `plan`, `apply`, `to_h`,
+`to_ruby`) and the error classes above.
 
 Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
 and may change in any release.

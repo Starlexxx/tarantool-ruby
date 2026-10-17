@@ -17,7 +17,7 @@ module Tarantool
                                    path = part.path})
             end
             table.insert(indexes, {id = id, name = index.name, type = index.type, unique = index.unique,
-                                   parts = parts, sequence = index.sequence_id ~= nil})
+                                   parts = parts, sequence = index.sequence_id ~= nil, func = index.func ~= nil})
           end
         end
         return {engine = space.engine, format = space:format(), indexes = indexes}
