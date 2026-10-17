@@ -8,9 +8,11 @@ module Tarantool
         # a response asked with `fetch_position`); keyset pagination, 2.11+.
         # @api private
         Select = Data.define(:space_id, :index_id, :key, :limit, :offset, :iterator, :after, :fetch_position) do
+          def self.cursor?(after) = after.nil? || after.is_a?(Array) || after.is_a?(String)
+
           def initialize(iterator:, after: nil, fetch_position: false, **)
             raise ArgumentError, "unknown iterator: #{iterator.inspect}" unless Constants::ITERATORS.key?(iterator)
-            unless after.nil? || after.is_a?(Array) || after.is_a?(String)
+            unless Select.cursor?(after)
               raise ArgumentError, "after: expected a tuple (Array) or a position (String), got #{after.inspect}"
             end
 
