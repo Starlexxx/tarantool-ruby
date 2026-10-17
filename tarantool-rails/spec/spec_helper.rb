@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+ENV['RAILS_ENV'] ||= 'test'
+
 require 'rails'
 require 'action_controller/railtie'
 require 'tarantool/rails'
