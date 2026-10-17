@@ -16,6 +16,14 @@ RSpec.describe Tarantool::OpenTelemetry::Instrumenter do
                                        'server.port' => 3301)
   end
 
+  it 'names and describes the span from what the block put into the payload' do
+    late = { address: 'db1:3301' }
+    instrumenter.instrument('request.tarantool', late) { late.merge!(request: :update, space: 'users', index: 0) }
+
+    expect(span.name).to eq('tarantool.update users')
+    expect(span.attributes).to include('db.operation' => 'update', 'db.tarantool.index' => 0)
+  end
+
   it 'uses the tarantool-client tracer by default' do
     instrumenter.instrument('request.tarantool', payload) { nil }
 

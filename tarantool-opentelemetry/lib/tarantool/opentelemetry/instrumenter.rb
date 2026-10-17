@@ -18,21 +18,27 @@ module Tarantool
         @db_statement = db_statement
       end
 
-      # The span is finished here rather than by Tracer#in_span so an exception is recorded once, with its message
-      # as the status description.
+      # The client fills the payload (request, space, index, ...) inside the block, once names are resolved, so the
+      # name and attributes are set when the block is done. Finishing here rather than through Tracer#in_span records
+      # an exception once, with its message as the status description.
       def instrument(name, payload, &block)
-        attributes = Attributes.for(name, payload, db_statement: @db_statement)
-        span = @tracer.start_span(Attributes.name(name, payload), kind: :client, attributes:)
+        span = @tracer.start_span(Attributes.name(name, payload), kind: :client)
         ::OpenTelemetry::Trace.with_span(span) { run(name, payload, &block) }
       rescue StandardError => e
         span&.record_exception(e)
         span&.status = ::OpenTelemetry::Trace::Status.error(e.message)
         raise
       ensure
+        describe(span, name, payload) if span
         span&.finish
       end
 
       private
+
+      def describe(span, name, payload)
+        span.name = Attributes.name(name, payload)
+        span.add_attributes(Attributes.for(name, payload, db_statement: @db_statement))
+      end
 
       def run(name, payload, &)
         @instrumenter ? @instrumenter.instrument(name, payload, &) : yield
