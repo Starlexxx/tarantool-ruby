@@ -4,6 +4,7 @@ Ruby gems for working with [Tarantool](https://www.tarantool.io) 2.11+ and 3.x. 
 low-level IPROTO client; `tarantool-crud` wraps the tarantool/crud module for sharded vshard clusters;
 `tarantool-model` adds ActiveModel-based models with validations, callbacks, and keyset pagination on top
 of either storage backend. `tarantool-schema` declares spaces and indexes idempotently on deploy.
+`tarantool-rails` wires all of them into a Rails application.
 
 ## Requirements
 
@@ -16,6 +17,7 @@ gem install tarantool-client
 gem install tarantool-crud   # sharded clusters via tarantool/crud
 gem install tarantool-model  # ActiveModel models
 gem install tarantool-schema # idempotent schema declaration
+gem install tarantool-rails  # Rails integration
 ```
 
 Or in your Gemfile:
@@ -25,6 +27,7 @@ gem 'tarantool-client'
 gem 'tarantool-crud'
 gem 'tarantool-model'
 gem 'tarantool-schema'
+gem 'tarantool-rails'
 ```
 
 ## Gems
@@ -35,12 +38,13 @@ gem 'tarantool-schema'
 | [tarantool-crud](tarantool-crud) | Wrapper over tarantool/crud for sharded clusters |
 | [tarantool-model](tarantool-model) | ActiveModel-based models over Tarantool spaces |
 | [tarantool-schema](tarantool-schema) | Idempotent schema declaration for deploys |
+| [tarantool-rails](tarantool-rails) | Railtie: config/tarantool.yml, log lines, schema tasks, generators |
 
 ## Errors
 
 Every error raised by these gems descends from `Tarantool::Error`: the client's own classes such as
 `Tarantool::ConnectionError` and `Tarantool::ServerError`, `Tarantool::Crud::Error`, `Tarantool::Model::Error`,
-and `Tarantool::Schema::Error`.
+`Tarantool::Schema::Error`, and `Tarantool::Rails::Error`.
 
 ## License
 

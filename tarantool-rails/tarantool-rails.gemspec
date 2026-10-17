@@ -14,7 +14,9 @@ Gem::Specification.new do |spec|
   spec.license = 'MIT'
   spec.required_ruby_version = '>= 3.2'
 
-  spec.files = Dir.chdir(__dir__) { Dir['lib/**/*', 'LICENSE', 'README.md', 'CHANGELOG.md'] }
+  spec.files = Dir.chdir(__dir__) do
+    Dir['lib/**/*', 'LICENSE', 'README.md', 'CHANGELOG.md'].select { |path| File.file?(path) }
+  end
   spec.require_paths = ['lib']
 
   spec.add_dependency 'railties', '>= 7.1', '< 9'

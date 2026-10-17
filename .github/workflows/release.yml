@@ -7,6 +7,7 @@ on:
       - 'tarantool-crud-v*'
       - 'tarantool-model-v*'
       - 'tarantool-schema-v*'
+      - 'tarantool-rails-v*'
 
 jobs:
   prepare:

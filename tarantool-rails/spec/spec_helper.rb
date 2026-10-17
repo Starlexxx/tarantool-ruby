@@ -7,11 +7,13 @@ require 'action_controller/railtie'
 require 'tarantool/rails'
 
 module Dummy
+  LOG = StringIO.new
+
   # Minimal application booting the Railtie against spec/dummy/config.
   class Application < ::Rails::Application
     config.root = File.join(__dir__, 'dummy')
     config.eager_load = false
-    config.logger = Logger.new(StringIO.new)
+    config.logger = ActiveSupport::Logger.new(LOG)
     config.log_level = :debug
     config.active_support.deprecation = :stderr
   end
