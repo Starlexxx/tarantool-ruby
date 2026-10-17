@@ -20,8 +20,9 @@ RSpec.describe Tarantool::Crud::Defaults do
     expect(defaults.options_for('insert_object_many')).to eq(noreturn: true, stop_on_error: true, timeout: 3)
   end
 
-  it 'passes only the timeout to truncate and storage_info' do
+  it 'passes only the timeout to truncate, storage_info and schema' do
     expect(defaults.options_for('truncate')).to eq(timeout: 3)
     expect(defaults.options_for('storage_info')).to eq(timeout: 2)
+    expect(defaults.options_for('schema')).to eq(timeout: 2)
   end
 end

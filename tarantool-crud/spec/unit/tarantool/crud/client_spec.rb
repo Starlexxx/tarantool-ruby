@@ -15,6 +15,33 @@ RSpec.describe Tarantool::Crud::Client do
     expect(transport.last).to have_attributes(function: 'crud.storage_info', arguments: [{ timeout: 1 }], timeout: 1.5)
   end
 
+  describe '#schema' do
+    let(:space) do
+      { 'format' => [{ 'name' => 'id', 'type' => 'unsigned' }],
+        'indexes' => { 0 => { 'id' => 0, 'name' => 'primary', 'type' => 'TREE', 'unique' => true,
+                              'parts' => [{ 'fieldno' => 1, 'type' => 'unsigned', 'is_nullable' => false }] } } }
+    end
+    let(:response) { [{ 'customers' => space }] }
+
+    it 'reads every space with the read defaults it accepts' do
+      expect(crud.schema.keys).to eq([:customers])
+      expect(transport.last).to have_attributes(function: 'crud.schema', arguments: [nil, {}])
+    end
+
+    it 'reads one space' do
+      transport = FakeCaller.new([space])
+
+      expect(described_class.new(transport).schema(:customers, timeout: 1)).to include(:format, :indexes)
+      expect(transport.last.arguments).to eq(['customers', { timeout: 1 }])
+    end
+
+    it 'raises SchemaError for an unknown space' do
+      transport = FakeCaller.new([nil, crud_error('SchemaError', 'Space "nope" doesn\'t exist')])
+
+      expect { described_class.new(transport).schema(:nope) }.to raise_error(Tarantool::Crud::SchemaError, /nope/)
+    end
+  end
+
   describe '#stats' do
     let(:response) { [{ 'spaces' => {} }] }
 
