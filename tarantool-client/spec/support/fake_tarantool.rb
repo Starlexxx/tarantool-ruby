@@ -41,8 +41,8 @@ class FakeTarantool
     @requests.pop(timeout:) || raise('no request received')
   end
 
-  def reply(request, data = [])
-    write(request, 0x00, { 0x30 => data })
+  def reply(request, data = [], fields = {})
+    write(request, 0x00, { 0x30 => data, **fields })
   end
 
   def reply_error(request, code:, message:)

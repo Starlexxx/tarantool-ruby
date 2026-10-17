@@ -35,11 +35,17 @@ module Tarantool
         first = @watchers.nil?
         @watchers ||= Watchers.new(@link, timeout: @config.request_timeout)
         @link.event_handler = @watchers.method(:dispatch)
-        @schema_cache = SchemaCache.new
-        @stream_ids = Transport::StreamIds.new
+        reset_session_state
         @link.connect
         @pid = Process.pid
         subscribe_to_shutdown if first
+      end
+
+      # Schema, stream ids and prepared statements belong to the sessions of one link.
+      def reset_session_state
+        @schema_cache = SchemaCache.new
+        @stream_ids = Transport::StreamIds.new
+        @statement_cache = StatementCache.new(@config.statement_cache) if @config.statement_cache.positive?
       end
 
       # box.shutdown is true once the server starts stopping; the value on subscribing is nil before that.

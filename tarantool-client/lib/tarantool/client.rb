@@ -68,6 +68,7 @@ require_relative 'client/schema_cache'
 require_relative 'client/sql_result'
 require_relative 'client/prepared_statement'
 require_relative 'client/statement_cache'
+require_relative 'client/cached_statements'
 require_relative 'client/batch_delete'
 require_relative 'client/transaction_schema'
 require_relative 'client/row'
@@ -90,6 +91,7 @@ module Tarantool
   # Connection to one Tarantool instance. Safe to share between threads and fibers.
   class Client
     include Operations
+    include CachedStatements
     include ForkSafety
     include Instrumented
     include NamedRequests
@@ -174,6 +176,7 @@ module Tarantool
     end
 
     def lost
+      forget_statements
       return unless @disconnect_handler
 
       @disconnect_handler.call
