@@ -27,6 +27,22 @@ module Tarantool
   module Model
     extend ActiveSupport::Concern
 
+    DEFAULT_STORAGE_LOCK = Mutex.new
+    private_constant :DEFAULT_STORAGE_LOCK
+
+    class << self
+      # Storage for models that set none of their own: a storage, or a Proc called once on first use.
+      attr_writer :default_storage
+
+      def default_storage
+        DEFAULT_STORAGE_LOCK.synchronize do
+          @default_storage = @default_storage.call if @default_storage.is_a?(Proc)
+
+          @default_storage
+        end
+      end
+    end
+
     include ActiveModel::API
     include ActiveModel::Attributes
     include ActiveModel::Dirty
