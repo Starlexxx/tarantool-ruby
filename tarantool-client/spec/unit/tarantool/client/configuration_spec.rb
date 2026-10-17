@@ -24,6 +24,16 @@ RSpec.describe Tarantool::Client::Configuration do
       expect(described_class.build(max_frame_size: 1024).max_frame_size).to eq(1024)
     end
 
+    it 'keeps the statement cache off by default and accepts a limit' do
+      expect(described_class.build.statement_cache).to eq(0)
+      expect(described_class.build(statement_cache: 100).statement_cache).to eq(100)
+    end
+
+    it 'rejects a statement cache limit that is not a non-negative Integer' do
+      expect { described_class.build(statement_cache: -1) }.to raise_error(ArgumentError, /statement_cache/)
+      expect { described_class.build(statement_cache: '10') }.to raise_error(ArgumentError, /statement_cache/)
+    end
+
     it 'takes reconnect options' do
       expect(described_class.build(reconnect: false, reconnect_attempts: 3)).to have_attributes(
         reconnect: false, reconnect_attempts: 3

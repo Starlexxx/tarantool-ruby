@@ -8,17 +8,17 @@ module Tarantool
     Configuration = Data.define(
       :host, :port, :path, :user, :password, :connect_timeout, :request_timeout,
       :reconnect, :reconnect_attempts, :reconnect_delay, :reconnect_max_delay,
-      :max_frame_size, :instrumenter, :logger
+      :max_frame_size, :statement_cache, :instrumenter, :logger
     ) do
       def self.build(uri = nil, **options)
-        new(**defaults, **parse_uri(uri), **options)
+        new(**defaults, **parse_uri(uri), **options).tap(&:check_statement_cache)
       end
 
       def self.defaults
         {
           host: 'localhost', port: 3301, path: nil, user: nil, password: nil, connect_timeout: 3, request_timeout: 10,
           reconnect: true, reconnect_attempts: Float::INFINITY, reconnect_delay: 0.1, reconnect_max_delay: 5,
-          max_frame_size: 64 * 1024 * 1024, instrumenter: nil, logger: nil
+          max_frame_size: 64 * 1024 * 1024, statement_cache: 0, instrumenter: nil, logger: nil
         }
       end
 
@@ -51,6 +51,13 @@ module Tarantool
         raise ArgumentError, 'invalid Tarantool URI'
       end
       private_class_method :defaults, :parse_uri, :parse_unix_uri, :parse_tcp_uri
+
+      # @api private
+      def check_statement_cache
+        return if statement_cache.is_a?(Integer) && statement_cache >= 0
+
+        raise ArgumentError, "statement_cache must be a non-negative Integer, got #{statement_cache.inspect}"
+      end
 
       def address
         return path if path
