@@ -106,6 +106,11 @@ RSpec.describe Tarantool::Rails do
       described_class.schema_path = schema_path
     end
 
+    after do
+      described_class.schema = nil
+      described_class.schema_path = schema_path
+    end
+
     it 'loads the schema file once' do
       allow(described_class).to receive(:load).and_call_original
 

@@ -10,6 +10,7 @@ require_relative 'rails/errors'
 require_relative 'rails/configuration'
 require_relative 'rails/log_subscriber'
 require_relative 'rails/controller_runtime'
+require_relative 'rails/railtie' if defined?(Rails::Railtie)
 
 module Tarantool
   # Rails integration: configuration from config/tarantool.yml, one Pool per process, models on it, log lines,
@@ -45,18 +46,26 @@ module Tarantool
         client&.close
       end
 
+      # Models without a storage of their own use the configured one, built on first use.
+      def use_default_storage!
+        @owns_default_storage = true
+        Model.default_storage = -> { storage }
+      end
+
       def disconnect!
         LOCK.synchronize do
           @pool&.close
           @pool = nil
           @storage = nil
+          use_default_storage! if @owns_default_storage
         end
       end
 
       private
 
       def configured
-        config || raise(Error, 'Tarantool::Rails.config is not set; is the Railtie loaded?')
+        config || raise(Error, 'Tarantool::Rails.config is not set: config/tarantool.yml is missing ' \
+                               '(rails g tarantool:install) or the Railtie is not loaded')
       end
 
       def build_pool
