@@ -3,8 +3,8 @@
 module Tarantool
   class Client
     class Pool
-      # The role a member's instance reports through box.status. Includers set @lock, @changed, @read_only and
-      # @instrumentation.
+      # The role a member's instance reports through box.status. Includers set @lock, @changed, @read_only
+      # and @instrumentation.
       # @api private
       module MemberRole
         private

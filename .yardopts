@@ -1,0 +1,7 @@
+--output-dir doc
+--hide-api private
+--readme README.md
+--title "tarantool-ruby"
+--markup markdown
+--files tarantool-client/README.md,tarantool-crud/README.md,tarantool-model/README.md,tarantool-schema/README.md,tarantool-rails/README.md,tarantool-opentelemetry/README.md,tarantool-client/CHANGELOG.md,tarantool-crud/CHANGELOG.md,tarantool-model/CHANGELOG.md,tarantool-schema/CHANGELOG.md,tarantool-rails/CHANGELOG.md,tarantool-opentelemetry/CHANGELOG.md
+tarantool-*/lib/**/*.rb

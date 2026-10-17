@@ -7,6 +7,10 @@ of either storage backend. `tarantool-schema` declares spaces and indexes idempo
 `tarantool-rails` wires all of them into a Rails application; `tarantool-opentelemetry` turns the client's
 events into OpenTelemetry spans.
 
+## Documentation
+
+API docs for every gem: https://starlexxx.github.io/tarantool-ruby/ (generated with YARD from master).
+
 ## Requirements
 
 Ruby >= 3.2, Tarantool 2.11+ or 3.x.
