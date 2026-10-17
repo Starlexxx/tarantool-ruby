@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.3.0 (unreleased)
+## 0.3.0 (2026-10-17)
 
 - `Tarantool::Model.default_storage`: a storage, or a Proc called once on first use, for models without one of
   their own.
