@@ -120,5 +120,28 @@ RSpec.describe Tarantool::Model::Locking do
         expect([user.lock_version, storage.get(:users, [1]).attributes[:lock_version]]).to eq([0, 0])
       end
     end
+
+    describe 'destroy' do
+      let!(:user) { LockedUser.create!(id: 1, email: 'a@x') }
+
+      it 'deletes a current record' do
+        expect(user.destroy).to be(user)
+        expect([user.destroyed?, storage.get(:users, [1])]).to eq([true, nil])
+      end
+
+      it 'raises StaleObjectError and leaves the record and the row alone when stale' do
+        storage.update(:users, [1], [['=', 'lock_version', 5]])
+
+        expect { user.destroy }
+          .to raise_error(Tarantool::Model::StaleObjectError) { |error| expect(error.attempted_action).to eq(:destroy) }
+        expect([user.frozen?, user.destroyed?, storage.get(:users, [1]).nil?]).to eq([false, false, false])
+      end
+
+      it 'counts a row that is already gone as destroyed' do
+        storage.delete(:users, [1])
+
+        expect(user.destroy.destroyed?).to be(true)
+      end
+    end
   end
 end

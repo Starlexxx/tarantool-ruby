@@ -45,6 +45,16 @@ module Tarantool
         end
       end
 
+      def delete_row
+        return super unless locking_enabled? && persisted?
+
+        atomically(:destroy) do
+          locked_row(:destroy)
+
+          super()
+        end
+      end
+
       def locked_operations
         column = locking_column.to_s
         operations = update_operations.reject { |(_operator, name, _value)| name == column }
