@@ -67,6 +67,45 @@ RSpec.describe Tarantool::Client::Operations do
     expect(last_request.after).to eq([1, 'a@b.c'])
   end
 
+  it 'selects after a position' do
+    target.select(:users, [], iterator: :all, limit: 2, after: 'kgAD')
+
+    expect(last_request.after).to eq('kgAD')
+  end
+
+  context 'with fetch_position' do
+    let(:body) { { 0x30 => data, 0x35 => 'kgAD' } }
+
+    it 'returns a Page with the tuples and the position' do
+      page = target.select(:users, [], iterator: :all, limit: 1, fetch_position: true)
+
+      expect(page).to eq(Tarantool::Client::Page.new(tuples: data, position: 'kgAD'))
+      expect(last_request.fetch_position).to be(true)
+    end
+
+    it 'converts the tuples of a page by as:' do
+      page = target.select(:users, [], iterator: :all, limit: 1, fetch_position: true, as: :hash)
+
+      expect(page.tuples).to eq([{ id: 1, email: 'a@b.c' }])
+    end
+
+    it 'keeps the raw tuple in rows of a page' do
+      page = target.select(:users, [], iterator: :all, limit: 1, fetch_position: true, as: :row)
+
+      expect(page.first).to have_attributes(tuple: [1, 'a@b.c'], attributes: { id: 1, email: 'a@b.c' })
+    end
+  end
+
+  context 'with an empty page' do
+    let(:body) { { 0x30 => [] } }
+
+    it 'returns a Page without a position' do
+      page = target.select(:users, [], iterator: :all, limit: 1, fetch_position: true)
+
+      expect([page.empty?, page.size, page.position]).to eq([true, 0, nil])
+    end
+  end
+
   it 'passes the per-request timeout' do
     target.select(:users, 1, timeout: 0.5)
 
