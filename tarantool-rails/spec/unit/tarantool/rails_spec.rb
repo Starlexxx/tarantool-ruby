@@ -40,7 +40,7 @@ RSpec.describe Tarantool::Rails do
       expect { described_class.pool }.to raise_error(Tarantool::Rails::Error, /config/)
     end
 
-    it 'passes a configured instrumenter instead of the Rails one' do
+    it 'passes a configured instrumenter instead of the Rails one', :rbs_untestable do
       instrumenter = Object.new
       described_class.instrumenter = instrumenter
       described_class.pool

@@ -75,6 +75,8 @@ tarantool-client/docker-compose.yml up -d --wait tarantool-2.11 tarantool-3`, po
 
 `Tarantool::OpenTelemetry::Instrumenter`.
 
+RBS signatures for this API ship with the gem in `sig/`.
+
 Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
 and may change in any release.
 

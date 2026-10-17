@@ -14,7 +14,7 @@ Gem::Specification.new do |spec|
   spec.license = 'MIT'
   spec.required_ruby_version = '>= 3.2'
 
-  spec.files = Dir.chdir(__dir__) { Dir['lib/**/*.rb', 'LICENSE', 'README.md', 'CHANGELOG.md'] }
+  spec.files = Dir.chdir(__dir__) { Dir['lib/**/*.rb', 'sig/**/*.rbs', 'LICENSE', 'README.md', 'CHANGELOG.md'] }
   spec.require_paths = ['lib']
 
   spec.add_dependency 'tarantool-client', '~> 0.3'

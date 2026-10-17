@@ -1,0 +1,178 @@
+module Tarantool
+  class Client
+    # Subscription returned by Client#watch.
+    class Watcher
+      attr_reader key: String
+
+      def unwatch: () -> nil
+    end
+
+    # Server-side prepared SQL statement, bound to the session that prepared it.
+    class PreparedStatement
+      attr_reader id: Integer
+
+      def execute: (?Array[untyped] bindings, ?timeout: Numeric?) -> SqlResult
+      def close: (?timeout: Numeric?) -> nil
+    end
+
+    # Rows and column names of an SQL query, or the counters of a data-changing statement.
+    class SqlResult < Data
+      attr_reader rows: Array[Array[untyped]]
+      attr_reader columns: Array[String]
+      attr_reader row_count: Integer?
+      attr_reader autoincrement_ids: Array[Integer]
+
+      def self.new: (rows: Array[Array[untyped]], columns: Array[String], row_count: Integer?,
+                     autoincrement_ids: Array[Integer]) -> SqlResult
+      def with: (?rows: Array[Array[untyped]], ?columns: Array[String], ?row_count: Integer?,
+                 ?autoincrement_ids: Array[Integer]) -> SqlResult
+    end
+
+    # A tuple as the server returned it, with its fields by name. Returned for `as: :row`.
+    class Row < Data
+      attr_reader tuple: tuple
+      attr_reader attributes: row_hash
+
+      def self.new: (tuple: tuple, attributes: row_hash) -> Row
+      def with: (?tuple: tuple, ?attributes: row_hash) -> Row
+    end
+
+    # One page of a select asked with `fetch_position: true`.
+    class Page < Data
+      include Enumerable[row]
+
+      attr_reader tuples: Array[row]
+      # Opaque, tied to the index and iterator that produced it; nil when the page is empty.
+      attr_reader position: String?
+
+      def self.new: (tuples: Array[row], position: String?) -> Page
+      def with: (?tuples: Array[row], ?position: String?) -> Page
+      def each: () { (row) -> void } -> Array[row]
+              | () -> Enumerator[row, Array[row]]
+      def empty?: () -> bool
+      def size: () -> Integer
+    end
+
+    # Format and indexes of a space from the loaded schema; `indexes` maps names to IndexInfo in id order.
+    class SpaceInfo < Data
+      attr_reader id: Integer
+      attr_reader name: String
+      attr_reader fields: Array[SpaceInfo::Field]
+      attr_reader indexes: Hash[String, IndexInfo]
+
+      def self.new: (id: Integer, name: String, fields: Array[SpaceInfo::Field], indexes: Hash[String, IndexInfo]) -> SpaceInfo
+      def with: (?id: Integer, ?name: String, ?fields: Array[SpaceInfo::Field], ?indexes: Hash[String, IndexInfo]) -> SpaceInfo
+      def primary_index: () -> IndexInfo?
+      def to_hash: (tuple tuple) -> row_hash
+      # An unknown name raises UnknownFieldError; missing fields go out as nil.
+      def to_tuple: (Hash[Symbol | String | Integer, untyped] hash) -> tuple
+
+      class Field < Data
+        attr_reader name: String
+        attr_reader type: String
+        attr_reader is_nullable: bool
+
+        def self.new: (name: String, type: String, is_nullable: bool) -> Field
+        def with: (?name: String, ?type: String, ?is_nullable: bool) -> Field
+      end
+    end
+
+    # One index of a space.
+    class IndexInfo < Data
+      attr_reader id: Integer
+      attr_reader name: String
+      attr_reader type: String
+      attr_reader unique: bool
+      attr_reader parts: Array[IndexInfo::Part]
+
+      def self.new: (id: Integer, name: String, type: String, unique: bool, parts: Array[IndexInfo::Part]) -> IndexInfo
+      def with: (?id: Integer, ?name: String, ?type: String, ?unique: bool, ?parts: Array[IndexInfo::Part]) -> IndexInfo
+
+      # `fieldno` is 0-based; `name` is nil for a field beyond the space format.
+      class Part < Data
+        attr_reader fieldno: Integer
+        attr_reader name: String?
+        attr_reader type: String
+        attr_reader is_nullable: bool
+        attr_reader path: String?
+
+        def self.new: (fieldno: Integer, name: String?, type: String, is_nullable: bool, path: String?) -> Part
+        def with: (?fieldno: Integer, ?name: String?, ?type: String, ?is_nullable: bool, ?path: String?) -> Part
+      end
+    end
+
+    # A Tarantool uuid; only instances of this type are sent as MP_EXT uuid.
+    class UUID < Data
+      FORMAT: Regexp
+
+      attr_reader value: String
+
+      def self.new: (value: String) -> UUID
+      def with: (?value: String) -> UUID
+      def to_s: () -> String
+    end
+
+    # A Tarantool datetime.interval; adjust is :none, :excess or :last.
+    class Interval < Data
+      type adjust = :none | :excess | :last
+
+      attr_reader year: Integer
+      attr_reader month: Integer
+      attr_reader week: Integer
+      attr_reader day: Integer
+      attr_reader hour: Integer
+      attr_reader min: Integer
+      attr_reader sec: Integer
+      attr_reader nsec: Integer
+      attr_reader adjust: adjust
+
+      def self.new: (?year: Integer, ?month: Integer, ?week: Integer, ?day: Integer, ?hour: Integer, ?min: Integer,
+                     ?sec: Integer, ?nsec: Integer, ?adjust: adjust) -> Interval
+      def with: (?year: Integer, ?month: Integer, ?week: Integer, ?day: Integer, ?hour: Integer, ?min: Integer,
+                 ?sec: Integer, ?nsec: Integer, ?adjust: adjust) -> Interval
+    end
+
+    # A box.error object returned as data (MP_ERROR), with its cause chain.
+    class BoxError < Data
+      attr_reader type: String?
+      attr_reader message: String?
+      attr_reader code: Integer?
+      attr_reader file: String?
+      attr_reader line: Integer?
+      attr_reader errno: Integer?
+      attr_reader fields: Hash[String, untyped]?
+      attr_reader cause: BoxError?
+
+      def self.new: (type: String?, message: String?, code: Integer?, file: String?, line: Integer?, errno: Integer?,
+                     fields: Hash[String, untyped]?, cause: BoxError?) -> BoxError
+      def with: (?type: String?, ?message: String?, ?code: Integer?, ?file: String?, ?line: Integer?, ?errno: Integer?,
+                 ?fields: Hash[String, untyped]?, ?cause: BoxError?) -> BoxError
+    end
+
+    # Immutable connection settings; `inspect` and `to_s` hide the password, `to_h` keeps it.
+    class Configuration < Data
+      attr_reader host: String
+      attr_reader port: Integer
+      attr_reader path: String?
+      attr_reader user: String?
+      attr_reader password: String?
+      attr_reader connect_timeout: Numeric?
+      attr_reader request_timeout: Numeric?
+      attr_reader reconnect: bool
+      attr_reader reconnect_attempts: Numeric
+      attr_reader reconnect_delay: Numeric
+      attr_reader reconnect_max_delay: Numeric
+      attr_reader max_frame_size: Integer
+      attr_reader instrumenter: _Instrumenter?
+      attr_reader logger: _Logger?
+
+      def self.build: (?String? uri, ?host: String, ?port: Integer, ?path: String?, ?user: String?, ?password: String?,
+                       ?connect_timeout: Numeric?, ?request_timeout: Numeric?, ?reconnect: bool,
+                       ?reconnect_attempts: Numeric, ?reconnect_delay: Numeric, ?reconnect_max_delay: Numeric,
+                       ?max_frame_size: Integer, ?instrumenter: _Instrumenter?, ?logger: _Logger?) -> Configuration
+      def address: () -> String
+      def inspect: () -> String
+      def to_s: () -> String
+    end
+  end
+end

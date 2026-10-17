@@ -1,0 +1,15 @@
+module Tarantool
+  # OpenTelemetry spans for the events a Tarantool::Client emits through its instrumenter.
+  module OpenTelemetry
+    VERSION: String
+
+    # An instrumenter for Client.new(instrumenter:) and Pool.new(instrumenter:): one client span per event.
+    class Instrumenter
+      # tracer: an OpenTelemetry::Trace::Tracer (no signatures for the opentelemetry gems); default is the
+      # 'tarantool-client' tracer of the global provider.
+      def initialize: (?instrumenter: Tarantool::Client::_Instrumenter?, ?tracer: untyped,
+                       ?db_statement: :omit | :include) -> void
+      def instrument: (String name, Hash[Symbol, untyped] payload) { () -> untyped } -> untyped
+    end
+  end
+end

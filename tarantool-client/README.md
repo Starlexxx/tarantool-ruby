@@ -309,6 +309,8 @@ Don't create multikey indexes on these containers: with `memtx_use_mvcc_engine =
 `Watcher` (returned by `watch`), `SqlResult`, `PreparedStatement`, `SpaceInfo`, `IndexInfo`, `Row`, `Page`, `Configuration`
 (returned by `client.config`), `Tarantool::Client::UUID`, `Interval`, `BoxError`, and the error classes above.
 
+RBS signatures for this API ship with the gem in `sig/`.
+
 Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
 and may change in any release.
 

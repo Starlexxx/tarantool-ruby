@@ -18,7 +18,7 @@ RSpec.describe Tarantool::Crud::Space do
     )
   end
 
-  it 'fetches batches lazily without a block' do
+  it 'fetches batches lazily without a block', :rbs_untestable do
     expect(users.each(batch_size: 2).first(1)).to eq([{ id: 1, name: 'a' }])
     expect(transport.requests.size).to eq(1)
   end

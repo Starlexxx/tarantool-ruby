@@ -12,6 +12,7 @@ gemspec path: 'tarantool-opentelemetry'
 gem 'opentelemetry-sdk', '~> 1.0', require: false
 
 gem 'rake', '~> 13.0'
+gem 'rbs', '~> 3.4', require: false
 gem 'rspec', '~> 3.13'
 gem 'rubocop', '~> 1.81', require: false
 gem 'rubocop-performance', '~> 1.25', require: false

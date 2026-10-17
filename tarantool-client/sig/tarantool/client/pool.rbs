@@ -1,0 +1,41 @@
+module Tarantool
+  class Client
+    # Clients for the instances of one replica set, routed by the role each reports through box.status.
+    class Pool
+      type mode = :rw | :ro | :prefer_ro | :prefer_rw | :any
+
+      MODES: Array[mode]
+
+      def initialize: (Array[String] addresses, ?host: String, ?port: Integer, ?path: String?, ?user: String?,
+                       ?password: String?, ?connect_timeout: Numeric?, ?request_timeout: Numeric?, ?reconnect: bool,
+                       ?reconnect_attempts: Numeric, ?reconnect_delay: Numeric, ?reconnect_max_delay: Numeric,
+                       ?max_frame_size: Integer, ?instrumenter: _Instrumenter?, ?logger: _Logger?) -> void
+
+      def ping: (?mode: mode, ?timeout: Numeric?) -> true
+      def space_info: (space_ref space, ?mode: mode, ?timeout: Numeric?) -> SpaceInfo
+      def select: (space_ref space, ?key key, ?mode: mode, ?index: index_ref, ?limit: Integer, ?offset: Integer,
+                   ?iterator: iterator, ?after: cursor?, ?fetch_position: bool, ?as: shape,
+                   ?timeout: Numeric?) -> (Array[row] | Page)
+      def insert: (space_ref space, tuple_input tuple, ?mode: mode, ?as: shape, ?timeout: Numeric?) -> row
+      def replace: (space_ref space, tuple_input tuple, ?mode: mode, ?as: shape, ?timeout: Numeric?) -> row
+      def update: (space_ref space, key key, Array[operation] operations, ?mode: mode, ?index: index_ref, ?as: shape,
+                   ?timeout: Numeric?) -> row?
+      def upsert: (space_ref space, tuple_input tuple, Array[operation] operations, ?mode: mode,
+                   ?timeout: Numeric?) -> nil
+      def delete: (space_ref space, key key, ?mode: mode, ?index: index_ref, ?as: shape, ?timeout: Numeric?) -> row?
+      def delete_by: (space_ref space, key key, index: index_ref, ?mode: mode, ?iterator: iterator,
+                      ?batch_size: Integer, ?timeout: Numeric?) -> Integer
+      def call: (String function_name, ?Array[untyped] arguments, ?mode: mode, ?timeout: Numeric?,
+                 ?on_push: (^(untyped message) -> void)?) -> Array[untyped]
+      def eval: (String expression, ?Array[untyped] arguments, ?mode: mode, ?timeout: Numeric?) -> Array[untyped]
+      def execute: (String | Integer | PreparedStatement sql, ?Array[untyped] bindings, ?mode: mode,
+                    ?timeout: Numeric?) -> SqlResult
+      def prepare: (String sql, ?mode: mode, ?timeout: Numeric?) -> PreparedStatement
+
+      # Always on a writable instance.
+      def transaction: [T] (?isolation: isolation, ?timeout: Numeric?) { (Stream) -> T } -> T
+      def close: () -> void
+      def inspect: () -> String
+    end
+  end
+end

@@ -1,0 +1,147 @@
+module Tarantool
+  # Wrapper over tarantool/crud for sharded clusters.
+  module Crud
+    VERSION: String
+
+    # A row as crud returns it: field name => value.
+    type row = Hash[Symbol, untyped]
+    type tuple = Array[untyped]
+    # Array tuples go to crud.insert and friends, Hash rows to the *_object variants.
+    type tuple_input = tuple | Hash[Symbol | String, untyped]
+    # One update operation, e.g. ['+', 'age', 1].
+    type operation = Array[untyped]
+    # [operator, field, value] triples, or a Hash of field => value | Range.
+    type conditions = Array[Array[untyped]] | Hash[String | Symbol, untyped]
+    # Options of a crud function, sent as they are (timeout:, mode:, fields:, ...).
+    type options = Hash[Symbol, untyped]
+
+    # Tarantool::Client, Tarantool::Client::Pool or anything else that calls a function on a router.
+    interface _Caller
+      def call: (String function, Array[untyped] arguments, ?timeout: Numeric?) -> Array[untyped]
+    end
+
+    class Client
+      def initialize: (_Caller caller, ?read: options, ?write: options, ?timeout_margin: Numeric) -> void
+      def space: (String | Symbol name) -> Space
+      def storage_info: (**untyped options) -> Hash[String, untyped]
+      # One space's { format:, indexes: } in tarantool-schema's shape, or every space keyed by name.
+      def schema: (?(String | Symbol)? space, **untyped options) -> Hash[Symbol, untyped]
+      def stats: (?(String | Symbol)? space, ?timeout: Numeric?) -> Hash[String, untyped]
+    end
+
+    # Operations on one sharded space; keyword arguments are crud options.
+    class Space
+      attr_reader name: String
+
+      def insert: (tuple_input tuple, **untyped options) -> row?
+      def replace: (tuple_input tuple, **untyped options) -> row?
+      def upsert: (tuple_input tuple, Array[operation] operations, **untyped options) -> row?
+      def get: (Tarantool::Client::key key, **untyped options) -> row?
+      def update: (Tarantool::Client::key key, Array[operation] operations, **untyped options) -> row?
+      def delete: (Tarantool::Client::key key, **untyped options) -> row?
+      def min: (?(String | Symbol)? index, **untyped options) -> row?
+      def max: (?(String | Symbol)? index, **untyped options) -> row?
+      def select: (?conditions? conditions, **untyped options) -> Result
+      def each: (?conditions? conditions, ?batch_size: Integer, **untyped options) { (row) -> void } -> void
+              | (?conditions? conditions, ?batch_size: Integer, **untyped options) -> Enumerator[row, void]
+      def count: (?conditions? conditions, **untyped options) -> Integer
+      def len: (**untyped options) -> Integer
+      def truncate: (**untyped options) -> bool
+      def insert_many: (Array[tuple_input] rows, **untyped options) -> ManyResult
+      def replace_many: (Array[tuple_input] rows, **untyped options) -> ManyResult
+      def upsert_many: (Array[[tuple_input, Array[operation]]] pairs, **untyped options) -> ManyResult
+      def insert_many!: (Array[tuple_input] rows, **untyped options) -> ManyResult
+      def replace_many!: (Array[tuple_input] rows, **untyped options) -> ManyResult
+      def upsert_many!: (Array[[tuple_input, Array[operation]]] pairs, **untyped options) -> ManyResult
+    end
+
+    # Rows returned by a crud function, Hashes keyed by field name from crud's metadata.
+    class Result
+      include Enumerable[row]
+
+      attr_reader metadata: Array[Hash[Symbol, untyped]]
+      attr_reader tuples: Array[tuple]
+
+      def each: () { (row) -> void } -> Array[row]
+              | () -> Enumerator[row, Array[row]]
+      def last: () -> row?
+      def size: () -> Integer
+      def empty?: () -> bool
+    end
+
+    # Result of a *_many call: the rows written plus the errors of the rows that failed.
+    class ManyResult < Result
+      attr_reader errors: Array[Error]
+
+      def success?: () -> bool
+    end
+
+    # Error returned by a crud function; the message is crud's err field.
+    class Error < Tarantool::Error
+      attr_reader class_name: String?
+      attr_reader str: String?
+      attr_reader file: String?
+      attr_reader line: Integer?
+      attr_reader operation_data: untyped
+
+      def initialize: (?String? message, ?class_name: String?, ?str: String?, ?file: String?, ?line: Integer?,
+                       ?operation_data: untyped) -> void
+    end
+
+    class InsertError < Error
+    end
+
+    class ReplaceError < Error
+    end
+
+    class UpsertError < Error
+    end
+
+    class GetError < Error
+    end
+
+    class UpdateError < Error
+    end
+
+    class DeleteError < Error
+    end
+
+    class SelectError < Error
+    end
+
+    class CountError < Error
+    end
+
+    class MinMaxError < Error
+    end
+
+    class LenError < Error
+    end
+
+    class TruncateError < Error
+    end
+
+    class SchemaError < Error
+    end
+
+    class CallError < Error
+    end
+
+    class InsertManyError < Error
+    end
+
+    class ReplaceManyError < Error
+    end
+
+    class UpsertManyError < Error
+    end
+
+    # Raised by the *_many! variants when any row failed; result holds the rows that were written.
+    class ManyError < Tarantool::Error
+      attr_reader result: ManyResult
+
+      def initialize: (ManyResult result) -> void
+      def errors: () -> Array[Error]
+    end
+  end
+end

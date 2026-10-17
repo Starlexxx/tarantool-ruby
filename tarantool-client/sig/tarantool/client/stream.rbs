@@ -1,0 +1,26 @@
+module Tarantool
+  class Client
+    # The operations of one interactive transaction, yielded by Client#transaction and Pool#transaction.
+    class Stream
+      def ping: (?timeout: Numeric?) -> true
+      def space_info: (space_ref space, ?timeout: Numeric?) -> SpaceInfo
+      def select: (space_ref space, ?key key, ?index: index_ref, ?limit: Integer, ?offset: Integer,
+                   ?iterator: iterator, ?after: cursor?, ?fetch_position: bool, ?as: shape,
+                   ?timeout: Numeric?) -> (Array[row] | Page)
+      def insert: (space_ref space, tuple_input tuple, ?as: shape, ?timeout: Numeric?) -> row
+      def replace: (space_ref space, tuple_input tuple, ?as: shape, ?timeout: Numeric?) -> row
+      def update: (space_ref space, key key, Array[operation] operations, ?index: index_ref, ?as: shape,
+                   ?timeout: Numeric?) -> row?
+      def upsert: (space_ref space, tuple_input tuple, Array[operation] operations, ?timeout: Numeric?) -> nil
+      def delete: (space_ref space, key key, ?index: index_ref, ?as: shape, ?timeout: Numeric?) -> row?
+      def delete_by: (space_ref space, key key, index: index_ref, ?iterator: iterator, ?batch_size: Integer,
+                      ?timeout: Numeric?) -> Integer
+      def call: (String function_name, ?Array[untyped] arguments, ?timeout: Numeric?,
+                 ?on_push: (^(untyped message) -> void)?) -> Array[untyped]
+      def eval: (String expression, ?Array[untyped] arguments, ?timeout: Numeric?) -> Array[untyped]
+      def execute: (String | Integer | PreparedStatement sql, ?Array[untyped] bindings, ?timeout: Numeric?) -> SqlResult
+      # Raises TransactionError: prepare on the client, execute the statement here.
+      def prepare: (*untyped) -> bot
+    end
+  end
+end
