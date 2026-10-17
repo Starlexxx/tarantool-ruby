@@ -39,12 +39,10 @@ services:
 
   crud-2.11:
     <<: *crud
-    image: tarantool-crud:2.11
-    build: { context: ../tarantool-crud/docker, args: { TARANTOOL_VERSION: '2.11' } }
+    image: ghcr.io/starlexxx/tarantool-crud:2.11
     ports: ['3331:3301']
 
   crud-3:
     <<: *crud
-    image: tarantool-crud:3
-    build: { context: ../tarantool-crud/docker, args: { TARANTOOL_VERSION: '3' } }
+    image: ghcr.io/starlexxx/tarantool-crud:3
     ports: ['3332:3301']

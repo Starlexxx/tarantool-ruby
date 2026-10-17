@@ -58,6 +58,9 @@ jobs:
 
   crud:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -71,7 +74,12 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      - run: docker compose -f tarantool-crud/docker-compose.yml up -d --wait --build ${{ matrix.tarantool.service }}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: docker compose -f tarantool-crud/docker-compose.yml up -d --wait ${{ matrix.tarantool.service }}
       - run: bundle exec rspec
         working-directory: tarantool-crud
         env:
@@ -102,6 +110,9 @@ jobs:
 
   model-crud:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -115,7 +126,12 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      - run: docker compose -f tarantool-model/docker-compose.yml up -d --wait --build ${{ matrix.tarantool.service }}
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - run: docker compose -f tarantool-model/docker-compose.yml up -d --wait ${{ matrix.tarantool.service }}
       - run: bundle exec rspec --tag crud
         working-directory: tarantool-model
         env:

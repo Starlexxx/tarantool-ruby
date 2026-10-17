@@ -16,12 +16,10 @@ x-tarantool: &tarantool
 services:
   tarantool-2.11:
     <<: *tarantool
-    image: tarantool-crud:2.11
-    build: { context: docker, args: { TARANTOOL_VERSION: '2.11' } }
+    image: ghcr.io/starlexxx/tarantool-crud:2.11
     ports: ['3311:3301']
 
   tarantool-3:
     <<: *tarantool
-    image: tarantool-crud:3
-    build: { context: docker, args: { TARANTOOL_VERSION: '3' } }
+    image: ghcr.io/starlexxx/tarantool-crud:3
     ports: ['3312:3301']
