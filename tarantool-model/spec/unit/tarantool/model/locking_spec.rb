@@ -37,5 +37,88 @@ RSpec.describe Tarantool::Model::Locking do
         expect(LockedUser.create!(id: 1, email: 'a@x', lock_version: 4).lock_version).to eq(4)
       end
     end
+
+    describe 'update' do
+      let!(:user) { LockedUser.create!(id: 1, email: 'a@x') }
+
+      before do
+        allow(storage).to receive(:update).and_call_original
+        allow(storage).to receive(:transaction).and_call_original
+      end
+
+      it 'sends the changes with the bumped version and refreshes it' do
+        user.update!(email: 'b@x')
+
+        expect(storage).to have_received(:update).with('users', [1], [['=', 'email', 'b@x'], ['=', 'lock_version', 1]])
+        expect([user.lock_version, user.changed?]).to eq([1, false])
+      end
+
+      it 'bumps again on the next update' do
+        user.update!(email: 'b@x')
+        user.update!(email: 'c@x')
+
+        expect(storage).to have_received(:update).with('users', [1], [['=', 'email', 'c@x'], ['=', 'lock_version', 2]])
+      end
+
+      it 'raises StaleObjectError and keeps the changes when the row changed underneath' do
+        storage.update(:users, [1], [['=', 'lock_version', 5]])
+
+        expect { user.update!(email: 'b@x') }
+          .to raise_error(Tarantool::Model::StaleObjectError) { |error| expect(error.attempted_action).to eq(:update) }
+        expect([user.changes, storage.get(:users, [1]).attributes[:email]])
+          .to eq([{ 'email' => ['a@x', 'b@x'] }, 'a@x'])
+      end
+
+      it 'compares the version assigned to the record, as from a form' do
+        user.update!(email: 'b@x')
+        user.lock_version = 0
+
+        expect { user.update!(email: 'c@x') }.to raise_error(Tarantool::Model::StaleObjectError)
+      end
+
+      it 'raises RecordNotFound when the row is gone' do
+        storage.delete(:users, [1])
+
+        expect { user.update!(email: 'b@x') }.to raise_error(Tarantool::Model::RecordNotFound)
+      end
+
+      it 'sends nothing and opens no transaction when nothing changed' do
+        expect(user.save).to be(true)
+        expect(storage).not_to have_received(:update)
+        expect(storage).not_to have_received(:transaction)
+      end
+
+      it 'sends nothing when only the version changed' do
+        user.lock_version = 3
+
+        expect(user.save).to be(true)
+        expect(storage).not_to have_received(:update)
+      end
+
+      it 'checks and updates inside the transaction that is already open' do
+        LockedUser.transaction { user.update!(email: 'b@x') }
+
+        expect(storage).to have_received(:transaction).once
+        expect(user.lock_version).to eq(1)
+      end
+
+      it 'opens a transaction of its own otherwise' do
+        user.update!(email: 'b@x')
+
+        expect(storage).to have_received(:transaction).once
+      end
+
+      it 'maps a transaction conflict to StaleObjectError' do
+        allow(storage).to receive(:update).and_raise(Tarantool::ServerError.new('aborted by conflict', code: 97))
+
+        expect { user.update!(email: 'b@x') }.to raise_error(Tarantool::Model::StaleObjectError)
+      end
+
+      it 'leaves the version alone on increment!' do
+        user.increment!(:age)
+
+        expect([user.lock_version, storage.get(:users, [1]).attributes[:lock_version]]).to eq([0, 0])
+      end
+    end
   end
 end
