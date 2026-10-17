@@ -80,4 +80,42 @@ RSpec.describe Tarantool::Client::Transport::PendingRequests do
   it 'ignores pushes for unknown syncs' do
     expect { pending.push(42, :progress) }.not_to raise_error
   end
+
+  describe '#wait_empty' do
+    it 'returns true at once without requests in flight' do
+      expect(pending.wait_empty(1)).to be(true)
+    end
+
+    it 'returns false when a request is still in flight at the deadline' do
+      pending.register
+
+      expect(pending.wait_empty(0.01)).to be(false)
+    end
+
+    it 'wakes up when the last request is deleted' do
+      sync, = pending.register
+      waiter = Thread.new { pending.wait_empty(1) }
+      Thread.pass until waiter.status == 'sleep'
+      pending.delete(sync)
+
+      expect(waiter.value).to be(true)
+    end
+
+    it 'wakes up when the requests are failed' do
+      pending.register
+      waiter = Thread.new { pending.wait_empty(1) }
+      Thread.pass until waiter.status == 'sleep'
+      pending.fail_all(Tarantool::ConnectionError.new('lost'))
+
+      expect(waiter.value).to be(true)
+    end
+  end
+
+  it 'counts the requests in flight' do
+    sync, = pending.register
+    pending.register
+    pending.delete(sync)
+
+    expect(pending.size).to eq(1)
+  end
 end

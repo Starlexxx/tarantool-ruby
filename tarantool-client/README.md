@@ -198,6 +198,12 @@ pool.close
 
 Roles come from `box.status` (`is_ro`), so a switchover is picked up as soon as the instances report it. Requests are spread round-robin among matching instances. If none matches, the call raises `NoAvailableInstanceError`. `Pool.new` raises it only if no address answers; addresses that are down keep being retried in the background. That retrying covers start-up only: once connected, a member relies on its client's reconnect, so with a finite `reconnect_attempts` a member that gives up stays out of rotation. `Pool#close` may wait for an in-progress background connect attempt, up to `connect_timeout` + `request_timeout`. Options are passed to each client. A prepared statement from `pool.prepare` stays bound to the instance that prepared it.
 
+## Graceful shutdown
+
+Tarantool 2.10+ announces `SIGTERM` through the `box.shutdown` event and waits, up to `box.ctl.set_on_shutdown_timeout` (3 s by default), for the connections subscribed to it to close. Every `Client` subscribes. When the event arrives the client stops sending: `connected?` turns false, a `Pool` member leaves the rotation at once, and new requests on a bare `Client` wait for the next connection as they do while reconnecting. Requests already in flight get their replies; once none is left, or after `request_timeout`, the client closes the connection itself with the reason `server <address> is shutting down` and the usual reconnect follows. A transaction open on that connection fails on its next request, as after any loss. Nothing is retried elsewhere.
+
+Watching `box.shutdown` yourself works as before; the client's own subscription is never unwatched.
+
 ## Forking servers
 
 `Client` and `Pool` are fork-safe. The first request in a child process after `fork` reinitializes the connection transparently — a new socket is opened, background threads are restarted, and watchers are resubscribed. The parent's connection is unaffected.
@@ -237,6 +243,7 @@ Lifecycle events have the instance `address` too. Subscribers should be fast: `d
 | `reconnect_failed.tarantool` | `attempts` (when known), `exception`, `exception_object` | error |
 | `fork.tarantool` | | info |
 | `role_change.tarantool` | `read_only` (pool members) | info |
+| `shutdown.tarantool` | `pending` (requests in flight when the server announced its shutdown) | info |
 
 `role_change.tarantool` fires only when the role actually changes, not on the first report after connecting.
 

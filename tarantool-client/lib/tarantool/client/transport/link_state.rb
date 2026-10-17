@@ -52,11 +52,34 @@ module Tarantool
           end
         end
 
-        # Leaves ready only for the current connection, so a loss is handled once. The block gets the previous
-        # reconnect thread and returns the new one; the state flips only once that thread exists.
+        # The server announced its shutdown: requests wait as while reconnecting, in-flight ones finish on the
+        # connection. The block returns the drain thread; only the current connection drains, once.
+        def start_draining(connection)
+          @lock.synchronize do
+            next false unless @state == :ready && @connection.equal?(connection)
+
+            @drainer = yield
+            @state = :draining
+            @changed.broadcast
+            true
+          end
+        end
+
+        # Without reconnect the drained connection stays current, failing requests with the shutdown reason.
+        def finish_draining(connection)
+          @lock.synchronize do
+            next unless @state == :draining && @connection.equal?(connection)
+
+            @state = :ready
+            @changed.broadcast
+          end
+        end
+
+        # Leaves ready or draining only for the current connection, so a loss is handled once. The block gets
+        # the previous reconnect thread and returns the new one; the state flips only once that thread exists.
         def start_reconnect(connection)
           @lock.synchronize do
-            next unless @state == :ready && @connection.equal?(connection)
+            next unless %i[ready draining].include?(@state) && @connection.equal?(connection)
 
             @reconnector = yield @reconnector
             @state = :reconnecting
@@ -64,7 +87,8 @@ module Tarantool
           end
         end
 
-        # Returns the reconnect thread and the connection it is opening, for the caller to abort and join.
+        # Returns the reconnect thread, the connection it is opening and the drain thread, for the caller to
+        # abort and join.
         def close
           @lock.synchronize do
             @error = ClientClosedError.new("connection to #{@address} closed")
@@ -72,7 +96,7 @@ module Tarantool
               @state = :closed
               @changed.broadcast
             end
-            [@reconnector, @attempt]
+            [@reconnector, @attempt, @drainer]
           end
         end
 

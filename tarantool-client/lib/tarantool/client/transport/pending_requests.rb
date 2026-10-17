@@ -8,6 +8,7 @@ module Tarantool
       class PendingRequests
         def initialize
           @lock = Mutex.new
+          @emptied = ConditionVariable.new
           @futures = {}
           @last_sync = 0
           @failure = nil
@@ -31,7 +32,32 @@ module Tarantool
         end
 
         def delete(sync)
-          @lock.synchronize { @futures.delete(sync) }
+          @lock.synchronize do
+            future = @futures.delete(sync)
+            @emptied.broadcast if @futures.empty?
+
+            future
+          end
+        end
+
+        def size
+          @lock.synchronize { @futures.size }
+        end
+
+        # True once no request is in flight, false at the deadline.
+        def wait_empty(timeout)
+          deadline = Deadline.after(timeout)
+
+          @lock.synchronize do
+            until @futures.empty?
+              remaining = Deadline.remaining(deadline)
+              return false if remaining&.zero?
+
+              @emptied.wait(@lock, remaining)
+            end
+
+            true
+          end
         end
 
         def failure
@@ -43,6 +69,7 @@ module Tarantool
           first, failure, futures = @lock.synchronize do
             first = @failure.nil?
             @failure ||= error
+            @emptied.broadcast
             [first, @failure, @futures.values.tap { @futures.clear }]
           end
           futures.each { |future| future.reject(failure) }

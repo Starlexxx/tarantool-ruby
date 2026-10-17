@@ -16,8 +16,10 @@ module PoolHelpers
     end
   end
 
+  INTERNAL_THREADS = /\Atarantool-(pool|reconnect|watchers|reader|drain)/
+
   def leftover_threads
-    Thread.list.select { |thread| thread.alive? && thread.name&.match?(/\Atarantool-(pool|reconnect|watchers|reader)/) }
+    Thread.list.select { |thread| thread.alive? && thread.name&.match?(INTERNAL_THREADS) }
   end
 
   def change_role(server, roles, name, read_only)

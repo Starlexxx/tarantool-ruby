@@ -5,16 +5,16 @@ module Tarantool
     module Transport
       # Keeps one instance connected. Owns the current Connection; once it is lost, a background thread
       # opens new ones with backoff while requests wait for one to become ready.
-      # States: connecting -> ready -> reconnecting -> closed.
+      # States: connecting -> ready -> draining | reconnecting -> closed.
       # @api private
       class Link
         include LinkEvents
+        include LinkDraining
 
         attr_writer :event_handler
 
-        # on_connect runs on each new connection before requests can use it and may raise to fail the
-        # attempt; on_ready runs once the connection is current; on_lost runs when a reconnect starts,
-        # before its first attempt.
+        # on_connect runs on each new connection before requests can use it and may raise to fail the attempt;
+        # on_ready runs once the connection is current; on_lost runs when a reconnect starts, before its first attempt.
         def initialize(config, on_connect:, on_ready:, on_lost: nil, backoff: nil, instrumentation: nil)
           @config = config
           @on_connect = on_connect
@@ -52,14 +52,16 @@ module Tarantool
         def greeting = @state.connection.greeting
         def connected? = @state.connected?
 
-        # Closing the attempt first fails a handshake or on_connect blocked on it, so the join is short.
+        # Closing the attempt first fails a handshake or on_connect blocked on it, so the join is short. Closing
+        # the connection wakes the drain thread, so it is joined last.
         def close
-          reconnector, attempt = @state.close
+          reconnector, attempt, drainer = @state.close
           attempt&.close
           begin
             ThreadJoin.join(reconnector)
           ensure
             @state.connection&.close
+            ThreadJoin.join(drainer)
           end
 
           nil
@@ -136,13 +138,6 @@ module Tarantool
           open_connection
         rescue StandardError => e
           e
-        end
-
-        # A failing hook is the caller's bug, not a reason to stop reconnecting or to drop the new connection.
-        def run_hook(name)
-          yield
-        rescue StandardError => e
-          Diagnostics.warn(@config.logger, "#{name} failed for #{@config.address}: #{e.full_message}")
         end
       end
     end
