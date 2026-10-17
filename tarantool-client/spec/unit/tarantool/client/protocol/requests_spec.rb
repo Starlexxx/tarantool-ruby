@@ -29,6 +29,36 @@ RSpec.describe Tarantool::Client::Protocol::Requests do
     expect(encoded(request).last).not_to have_key(0x2f)
   end
 
+  it 'builds SELECT with the position to continue after' do
+    request = described_class::Select.new(
+      space_id: 512, index_id: 1, key: [18], limit: 2, offset: 0, iterator: :ge, after: 'pos'
+    )
+
+    body = encoded(request).last
+
+    expect([body[0x2e], body.key?(0x2f)]).to eq(['pos', false])
+  end
+
+  it 'builds SELECT asking for the position' do
+    request = described_class::Select.new(
+      space_id: 512, index_id: 1, key: [], limit: 2, offset: 0, iterator: :all, fetch_position: true
+    )
+
+    expect(encoded(request).last).to include(0x1f => true)
+  end
+
+  it 'leaves fetch_position out of SELECT by default' do
+    request = described_class::Select.new(space_id: 512, index_id: 0, key: [], limit: 1, offset: 0, iterator: :all)
+
+    expect(encoded(request).last).not_to have_key(0x1f)
+  end
+
+  it 'rejects an after that is neither a tuple nor a position' do
+    expect do
+      described_class::Select.new(space_id: 512, index_id: 0, key: [], limit: 1, offset: 0, iterator: :all, after: 7)
+    end.to raise_error(ArgumentError, /after/)
+  end
+
   it 'rejects unknown SELECT iterators' do
     expect do
       described_class::Select.new(space_id: 512, index_id: 0, key: [], limit: 1, offset: 0, iterator: :sideways)

@@ -17,6 +17,7 @@ module Tarantool
         def sync = header[Constants::SYNC]
         def schema_version = header[Constants::SCHEMA_VERSION]
         def data = body[Constants::DATA]
+        def position = body[Constants::POSITION]
         def error? = type.anybits?(Constants::TYPE_ERROR)
         def push? = type == Constants::CHUNK
         def event? = type == Constants::EVENT

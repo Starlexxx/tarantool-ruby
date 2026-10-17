@@ -4,11 +4,17 @@ module Tarantool
   class Client
     module Protocol
       module Requests
-        # IPROTO_SELECT: index lookup or scan. `after` continues past a tuple (keyset pagination, 2.11+).
+        # IPROTO_SELECT: index lookup or scan. `after` continues past a tuple (Array) or a position (String, from
+        # a response asked with `fetch_position`); keyset pagination, 2.11+.
         # @api private
-        Select = Data.define(:space_id, :index_id, :key, :limit, :offset, :iterator, :after) do
-          def initialize(iterator:, after: nil, **)
+        Select = Data.define(:space_id, :index_id, :key, :limit, :offset, :iterator, :after, :fetch_position) do
+          def self.cursor?(after) = after.nil? || after.is_a?(Array) || after.is_a?(String)
+
+          def initialize(iterator:, after: nil, fetch_position: false, **)
             raise ArgumentError, "unknown iterator: #{iterator.inspect}" unless Constants::ITERATORS.key?(iterator)
+            unless Select.cursor?(after)
+              raise ArgumentError, "after: expected a tuple (Array) or a position (String), got #{after.inspect}"
+            end
 
             super
           end
@@ -22,8 +28,19 @@ module Tarantool
               Constants::LIMIT => limit,
               Constants::OFFSET => offset,
               Constants::ITERATOR => Constants::ITERATORS.fetch(iterator),
-              Constants::KEY => key
-            }.tap { |body| body[Constants::AFTER_TUPLE] = after unless after.nil? }
+              Constants::KEY => key,
+              **pagination
+            }
+          end
+
+          private
+
+          def pagination
+            keys = {}
+            keys[after.is_a?(String) ? Constants::AFTER_POSITION : Constants::AFTER_TUPLE] = after unless after.nil?
+            keys[Constants::FETCH_POSITION] = true if fetch_position
+
+            keys
           end
         end
       end

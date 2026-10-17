@@ -19,10 +19,13 @@ module Tarantool
         lookup_space(space, timeout)
       end
 
+      # `after:` takes a tuple or a position; `fetch_position: true` returns a Page carrying the position instead
+      # of a plain Array.
       def select(space, key = [], index: 0, limit: Protocol::Constants::MAX_LIMIT, offset: 0, iterator: :eq,
-                 after: nil, as: :tuple, timeout: nil)
-        on_space(space, index, as:, timeout:) do |space_id, index_id|
-          Protocol::Requests::Select.new(space_id:, index_id:, key: key_tuple(key), limit:, offset:, iterator:, after:)
+                 after: nil, fetch_position: false, as: :tuple, timeout: nil)
+        on_space(space, index, as:, timeout:, page: fetch_position) do |space_id, index_id|
+          Protocol::Requests::Select.new(space_id:, index_id:, key: key_tuple(key), limit:, offset:, iterator:, after:,
+                                         fetch_position:)
         end
       end
 
@@ -99,7 +102,7 @@ module Tarantool
       private
 
       # A retry after a schema change calls the block again, so the SpaceInfo kept is the one the response came from.
-      def on_space(space, index, as:, timeout:, format: false)
+      def on_space(space, index, as:, timeout:, format: false, page: false)
         TupleShape.check(as)
         space_info = nil
         needs_format = format || as != :tuple
@@ -107,8 +110,9 @@ module Tarantool
           space_info = info
           yield space_id, index_id, info
         end
+        tuples = response.data.map { |tuple| TupleShape.apply(as, tuple, space_info) }
 
-        response.data.map { |tuple| TupleShape.apply(as, tuple, space_info) }
+        page ? Page.new(tuples:, position: response.position) : tuples
       end
 
       def tuple_for(tuple, space_info) = tuple.is_a?(Hash) ? space_info.to_tuple(tuple) : tuple

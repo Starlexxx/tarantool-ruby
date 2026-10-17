@@ -7,6 +7,13 @@ RSpec.describe Tarantool::Client::Protocol::Response do
     expect(response).to have_attributes(sync: 3, schema_version: 12, data: [1], error?: false, push?: false)
   end
 
+  it 'exposes the position of a page and nil without one' do
+    with = described_class.new({ 0x00 => 0, 0x01 => 1 }, { 0x30 => [[1]], 0x35 => 'pos' })
+    without = described_class.new({ 0x00 => 0, 0x01 => 1 }, { 0x30 => [] })
+
+    expect([with.position, without.position]).to eq(['pos', nil])
+  end
+
   it 'decodes an error response with its stack' do
     stack = { 0x00 => [{ 0x00 => 'ClientError', 0x03 => 'Duplicate key', 0x05 => 3 }] }
     response = described_class.new({ 0x00 => 0x8003, 0x01 => 1 }, { 0x31 => 'Duplicate key', 0x52 => stack })

@@ -72,6 +72,16 @@ page = client.select(:users, [18], index: :age, iterator: :ge, limit: 50)
 next_page = client.select(:users, [18], index: :age, iterator: :ge, limit: 50, after: page.last)
 ```
 
+With `fetch_position: true` the server hands back a position instead, so the caller carries an opaque String rather than the last tuple (`IPROTO_FETCH_POSITION`, `IPROTO_POSITION`, `IPROTO_AFTER_POSITION`; 2.11+). `select` then returns a `Client::Page`: `tuples` (converted by `as:` as usual, also reachable through `each`), and `position`, nil once a page comes back empty. A position is tied to the index and iterator of the select that produced it; don't parse it or reuse it with another index. `after:` accepts a position (String) or a tuple (Array).
+
+```ruby
+page = client.select(:users, [18], index: :age, iterator: :ge, limit: 50, fetch_position: true)
+until page.empty?
+  page.each { |user| ... }
+  page = client.select(:users, [18], index: :age, iterator: :ge, limit: 50, fetch_position: true, after: page.position)
+end
+```
+
 `delete_by` deletes every tuple a select finds, including by a non-unique index, which IPROTO `DELETE` can't do. It selects `batch_size` tuples at a time (default 1000), continues past the last one with `after:`, deletes each by primary key, and returns the number deleted. TREE indexes only, like `after:`. Multikey and functional indexes are not supported either: tuple-based `after` raises `ServerError` there, before deleting anything.
 
 ```ruby
@@ -289,7 +299,7 @@ Don't create multikey indexes on these containers: with `memtx_use_mvcc_engine =
 ## Public API
 
 `Tarantool::Client`, `Tarantool::Client::Pool`, `Tarantool::Client::Stream` (yielded by `transaction`),
-`Watcher` (returned by `watch`), `SqlResult`, `PreparedStatement`, `SpaceInfo`, `IndexInfo`, `Row`, `Configuration`
+`Watcher` (returned by `watch`), `SqlResult`, `PreparedStatement`, `SpaceInfo`, `IndexInfo`, `Row`, `Page`, `Configuration`
 (returned by `client.config`), `Tarantool::Client::UUID`, `Interval`, `BoxError`, and the error classes above.
 
 Everything else, including anything tagged `@api private` in its source comment, is an implementation detail

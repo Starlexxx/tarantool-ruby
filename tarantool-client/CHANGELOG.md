@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0 (unreleased)
+
+- `select(fetch_position: true)` returns a `Page` with the server-side position of the last tuple; `after:` takes that position (String) as well as a tuple.
+
 ## 0.2.0 (2026-10-17)
 
 - `as: :hash` and `as: :row` on `select`, `insert`, `replace`, `update` and `delete` return tuples as Hashes by the space format (`Client::Row` keeps the raw tuple too); `SpaceInfo#to_hash` and `#to_tuple` do the conversion.
