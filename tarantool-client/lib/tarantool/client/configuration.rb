@@ -10,10 +10,6 @@ module Tarantool
       :reconnect, :reconnect_attempts, :reconnect_delay, :reconnect_max_delay,
       :max_frame_size, :instrumenter, :logger
     ) do
-      const_set(:UNIX_URI, %r{\Aunix/?:})
-      const_set(:UNIX_PATH, %r{\Aunix/?:(?://(?=/))?(.+)\z})
-      const_set(:EMPTY_PATH, %r{\A/*\z})
-
       def self.build(uri = nil, **options)
         new(**defaults, **parse_uri(uri), **options)
       end
@@ -87,6 +83,12 @@ module Tarantool
         klass = value.is_a?(Module) ? value : value.class
         klass.name ? "#<#{klass.name}>" : klass.inspect
       end
+    end
+
+    class Configuration
+      UNIX_URI = %r{\Aunix/?:}
+      UNIX_PATH = %r{\Aunix/?:(?://(?=/))?(.+)\z}
+      EMPTY_PATH = %r{\A/*\z}
     end
   end
 end
