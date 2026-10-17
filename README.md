@@ -4,7 +4,8 @@ Ruby gems for working with [Tarantool](https://www.tarantool.io) 2.11+ and 3.x. 
 low-level IPROTO client; `tarantool-crud` wraps the tarantool/crud module for sharded vshard clusters;
 `tarantool-model` adds ActiveModel-based models with validations, callbacks, and keyset pagination on top
 of either storage backend. `tarantool-schema` declares spaces and indexes idempotently on deploy.
-`tarantool-rails` wires all of them into a Rails application.
+`tarantool-rails` wires all of them into a Rails application; `tarantool-opentelemetry` turns the client's
+events into OpenTelemetry spans.
 
 ## Requirements
 
@@ -18,6 +19,7 @@ gem install tarantool-crud   # sharded clusters via tarantool/crud
 gem install tarantool-model  # ActiveModel models
 gem install tarantool-schema # idempotent schema declaration
 gem install tarantool-rails  # Rails integration
+gem install tarantool-opentelemetry  # spans for the client's events
 ```
 
 Or in your Gemfile:
@@ -28,6 +30,7 @@ gem 'tarantool-crud'
 gem 'tarantool-model'
 gem 'tarantool-schema'
 gem 'tarantool-rails'
+gem 'tarantool-opentelemetry'
 ```
 
 ## Gems
@@ -39,6 +42,7 @@ gem 'tarantool-rails'
 | [tarantool-model](tarantool-model) | ActiveModel-based models over Tarantool spaces |
 | [tarantool-schema](tarantool-schema) | Idempotent schema declaration for deploys |
 | [tarantool-rails](tarantool-rails) | Railtie: config/tarantool.yml, log lines, schema tasks, generators |
+| [tarantool-opentelemetry](tarantool-opentelemetry) | OpenTelemetry spans from the client's instrumenter |
 
 ## Errors
 

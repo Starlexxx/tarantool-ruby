@@ -8,6 +8,7 @@ on:
       - 'tarantool-model-v*'
       - 'tarantool-schema-v*'
       - 'tarantool-rails-v*'
+      - 'tarantool-opentelemetry-v*'
 
 jobs:
   prepare:

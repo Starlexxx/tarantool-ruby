@@ -7,6 +7,9 @@ gemspec path: 'tarantool-crud'
 gemspec path: 'tarantool-model'
 gemspec path: 'tarantool-schema'
 gemspec path: 'tarantool-rails'
+gemspec path: 'tarantool-opentelemetry'
+
+gem 'opentelemetry-sdk', '~> 1.0', require: false
 
 gem 'rake', '~> 13.0'
 gem 'rspec', '~> 3.13'
