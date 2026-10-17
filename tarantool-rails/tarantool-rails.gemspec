@@ -22,7 +22,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency 'railties', '>= 7.1', '< 9'
   spec.add_dependency 'tarantool-client', '~> 0.2'
   spec.add_dependency 'tarantool-model', '~> 0.3'
-  spec.add_dependency 'tarantool-schema', '~> 0.1'
+  spec.add_dependency 'tarantool-schema', '~> 0.2'
 
   spec.metadata['source_code_uri'] = 'https://github.com/Starlexxx/tarantool-ruby/tree/master/tarantool-rails'
   spec.metadata['changelog_uri'] = 'https://github.com/Starlexxx/tarantool-ruby/blob/master/tarantool-rails/CHANGELOG.md'
