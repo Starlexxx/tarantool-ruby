@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 # Task arguments are one String: rails "tarantool:schema:apply[add_field]", "tarantool:schema:dump[users,codes]".
-def tarantool_schema_names(argument) = argument.to_s.split(/[\s,]+/).reject(&:empty?)
+TARANTOOL_SCHEMA_NAME_SEPARATOR = /[\s,]+/
+
+def tarantool_schema_names(argument) = argument.to_s.split(TARANTOOL_SCHEMA_NAME_SEPARATOR).reject(&:empty?)
 
 def tarantool_schema_dump(path, only)
   abort "#{path} exists; set FORCE=1 to overwrite" if File.exist?(path) && ENV['FORCE'].to_s.empty?
