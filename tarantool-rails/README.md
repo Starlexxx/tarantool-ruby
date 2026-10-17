@@ -101,7 +101,7 @@ Completed 200 OK in 4ms (Views: 1.9ms | Tarantool: 0.5ms)
 Request lines are debug, colored like ActiveRecord's when `colorize_logging` is on. Keys, tuples and
 arguments never appear: the client does not put them in the event payload. A failed request shows the error
 class and code, not the message. Lifecycle events are logged too: `disconnect` at warn, `reconnect_failed` at
-error, `reconnect`, `fork` and `role_change` at info.
+error, `reconnect`, `fork`, `role_change` and `shutdown` at info.
 
 ## Schema
 

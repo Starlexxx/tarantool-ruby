@@ -122,6 +122,12 @@ RSpec.describe Tarantool::Rails::LogSubscriber do
 
       expect(io.string).to eq("INFO Tarantool db1:3301 is now read-only\nINFO Tarantool db1:3301 is now writable\n")
     end
+
+    it 'reports a shutdown' do
+      line = emit(:shutdown, { address: 'db1:3301', pending: 2 })
+
+      expect(line).to eq("INFO Tarantool db1:3301 is shutting down, 2 requests in flight\n")
+    end
   end
 
   describe '.runtime' do
