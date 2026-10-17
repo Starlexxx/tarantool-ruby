@@ -114,9 +114,17 @@ in the message. Only a request that gets no answer within the transport timeout 
 ## Development
 
 ```sh
-podman compose -f tarantool-crud/docker-compose.yml up -d --wait --build
+podman compose -f tarantool-crud/docker-compose.yml up -d --wait
 cd tarantool-crud
 INTEGRATION=1 TARANTOOL_CRUD_URI=tcp://app:secret@localhost:3311 bundle exec rspec
+```
+
+Compose pulls `ghcr.io/starlexxx/tarantool-crud:2.11` and `:3` (Tarantool with vshard and crud from
+`docker/Dockerfile`), built by the `Images` workflow whenever `docker/` changes. If the pull is denied, log in
+with `podman login ghcr.io` and a token that has `read:packages`. To try a Dockerfile change locally:
+
+```sh
+docker build -t ghcr.io/starlexxx/tarantool-crud:3 --build-arg TARANTOOL_VERSION=3 tarantool-crud/docker
 ```
 
 ## Public API

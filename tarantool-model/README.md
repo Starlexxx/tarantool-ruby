@@ -357,10 +357,11 @@ INTEGRATION=1 TARANTOOL_MODEL_URI=tcp://app:secret@localhost:3322 bundle exec rs
 The `app` user needs `read,write` on universe. Specs truncate spaces through `client.eval`, which requires
 `execute` on universe as well; grant `read,write,execute` if truncation is denied.
 
-For `Storage::Crud` specs, start the crud services (requires the `tarantool-crud` docker image):
+For `Storage::Crud` specs, start the crud services; compose pulls `ghcr.io/starlexxx/tarantool-crud` (see the
+tarantool-crud README for the image):
 
 ```sh
-podman compose -f tarantool-model/docker-compose.yml up -d --wait --build crud-2.11 crud-3
+podman compose -f tarantool-model/docker-compose.yml up -d --wait crud-2.11 crud-3
 
 TARANTOOL_MODEL_CRUD_URI=tcp://app:secret@localhost:3331 bundle exec rspec --tag crud  # 2.11
 TARANTOOL_MODEL_CRUD_URI=tcp://app:secret@localhost:3332 bundle exec rspec --tag crud  # 3.x
