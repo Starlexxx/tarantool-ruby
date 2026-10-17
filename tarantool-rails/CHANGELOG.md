@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 (unreleased)
+
+- `tarantool:schema:dump` writes the live schema to `config/tarantool_schema.rb` (`FORCE=1` to overwrite,
+  `dump[users,codes]` to limit the spaces).
+- `plan`, `apply` and `check` take `alter` names as a task argument: `"tarantool:schema:apply[add_field]"`.
+- Depends on `tarantool-schema ~> 0.2`.
+
 ## 0.1.0 (2026-10-17)
 
 First release.
