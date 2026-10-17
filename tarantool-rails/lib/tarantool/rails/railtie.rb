@@ -10,6 +10,7 @@ module Tarantool
       # A missing config/tarantool.yml is not an error at boot: the install generator has to be able to run.
       initializer 'tarantool.configuration' do |app|
         Tarantool::Rails.schema_path = app.config.tarantool.schema_path || app.root.join('config/tarantool_schema.rb')
+        Tarantool::Rails.instrumenter = app.config.tarantool.instrumenter
         next unless app.root.join('config/tarantool.yml').exist?
 
         section = app.config_for(:tarantool)

@@ -39,6 +39,16 @@ RSpec.describe Tarantool::Rails do
 
       expect { described_class.pool }.to raise_error(Tarantool::Rails::Error, /config/)
     end
+
+    it 'passes a configured instrumenter instead of the Rails one' do
+      instrumenter = Object.new
+      described_class.instrumenter = instrumenter
+      described_class.pool
+
+      expect(Tarantool::Client::Pool).to have_received(:new).with(anything, hash_including(instrumenter:))
+    ensure
+      described_class.instrumenter = nil
+    end
   end
 
   describe '.storage' do
