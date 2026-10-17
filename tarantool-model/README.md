@@ -22,19 +22,14 @@ require 'tarantool/model'
 ```ruby
 pool = Tarantool::Client::Pool.new(['tcp://app:secret@db1:3301', 'tcp://app:secret@db2:3301'])
 
-module ApplicationModel
-  def self.included(base)
-    base.include Tarantool::Model
-    base.storage = Tarantool::Model::Storage::Box.new(
-      pool,
-      read:  { mode: :prefer_ro },
-      write: { mode: :rw }
-    )
-  end
-end
+Tarantool::Model.default_storage = Tarantool::Model::Storage::Box.new(
+  pool,
+  read:  { mode: :prefer_ro },
+  write: { mode: :rw }
+)
 
 class User
-  include ApplicationModel
+  include Tarantool::Model
 
   attribute :id,    :integer
   attribute :email, :string
@@ -43,6 +38,10 @@ class User
   validates :email, presence: true
 end
 ```
+
+`Tarantool::Model.default_storage` serves every model that sets no `storage` of its own; `User.storage = ...`
+overrides it per model. A Proc assigned to it (`Tarantool::Model.default_storage = -> { build_storage }`) is
+called once, on first use, so the connection is opened only when a model needs it.
 
 `Storage::Box` passes its `read:`/`write:` options verbatim to the client's read and write requests. The `Pool`
 routing `mode:` (symbols like `:prefer_ro`, `:rw`; requires a `Pool` as transport) is one example; `timeout:` works
@@ -118,6 +117,33 @@ user.decrement!(:age)
 
 Counters skip validations and callbacks. Only the counter attribute and the raw tuple are refreshed from the
 response; other unsaved changes on the record survive. Raises `RecordNotFound` if the row is gone.
+
+### Optimistic locking
+
+```ruby
+class Account
+  include Tarantool::Model
+
+  attribute :id,           :integer
+  attribute :balance,      :decimal
+  attribute :lock_version, :integer, default: 0
+end
+
+Account.locking_column            # => :lock_version
+Account.locking_column = :version # another attribute, or nil to disable
+```
+
+Locking is on when `locking_column` names a declared attribute; the space needs that field. A nil version is
+stored as 0 on create. On update, the row is read again and its version compared with the record's (a value
+assigned by hand, for example from a form field, counts); a different version raises `StaleObjectError`, and so
+does a row changed underneath on destroy. The update sends the changed attributes plus the version incremented
+by one, and the record picks the new version up. Only the version changed sends nothing.
+
+On `Storage::Box` the check and the update run in one transaction (MVCC must be on, as for `transaction`), so a
+concurrent commit on the same row between them surfaces as `StaleObjectError` too. Inside `Model.transaction` no
+second transaction is opened; the check joins the open one. `Storage::Crud` has no transactions: the check runs
+unguarded, and a write between the read and the update goes unnoticed. Counters (`increment!`, `decrement!`)
+bypass locking and leave the version alone.
 
 ## Querying
 
@@ -259,6 +285,7 @@ A tarantool-schema definition can be passed as is: `MemoryStorage.from_definitio
 | unknown space | `Tarantool::SchemaError` | `Tarantool::Crud::<Operation>Error` |
 | `count` | `NotSupportedError` | counts |
 | `transaction` | rolls back when the block raises | `NotSupportedError` |
+| `supports_transactions?` | `true` | `false` |
 | single-row results | with a tuple | `tuple` is nil |
 
 `verify` (the schema check `Storage::Box` runs on first use) does nothing in `:crud` mode. A nil primary key gets
@@ -288,12 +315,14 @@ Not modelled:
 `to_param` joins a composite key with `-` (e.g. `"7-1"`) for route helpers. `as_json` works through
 `ActiveModel::Serializers::JSON`. `form_with` works with any persisted model.
 
-There is no Railtie. Configure storage in an initializer:
+`tarantool-rails` configures the storage from `config/tarantool.yml`. Without it, set
+`Tarantool::Model.default_storage` in an initializer:
 
 ```ruby
 # config/initializers/tarantool.rb
 pool = Tarantool::Client::Pool.new(Rails.application.config.tarantool_uris)
-User.storage = Tarantool::Model::Storage::Box.new(pool, read: { mode: :prefer_ro }, write: { mode: :rw })
+Tarantool::Model.default_storage =
+  Tarantool::Model::Storage::Box.new(pool, read: { mode: :prefer_ro }, write: { mode: :rw })
 ```
 
 ## Errors
@@ -307,6 +336,7 @@ Tarantool::Model::Error
 ├── RecordInvalid             # #record
 ├── RecordNotSaved            # #record; a before callback aborted
 ├── RecordNotUnique           # duplicate primary or unique secondary key
+├── StaleObjectError          # #record, #attempted_action; the row's version changed since the record was loaded
 ├── SchemaMismatchError       # attribute or primary key does not match the space format
 ├── NotSupportedError         # operation not available for this storage (e.g. count on Storage::Box)
 └── TransactionMismatchError  # write through a storage that has no open transaction in the current fiber
