@@ -23,10 +23,10 @@ module Tarantool
       def fields = format.to_h { |field| [field.name, field] }
     end
 
-    LiveSpace::Index = Data.define(:id, :name, :type, :unique, :parts, :sequence) do
+    LiveSpace::Index = Data.define(:id, :name, :type, :unique, :parts, :sequence, :func) do
       def self.from_eval(raw, format)
         new(id: raw.fetch('id'), name: raw.fetch('name').to_sym, type: raw.fetch('type').downcase,
-            unique: raw.fetch('unique'), sequence: raw.fetch('sequence'),
+            unique: raw.fetch('unique'), sequence: raw.fetch('sequence'), func: raw.fetch('func', false),
             parts: Array(raw['parts']).map { |part| part_from_eval(part, format) })
       end
 

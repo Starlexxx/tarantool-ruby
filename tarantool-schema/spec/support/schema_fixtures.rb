@@ -20,9 +20,9 @@ module SchemaFixtures
     }
   end
 
-  def live_index(id, name, parts, type: 'TREE', unique: true, sequence: false)
+  def live_index(id, name, parts, type: 'TREE', unique: true, sequence: false, func: false)
     {
-      'id' => id, 'name' => name, 'type' => type, 'unique' => unique, 'sequence' => sequence,
+      'id' => id, 'name' => name, 'type' => type, 'unique' => unique, 'sequence' => sequence, 'func' => func,
       'parts' => parts.map do |fieldno, part_type, nullable = false|
         { 'fieldno' => fieldno, 'type' => part_type, 'is_nullable' => nullable }
       end
