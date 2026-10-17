@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 (2026-10-17)
+
+- Depends on `tarantool-client ~> 0.3`.
+
 ## 0.2.0 (2026-10-17)
 
 - `Definition.from_live(client, only:)`: the live user spaces as a definition, for bootstrapping an existing
