@@ -5,7 +5,7 @@
 # outside the signature on purpose, to assert the ArgumentError; rbs/test would reject it first.
 GEMS = %w[tarantool-client tarantool-crud tarantool-schema tarantool-model tarantool-opentelemetry
           tarantool-rails].freeze
-STDLIB = %w[bigdecimal logger].freeze
+STDLIB = %w[bigdecimal logger pathname].freeze
 TARGETS = {
   'tarantool-client' => %w[Tarantool::Client Tarantool::Client::Pool Tarantool::Client::Stream
                            Tarantool::Client::Watcher Tarantool::Client::SqlResult Tarantool::Client::PreparedStatement
@@ -34,7 +34,8 @@ task :rbs do
   sh "bundle exec rbs #{sig_options} validate"
   GEMS.each do |gem|
     env = {
-      'RUBYOPT' => '-rbundler/setup -rrbs/test/setup', 'RBS_TEST_OPT' => sig_options, 'RBS_TEST_TARGET' => TARGETS.fetch(gem).join(','),
+      'RUBYOPT' => '-rbundler/setup -rrbs/test/setup', 'RBS_TEST_OPT' => sig_options,
+      'RBS_TEST_TARGET' => TARGETS.fetch(gem).join(','), 'RBS_TEST_DOUBLE_SUITE' => 'rspec',
       'RBS_TEST_RAISE' => 'true', 'RBS_TEST_LOGLEVEL' => 'error'
     }
     sh(env, 'bundle exec rspec --tag ~rbs_untestable', chdir: gem)

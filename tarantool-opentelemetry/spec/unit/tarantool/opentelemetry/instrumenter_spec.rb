@@ -73,7 +73,7 @@ RSpec.describe Tarantool::OpenTelemetry::Instrumenter do
       expect(span.attributes).to include('db.statement' => 'SELECT 1')
     end
 
-    it 'rejects any other value' do
+    it 'rejects any other value', :rbs_untestable do
       expect { described_class.new(db_statement: :obfuscate) }
         .to raise_error(ArgumentError, 'db_statement must be :omit or :include, got :obfuscate')
     end

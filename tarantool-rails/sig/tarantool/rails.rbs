@@ -1,0 +1,59 @@
+module Tarantool
+  # Rails integration: configuration from config/tarantool.yml, one Pool per process, models on it, log lines,
+  # schema rake tasks and generators.
+  module Rails
+    VERSION: String
+
+    def self.config: () -> Configuration?
+    def self.config=: (Configuration? config) -> void
+    def self.schema_path: () -> (String | Pathname)?
+    def self.schema_path=: ((String | Pathname)? path) -> void
+    # Loaded from schema_path on first use; the file assigns it.
+    def self.schema: () -> Tarantool::Schema::Definition
+    def self.schema=: (Tarantool::Schema::Definition? schema) -> void
+    # ActiveSupport::Notifications unless configured.
+    def self.instrumenter: () -> Tarantool::Client::_Instrumenter
+    def self.instrumenter=: (Tarantool::Client::_Instrumenter? instrumenter) -> void
+    def self.pool: () -> Tarantool::Client::Pool
+    def self.storage: () -> (Tarantool::Model::Storage::Box | Tarantool::Model::Storage::Crud)
+    def self.admin_client: [T] () { (Tarantool::Client client) -> T } -> T
+    def self.use_default_storage!: () -> void
+    def self.disconnect!: () -> void
+
+    class Error < Tarantool::Error
+    end
+
+    # One environment section of config/tarantool.yml; inspect and to_s hide the password.
+    class Configuration < Data
+      attr_reader addresses: Array[String]
+      attr_reader client_options: Hash[Symbol, untyped]
+      attr_reader storage: :box | :crud
+      attr_reader read: Hash[Symbol, untyped]
+      attr_reader write: Hash[Symbol, untyped]
+      attr_reader crud: Hash[Symbol, untyped]
+      attr_reader admin_uri: String?
+
+      # The Hash config_for returns (an ActiveSupport::OrderedOptions is a Hash); unknown keys raise ArgumentError.
+      def self.from_hash: (Hash[Symbol | String, untyped] hash) -> Configuration
+      def inspect: () -> String
+      def to_s: () -> String
+    end
+
+    # ActiveRecord-style log lines for the client's events (an ActiveSupport::LogSubscriber); the time spent in
+    # requests is accumulated per thread for the controller log.
+    class LogSubscriber
+      def self.runtime: () -> Float
+      def self.runtime=: (Float value) -> void
+      def self.reset_runtime: () -> Float
+
+      # Each takes an ActiveSupport::Notifications::Event.
+      def request: (untyped event) -> void
+      def disconnect: (untyped event) -> void
+      def reconnect: (untyped event) -> void
+      def reconnect_failed: (untyped event) -> void
+      def fork: (untyped event) -> void
+      def role_change: (untyped event) -> void
+      def shutdown: (untyped event) -> void
+    end
+  end
+end
