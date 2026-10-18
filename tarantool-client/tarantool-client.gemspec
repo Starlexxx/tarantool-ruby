@@ -17,7 +17,7 @@ Gem::Specification.new do |spec|
   spec.files = Dir.chdir(__dir__) { Dir['lib/**/*.rb', 'sig/**/*.rbs', 'LICENSE', 'README.md', 'CHANGELOG.md'] }
   spec.require_paths = ['lib']
 
-  spec.add_dependency 'bigdecimal', '~> 3.1'
+  spec.add_dependency 'bigdecimal', '>= 3.1', '< 5'
   spec.add_dependency 'msgpack', '~> 1.7'
 
   spec.metadata['source_code_uri'] = 'https://github.com/Starlexxx/tarantool-ruby/tree/master/tarantool-client'
