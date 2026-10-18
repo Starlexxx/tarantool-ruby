@@ -10,6 +10,7 @@ require_relative 'rails/errors'
 require_relative 'rails/configuration'
 require_relative 'rails/log_subscriber'
 require_relative 'rails/controller_runtime'
+require_relative 'rails/schema_tasks'
 require_relative 'rails/railtie' if defined?(Rails::Railtie)
 
 module Tarantool

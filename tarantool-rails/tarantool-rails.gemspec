@@ -20,7 +20,7 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
 
   spec.add_dependency 'railties', '>= 7.1', '< 9'
-  spec.add_dependency 'tarantool-client', '~> 0.2'
+  spec.add_dependency 'tarantool-client', '~> 0.3'
   spec.add_dependency 'tarantool-model', '~> 0.3'
   spec.add_dependency 'tarantool-schema', '~> 0.2'
 

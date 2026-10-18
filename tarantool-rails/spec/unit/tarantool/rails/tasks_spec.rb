@@ -27,6 +27,11 @@ RSpec.describe 'tarantool:schema tasks', type: :task do
     expect(prerequisites).to all(eq(['environment']))
   end
 
+  it 'keeps its helpers out of Object' do
+    expect(Object.private_method_defined?(:tarantool_schema_names)).to be(false)
+    expect(Object.const_defined?(:TARANTOOL_SCHEMA_NAME_SEPARATOR)).to be(false)
+  end
+
   it 'plan prints what apply would create' do
     expect { run(:plan) }.to output("space rails_notes\nindex rails_notes.primary\n").to_stdout
     expect(definition).to have_received(:plan).with(client, alter: [])
