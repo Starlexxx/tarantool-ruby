@@ -365,6 +365,22 @@ RSpec.describe Tarantool::Client::Transport::Link do
       end
     end
 
+    context 'when the process is exiting' do
+      let(:instrumenter) { RecordingInstrumenter.new }
+      let(:options) { { instrumenter: } }
+
+      before { allow(Thread.main).to receive(:alive?).and_return(false) }
+
+      it 'neither reconnects nor reports the loss' do
+        drop_connection
+        sleep 0.05
+
+        expect(alive_threads('tarantool-reconnect')).to be_empty
+        expect(instrumenter.events).to be_empty
+        expect(link.connected?).to be(false)
+      end
+    end
+
     context 'with an instrumenter and reconnect off' do
       let(:instrumenter) { RecordingInstrumenter.new }
       let(:options) { { instrumenter:, reconnect: false } }
@@ -379,14 +395,32 @@ RSpec.describe Tarantool::Client::Transport::Link do
   end
 
   describe 'process exit without close' do
+    def run_script(server, script)
+      lib = File.expand_path('../../../../../lib', __dir__)
+      requires = "require 'tarantool/client'; require 'logger'; "
+
+      source = "#{requires}#{script.sub('URI', "'unix:#{server.path}'")}; sleep 0.05"
+
+      Open3.capture3(RbConfig.ruby, '-I', lib, '-e', source)
+    end
+
     it 'prints nothing to stderr when a connected client is not closed before exit' do
       srv = FakeTarantool.new { |request, fake| fake.reply(request, []) }
-      lib = File.expand_path('../../../../../lib', __dir__)
-      script = "require 'tarantool/client'; Tarantool::Client.new('unix:#{srv.path}'); sleep 0.05"
 
-      _out, stderr, _status = Open3.capture3(RbConfig.ruby, '-I', lib, '-e', script)
+      _out, stderr, _status = run_script(srv, 'Tarantool::Client.new(URI)')
 
       expect(stderr).to be_empty
+    ensure
+      srv&.stop
+    end
+
+    it 'logs no reconnect failure when the reader thread is killed at exit' do
+      srv = FakeTarantool.new { |request, fake| fake.reply(request, []) }
+
+      _out, stderr, _status = run_script(srv, 'Tarantool::Client.new(URI, logger: Logger.new($stderr)).ping')
+
+      expect(stderr).to include('ping')
+      expect(stderr).not_to include('gave up')
     ensure
       srv&.stop
     end

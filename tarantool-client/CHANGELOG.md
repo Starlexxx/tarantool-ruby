@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2 (2026-10-18)
+
+- A client left open at process exit no longer reports `reconnect_failed.tarantool` ("can't alloc thread") when
+  Ruby kills its reader thread: an error line per Puma worker restart with the Rails log subscriber.
+
 ## 0.3.1 (2026-10-18)
 
 - Allows `bigdecimal` 4.x, the version Ruby 4 ships with.

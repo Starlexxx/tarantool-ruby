@@ -97,7 +97,9 @@ module Tarantool
           lost(connection) if connection.closed?
         end
 
+        # At process exit Ruby kills the reader thread before the link is closed: nothing to reconnect with.
         def lost(connection)
+          return unless Thread.main.alive?
           return report_lost(connection) unless @config.reconnect
 
           @state.start_reconnect(connection) do |previous|
