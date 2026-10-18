@@ -5,6 +5,15 @@ RSpec.describe Tarantool::Schema::Definition, :integration do
     let(:uri) { ENV.fetch('TARANTOOL_URI', 'tcp://app:secret@localhost:3301') }
     let(:admin) { Tarantool::Client.new(uri) }
 
+    let(:definition) do
+      declared = codes_declaration
+
+      described_class.new do
+        ensure_space(:schema_codes, **declared)
+        grant(:schema_app, :read, on: :schema_codes)
+      end
+    end
+
     # Universe privileges can be granted only by admin on 2.11, hence box.session.su. 3.x moved eval to lua_eval.
     let(:grant_lua) do
       <<~LUA
@@ -14,7 +23,9 @@ RSpec.describe Tarantool::Schema::Definition, :integration do
         if tonumber(_TARANTOOL:match('^(%d+)')) >= 3 then grant('execute', 'lua_eval') else grant('execute', 'universe') end
         grant('create', 'space')
         grant('create', 'sequence')
-        for _, name in ipairs({'_space', '_index', '_sequence', '_space_sequence'}) do grant('read,write', 'space', name) end
+        for _, name in ipairs({'_space', '_index', '_sequence', '_space_sequence', '_priv'}) do grant('read,write', 'space', name) end
+        grant('read', 'space', '_user')
+        box.schema.user.create('schema_app', {password = 'x'})
       LUA
     end
 
@@ -23,6 +34,7 @@ RSpec.describe Tarantool::Schema::Definition, :integration do
         if box.space.schema_codes then box.space.schema_codes:drop() end
         if box.sequence.schema_codes_seq then box.sequence.schema_codes_seq:drop() end
         if box.schema.user.exists('schema_deployer') then box.schema.user.drop('schema_deployer') end
+        if box.schema.user.exists('schema_app') then box.schema.user.drop('schema_app') end
       LUA
     end
 
@@ -37,11 +49,12 @@ RSpec.describe Tarantool::Schema::Definition, :integration do
       admin.close
     end
 
-    it 'creates a space with a sequence' do
+    it 'creates a space with a sequence and grants on it' do
       deployer = Tarantool::Client.new(uri.sub('app:secret', 'schema_deployer:schema_pw'))
 
-      expect(codes_definition(:schema_codes).apply(deployer))
-        .to eq(['space schema_codes', 'index schema_codes.primary', 'index schema_codes.by_code'])
+      expect(definition.apply(deployer)).to eq(['space schema_codes', 'index schema_codes.primary',
+                                                'index schema_codes.by_code', 'grant schema_app read on schema_codes'])
+      expect(definition.plan(deployer)).to eq([])
     ensure
       deployer&.close
     end

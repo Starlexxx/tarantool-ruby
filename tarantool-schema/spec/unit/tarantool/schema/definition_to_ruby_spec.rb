@@ -24,6 +24,8 @@ RSpec.describe Tarantool::Schema::Definition do
                               indexes: [{ name: :primary, parts: [:id] }]
         ensure_index :owned, :by_name, parts: [:name], unique: false
         ensure_index :owned, :by_path, parts: [{ field: :meta, type: :string, path: 'x', is_nullable: true }]
+        grant :app, %i[read write], on: :codes
+        grant :reporting, :read, on: :owned
       end
     end
 
@@ -34,7 +36,10 @@ RSpec.describe Tarantool::Schema::Definition do
     end
 
     it 'evaluates back to the same declaration' do
-      expect(eval(definition.to_ruby).to_h).to eq(definition.to_h) # rubocop:disable Security/Eval
+      evaluated = eval(definition.to_ruby) # rubocop:disable Security/Eval
+
+      expect(evaluated.to_h).to eq(definition.to_h)
+      expect(evaluated.grants).to eq(definition.grants)
     end
 
     it 'quotes names that are not identifiers' do
@@ -59,7 +64,10 @@ RSpec.describe Tarantool::Schema::Definition do
       end
 
       expect(definition.to_ruby.lines.map(&:size).max).to be <= 121
-      expect(eval(definition.to_ruby).to_h).to eq(definition.to_h) # rubocop:disable Security/Eval
+      evaluated = eval(definition.to_ruby) # rubocop:disable Security/Eval
+
+      expect(evaluated.to_h).to eq(definition.to_h)
+      expect(evaluated.grants).to eq(definition.grants)
     end
   end
 end

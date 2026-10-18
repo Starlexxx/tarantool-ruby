@@ -21,6 +21,12 @@ module Tarantool
         box.space[name]:format(format)
       LUA
 
+      GRANT_LUA = <<~LUA
+        local grantee, privileges, space = ...
+        local grant = box.schema.user.exists(grantee) and box.schema.user.grant or box.schema.role.grant
+        grant(grantee, privileges, 'space', space, {if_not_exists = true})
+      LUA
+
       Space = Data.define(:spec) do
         def apply(client)
           client.eval(SPACE_LUA, [spec.name.to_s, spec.to_lua.merge('if_not_exists' => true)])
@@ -44,6 +50,15 @@ module Tarantool
         end
 
         def to_s = "index #{space}.#{spec.name}"
+      end
+
+      # Only the privileges still missing go out; an overlap with what is already granted is not an error.
+      Grant = Data.define(:spec) do
+        def apply(client)
+          client.eval(GRANT_LUA, [spec.user.to_s, spec.privileges.join(','), spec.space.to_s])
+        end
+
+        def to_s = spec.to_s
       end
     end
   end

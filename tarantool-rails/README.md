@@ -126,7 +126,7 @@ end
 | Task | |
 |---|---|
 | `rails tarantool:schema:plan` | prints what `apply` would create; drift raises `MismatchError` with the diff |
-| `rails tarantool:schema:apply` | creates the missing spaces and indexes and prints them; never drops |
+| `rails tarantool:schema:apply` | creates the missing spaces, indexes and grants and prints them; never drops |
 | `rails tarantool:schema:check` | for CI: exits 1 and prints `pending: ...` when anything would be created, 0 when live equals declared |
 | `rails tarantool:schema:dump` | writes the live schema to `config/tarantool_schema.rb` for bootstrapping; refuses to overwrite unless `FORCE=1`; `dump[users,codes]` limits the spaces |
 

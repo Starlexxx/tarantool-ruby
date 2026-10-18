@@ -5,6 +5,7 @@ module Tarantool
     # Ruby source of a definition, from its normalized Hash: a Definition.new block with one ensure_space per
     # space and one ensure_index per index on a space declared elsewhere. Defaults are left out and a part that
     # inherits everything from its field is a bare name, so the result reads like a hand-written declaration.
+    # Grants come last, one line each.
     # @api private
     module Source
       WIDTH = 120
@@ -14,11 +15,19 @@ module Tarantool
 
       module_function
 
-      def render(spaces, external)
+      def render(spaces, external, grants = [])
         entries = spaces.map { |name, space| space(name, space) }
         entries += external.map { |name, indexes| indexes(name, indexes) }
+        entries << grants.map { |grant| grant(grant) }.join("\n") if grants.any?
 
         "Tarantool::Schema::Definition.new do\n#{entries.join("\n\n")}#{"\n" if entries.any?}end\n"
+      end
+
+      def grant(grant)
+        privileges = grant[:privileges]
+        literal = privileges.one? ? symbol(privileges.first) : "%i[#{privileges.join(' ')}]"
+
+        "  grant #{symbol(grant[:user])}, #{literal}, on: #{symbol(grant[:space])}"
       end
 
       def space(name, space)
