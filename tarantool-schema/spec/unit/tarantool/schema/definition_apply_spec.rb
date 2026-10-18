@@ -57,6 +57,70 @@ RSpec.describe Tarantool::Schema::Definition do
       expect(client.creations.size).to eq(3)
     end
 
+    context 'with grants' do
+      let(:definition) do
+        declared = codes_declaration
+
+        described_class.new do
+          ensure_space(:codes, **declared)
+          grant(:app, %i[read write], on: :codes)
+          grant(:reporting, :read, on: :owned)
+        end
+      end
+
+      it 'grants after creating the space, only what is missing' do
+        client = FakeClient.new('owned' => codes_live)
+        client.masks['owned'] = { 'reporting' => 1 }
+        client.on_create do |fake|
+          fake.live['codes'] = codes_live
+          fake.masks['codes'] = { 'app' => 3 }
+        end
+
+        expect(definition.plan(client)).to eq(everything + ['grant app read,write on codes'])
+        expect(definition.apply(client)).to eq(everything + ['grant app read,write on codes'])
+        expect(client.creations.last).to eq([creation::GRANT_LUA, ['app', 'read,write', 'codes']])
+      end
+
+      it 'grants the missing part of a partial grant' do
+        client = FakeClient.new('codes' => codes_live, 'owned' => codes_live)
+        client.masks.merge!('codes' => { 'app' => 1 }, 'owned' => { 'reporting' => 1 })
+
+        expect(definition.plan(client)).to eq(['grant app write on codes'])
+      end
+
+      it 'fails before creating anything when a grantee does not exist' do
+        client = FakeClient.new('owned' => codes_live)
+        client.users = %w[app]
+
+        expect { definition.apply(client) }
+          .to raise_error(Tarantool::Schema::MismatchError, /space owned:\n    grant reporting: no such user or role/)
+        expect(client.creations).to eq([])
+      end
+
+      it 'checks the grantee even when the space is still to be created' do
+        client = FakeClient.new('owned' => codes_live)
+        client.users = %w[reporting]
+
+        expect { definition.apply(client) }
+          .to raise_error(Tarantool::Schema::MismatchError, /space codes:\n    grant app: no such user or role/)
+        expect(client.creations).to eq([])
+      end
+
+      it 'fails for a grant on a space that does not exist and is not declared' do
+        client = FakeClient.new('codes' => codes_live)
+
+        expect { definition.plan(client) }.to raise_error(Tarantool::Schema::MismatchError, /space owned:\n    missing/)
+      end
+
+      it 'fails when a grant is still missing after apply' do
+        client = FakeClient.new('codes' => codes_live, 'owned' => codes_live)
+        client.masks['owned'] = { 'reporting' => 1 }
+
+        expect { definition.apply(client) }
+          .to raise_error(Tarantool::Schema::MismatchError, /space codes:\n    grant app: missing after apply/)
+      end
+    end
+
     context 'with alter: [:add_field]' do
       let(:short) { codes_live.merge('format' => codes_live['format'].take(2)) }
 

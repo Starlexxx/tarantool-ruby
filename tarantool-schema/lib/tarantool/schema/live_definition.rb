@@ -15,6 +15,11 @@ module Tarantool
           indexes: live.indexes.map { |index| index_arguments(name, index, fields) } }
       end
 
+      # Grants whose privileges the DSL does not know (execute on 2.11) are left out.
+      def grants(live)
+        live.masks.to_h { |user, mask| [user.to_sym, Privileges.names(mask)] }.reject { |_, names| names.empty? }
+      end
+
       def index_arguments(space, index, fields)
         raise ArgumentError, "space #{space}: index #{index.name} is functional, not supported" if index.func
 

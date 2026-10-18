@@ -5,4 +5,5 @@ Tarantool::Rails.schema = Tarantool::Schema::Definition.new do
   # ensure_space :users,
   #              format: [{ name: :id, type: :unsigned }, { name: :email, type: :string }],
   #              indexes: [{ name: :primary, parts: [:id], sequence: true }, { name: :email, parts: [:email] }]
+  # grant :app, %i[read write], on: :users
 end

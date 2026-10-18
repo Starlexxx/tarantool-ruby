@@ -26,4 +26,7 @@ Tarantool::Schema::Definition.new do
 
   ensure_index :owned, :by_name, parts: [:name], unique: false
   ensure_index :owned, :by_path, parts: [{ field: :meta, type: :string, is_nullable: true, path: 'x' }]
+
+  grant :app, %i[read write], on: :codes
+  grant :reporting, :read, on: :owned
 end

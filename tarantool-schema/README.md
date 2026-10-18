@@ -1,7 +1,8 @@
 # tarantool-schema
 
-Idempotent schema declaration for Tarantool 2.11+ and 3.x, meant for deploys. You declare spaces, indexes and
-primary key sequences in Ruby; `apply` creates whatever is missing and checks everything that already exists.
+Idempotent schema declaration for Tarantool 2.11+ and 3.x, meant for deploys. You declare spaces, indexes,
+primary key sequences and grants in Ruby; `apply` creates whatever is missing and checks everything that already
+exists.
 If the live schema differs from the declaration, it raises an error with a diff and creates nothing. It alters
 only what you allow (appending nullable fields) and never drops anything: changing a field type or rebuilding an
 index is a migration and is out of scope. An existing database can be read back into the DSL with `from_live`.
@@ -35,6 +36,8 @@ module MyApp
       ]
 
     ensure_index :codes, :by_expiry, parts: [:expires_at], unique: false
+
+    grant :app, %i[read write], on: :codes
   end
 end
 ```
@@ -51,12 +54,14 @@ The block runs with the definition as `self`, then the definition is frozen: cal
 - `ensure_index(space, name, **options)` adds an index to a space declared in the same definition. For a space
   owned by someone else it only adds the index: the space must already exist, and part types come from its
   live format.
+- `grant(user, privileges, on:)` declares the privileges a user or a role must have on a space, see Grants.
 
 ### Validation
 
 These raise `ArgumentError` while the definition is built, before anything reaches the server:
 
-- a space declared twice, or declared after an `ensure_index` for it; a duplicate field or index name;
+- a space declared twice, or declared after an `ensure_index` for it; a duplicate field or index name; the same
+  grantee twice on one space;
 - unknown keys anywhere, including the unsupported options listed below;
 - type aliases or unknown types. Only canonical names are accepted: `any unsigned string integer number double
   boolean decimal uuid datetime interval varbinary scalar array map`. Use `string`, not `str`;
@@ -75,7 +80,9 @@ Declaring any of these raises `ArgumentError`, so nobody assumes they were appli
 - field: `default`, `default_func`, `constraint`, `foreign_key`, `collation`;
 - index: `id`, `hint`, `func`, `dimension`, `distance`, vinyl tuning (`page_size`, `range_size`,
   `run_count_per_level`, `run_size_ratio`, `bloom_fpr`);
-- part: `collation`, `sort_order`, `exclude_null`.
+- part: `collation`, `sort_order`, `exclude_null`;
+- grant: any privilege but `read write usage create drop alter trigger insert update delete` (`execute` on a
+  space exists on 2.11 only).
 
 Options that are set on a live space but that you did not declare are ignored when comparing.
 
@@ -108,7 +115,7 @@ where it left off.
 Comparison is strict about what you declared: engine; format (field count, and for each position the name,
 type and nullability); the primary index name; and for each declared index its type, uniqueness, sequence and
 parts. Indexes in the live space that you did not declare are ignored. Type aliases in a live format (`str`,
-`num`) count as their canonical names.
+`num`) count as their canonical names. Grants are compared as described under Grants.
 
 ```
 schema mismatch:
@@ -141,6 +148,26 @@ Everything else stays a mismatch: a field that is not nullable (`field 4 flag: m
 added`), a live format longer than the declared one, a field differing inside the prefix. Nothing is ever
 dropped.
 
+## Grants
+
+Privileges on spaces belong in the schema: in Tarantool 3.x the YAML configuration grants them only to spaces
+that exist when the configuration is applied, so a space created by a later deploy is left without. A grant
+names a user or a role, the privileges and the space:
+
+```ruby
+grant :app, %i[read write], on: :codes
+grant :reporting, :read, on: :codes
+```
+
+`plan` and `apply` treat a grant like an index: after the space and its indexes they grant what is missing,
+only the privileges still lacking (`grant app write on codes` when `read` is already there). Privileges granted
+but not declared are kept, nothing is ever revoked. A grantee that does not exist is a mismatch (`grant app: no
+such user or role`), raised before anything is created; users and roles are not managed here. A grant on a space
+that is neither declared nor live is a mismatch too (`missing`). Privileges: `read write usage create drop alter
+trigger insert update delete`.
+
+The deploy user needs `read,write` on `_priv` and `read` on `_user` for grants, see Privileges.
+
 ## Bootstrapping from a live schema
 
 ```ruby
@@ -153,14 +180,16 @@ File.write('config/tarantool_schema.rb', definition.to_ruby)
 `from_live` reads the spaces with ids past the system range whose names do not start with `_` (vshard's
 `_bucket` and crud's `_ddl_*` stay out); `only:` names the spaces to read instead, with or without a leading
 underscore, and raises `ArgumentError` for a name that does not exist. Each space is read as `ensure_space`
-would declare it: engine, format, indexes in id order with their parts. A part that inherits its type and
+would declare it: engine, format, indexes in id order with their parts, then the grants on it (a privilege the
+DSL does not know, `execute` on 2.11, is left out). A part that inherits its type and
 nullability from the field is a bare field name; a JSON path part keeps its type. Index options the DSL does not
 know (`hint`, collations, `exclude_null`, vinyl tuning) are not read, as `plan` ignores them anyway. A
 functional index, or a part pointing past the format, raises `ArgumentError` naming the space and index: the
 DSL cannot express them.
 
 `to_ruby` renders a definition as source for a `Tarantool::Schema::Definition.new do ... end` block, defaults
-left out, one space per `ensure_space`, `ensure_index` entries after them; it evaluates back to the same `to_h`:
+left out, one space per `ensure_space`, `ensure_index` entries after them, then one `grant` per line; it
+evaluates back to the same `to_h` and `grants`:
 
 ```ruby
 Tarantool::Schema::Definition.new do
@@ -175,6 +204,8 @@ Tarantool::Schema::Definition.new do
                  { name: :by_code, parts: [:code] },
                  { name: :by_expiry, parts: [:expires_at], unique: false }
                ]
+
+  grant :app, %i[read write], on: :codes
 end
 ```
 
@@ -215,15 +246,17 @@ The deploy user needs these privileges (tested on 2.11 and 3.x):
 | create spaces | `create` on `space` | same |
 | primary key sequences | `create` on `sequence` | same |
 | system spaces | `read,write` on spaces `_space`, `_index`, `_sequence`, `_space_sequence` | same |
+| grants | `read,write` on space `_priv`, `read` on space `_user` | same |
 
 ```lua
 box.schema.user.create('deployer', {password = '...'})
 box.schema.user.grant('deployer', 'execute', 'lua_eval')      -- 2.11: 'execute', 'universe'
 box.schema.user.grant('deployer', 'create', 'space')
 box.schema.user.grant('deployer', 'create', 'sequence')
-for _, name in ipairs({'_space', '_index', '_sequence', '_space_sequence'}) do
+for _, name in ipairs({'_space', '_index', '_sequence', '_space_sequence', '_priv'}) do
   box.schema.user.grant('deployer', 'read,write', 'space', name)
 end
+box.schema.user.grant('deployer', 'read', 'space', '_user')
 ```
 
 On 2.11, only `admin` can grant privileges on `universe`; a `super` user cannot. Adding an index to a space
@@ -237,7 +270,8 @@ in, part types inherited, and `ensure_index` entries merged into their spaces. U
 test double or any other representation of the schema from the same declaration used to deploy it.
 
 Only spaces declared with `ensure_space` are in it: indexes added with `ensure_index` to a space declared
-elsewhere have no spec here and are not included.
+elsewhere have no spec here and are not included. Grants are not in it either; `Definition#grants` lists them
+as `[{ user: :app, privileges: ['read', 'write'], space: :codes }]`.
 
 ```ruby
 MyApp::SCHEMA.to_h
@@ -277,8 +311,8 @@ INTEGRATION=1 TARANTOOL_URI=tcp://app:secret@localhost:3302 bundle exec rspec
 
 ## Public API
 
-`Tarantool::Schema::Definition` (`new`, `from_live`, `ensure_space`, `ensure_index`, `plan`, `apply`, `to_h`,
-`to_ruby`) and the error classes above.
+`Tarantool::Schema::Definition` (`new`, `from_live`, `ensure_space`, `ensure_index`, `grant`, `plan`, `apply`,
+`to_h`, `grants`, `to_ruby`) and the error classes above.
 
 Everything else, including anything tagged `@api private` in its source comment, is an implementation detail
 and may change in any release.

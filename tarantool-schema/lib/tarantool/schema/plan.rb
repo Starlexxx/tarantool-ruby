@@ -5,10 +5,12 @@ module Tarantool
     # The live state of everything a definition declares, compared with it, and what is left to create.
     # @api private
     class Plan
-      def initialize(spaces:, external:, client:, alter: [])
+      def initialize(spaces:, external:, client:, alter: [], grants: {})
         @alter = alter
+        @grants = grants
         @comparisons = spaces.values.map { |space| compare(client, space.name, space.indexes, space) } +
-                       external.map { |name, indexes| compare(client, name, indexes) }
+                       external.map { |name, indexes| compare(client, name, indexes) } +
+                       granted_only(spaces, external).map { |name| compare(client, name, []) }
       end
 
       # complete: anything still missing is a mismatch too, used after apply has created it.
@@ -22,15 +24,19 @@ module Tarantool
         self
       end
 
-      # Per space: the space itself or its format change, then its indexes, so an index on a new field works.
+      # Per space: the space itself or its format change, then its indexes, so an index on a new field works,
+      # then its grants.
       def creations
         @comparisons.flat_map do |comparison|
           space_creation(comparison) +
-            comparison.missing_indexes.map { |index| Creation::Index.new(space: comparison.name, spec: index) }
+            comparison.missing_indexes.map { |index| Creation::Index.new(space: comparison.name, spec: index) } +
+            comparison.missing_grants.map { |grant| Creation::Grant.new(spec: grant) }
         end
       end
 
       private
+
+      def granted_only(spaces, external) = @grants.keys - spaces.keys - external.keys
 
       def space_creation(comparison)
         return [Creation::Space.new(spec: comparison.space)] if comparison.missing_space?
@@ -40,7 +46,11 @@ module Tarantool
       end
 
       def compare(client, name, indexes, space = nil)
-        Comparison.new(name:, indexes:, live: Inspector.call(client, name), space:, alter: @alter)
+        grants = @grants.fetch(name, [])
+        live_grants = GrantInspector.call(client, name, grants.map(&:user)) if grants.any?
+
+        Comparison.new(name:, indexes:, live: Inspector.call(client, name), space:, alter: @alter, grants:,
+                       live_grants:)
       end
 
       def still_missing(comparison)
@@ -48,7 +58,8 @@ module Tarantool
 
         format = comparison.format_additions.empty? ? [] : ['format: fields missing after apply']
 
-        format + comparison.missing_indexes.map { |index| "index #{index.name}: missing after apply" }
+        format + comparison.missing_indexes.map { |index| "index #{index.name}: missing after apply" } +
+          comparison.missing_grants.map { |grant| "grant #{grant.user}: missing after apply" }
       end
     end
   end

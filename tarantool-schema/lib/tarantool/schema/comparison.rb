@@ -4,12 +4,12 @@ module Tarantool
   module Schema
     # Differences between one space as declared and as it is live. For a space declared elsewhere (only its
     # indexes are declared here) there is no spec: engine and format are not compared and index parts inherit
-    # from the live format.
+    # from the live format. Grants are compared only when declared, against what GrantInspector read.
     # @api private
     class Comparison
-      attr_reader :name, :space, :mismatches, :missing_indexes, :format_additions
+      attr_reader :name, :space, :mismatches, :missing_indexes, :format_additions, :missing_grants
 
-      def initialize(name:, indexes:, live:, space: nil, alter: [])
+      def initialize(name:, indexes:, live:, space: nil, alter: [], grants: [], live_grants: nil)
         @name = name
         @space = space
         @live = live
@@ -18,6 +18,7 @@ module Tarantool
         @missing_indexes = []
         @format_additions = []
         live ? compare(indexes) : absent(indexes)
+        compare_grants(grants, live_grants)
       end
 
       def missing_space? = @live.nil? && !@space.nil?
@@ -35,6 +36,13 @@ module Tarantool
       def compare(indexes)
         compare_space if @space
         indexes.each { |index| compare_index(index) }
+      end
+
+      def compare_grants(grants, live_grants)
+        comparison = GrantComparison.new(grants, live_grants)
+        @mismatches.concat(comparison.mismatches)
+
+        @missing_grants = comparison.missing
       end
 
       def compare_space

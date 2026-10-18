@@ -24,6 +24,15 @@ RSpec.describe Tarantool::Schema::Definition do
       expect(described_class.from_live(client, only: [:users]).to_h.keys).to eq([:users])
     end
 
+    it 'reads the grants on each space' do
+      client = FakeClient.new('codes' => codes_live)
+      client.masks['codes'] = { 'app' => 3, 'ops' => 4 }
+
+      expect(described_class.from_live(client).grants)
+        .to eq([{ user: :app, privileges: %w[read write], space: :codes }])
+      expect(described_class.from_live(client).plan(client)).to eq([])
+    end
+
     it 'rejects a named space that does not exist' do
       expect { described_class.from_live(FakeClient.new, only: [:nope]) }
         .to raise_error(ArgumentError, 'space nope: not found')
@@ -103,6 +112,41 @@ RSpec.describe Tarantool::Schema::Definition do
   it 'rejects an index declared twice for a space declared elsewhere' do
     expect { described_class.new { 2.times { ensure_index(:owned, :by_name, parts: [:name]) } } }
       .to raise_error(ArgumentError, 'space owned: duplicate index by_name')
+  end
+
+  describe '#grant' do
+    it 'normalizes grants in declaration order' do
+      declared = declaration
+      definition = described_class.new do
+        ensure_space(:codes, **declared)
+        grant(:reporting, :read, on: :codes)
+        grant('app', %i[write read], on: 'codes')
+      end
+
+      expect(definition.grants).to eq([{ user: :reporting, privileges: %w[read], space: :codes },
+                                       { user: :app, privileges: %w[read write], space: :codes }])
+    end
+
+    it 'rejects the same grantee twice on one space' do
+      expect { described_class.new { 2.times { grant(:app, :read, on: :codes) } } }
+        .to raise_error(ArgumentError, 'grant app on codes is already declared')
+    end
+
+    it 'rejects an unknown privilege' do
+      expect { described_class.new { grant(:app, :execute, on: :codes) } }
+        .to raise_error(ArgumentError, /grant app on codes: unknown privilege :execute/)
+    end
+
+    it 'keeps grants out of to_h' do
+      declared = declaration
+      definition = described_class.new do
+        ensure_space(:codes, **declared)
+        grant(:app, :read, on: :codes)
+      end
+
+      expect(definition.to_h.keys).to eq([:codes])
+      expect(definition.to_h[:codes].keys).to eq(%i[engine format indexes])
+    end
   end
 
   it 'exposes the normalized declaration' do
