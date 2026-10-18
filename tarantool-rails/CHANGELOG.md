@@ -1,10 +1,10 @@
 # Changelog
 
-## 0.3.0 (unreleased)
+## 0.3.0 (2026-10-18)
 
 - `config.tarantool.instrumenter` replaces `ActiveSupport::Notifications` as the pool instrumenter, for chaining
   tarantool-opentelemetry.
-- Depends on `tarantool-client ~> 0.3`, like the other gems.
+- Depends on `tarantool-client ~> 0.3` and `tarantool-schema ~> 0.3`; `tarantool:schema:apply` grants what the schema declares.
 - The schema rake tasks no longer define helper methods and a constant on `Object`.
 
 ## 0.2.0 (2026-10-17)
