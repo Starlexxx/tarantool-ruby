@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1 (2026-10-18)
+
+- Allows `bigdecimal` 4.x, the version Ruby 4 ships with.
+
 ## 0.3.0 (2026-10-17)
 
 - `select(fetch_position: true)` returns a `Page` with the server-side position of the last tuple; `after:` takes that position (String) as well as a tuple.
